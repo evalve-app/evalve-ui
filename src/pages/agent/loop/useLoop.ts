@@ -79,7 +79,7 @@ export type LoopData = {
 };
 
 // Everything the Loop pages need for one loop. A loop is the experiments named
-// `<slug>-round-N`. `lapLimit` caps how many of the newest laps are loaded,
+// `<slug>-round-N` (or `<slug>-iteration-N`, counted from 1). `lapLimit` caps how many of the newest laps are loaded,
 // since every run costs two requests.
 export function useLoop(agentId: string, slug: string, opts: { lapLimit: number }): LoopData {
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });

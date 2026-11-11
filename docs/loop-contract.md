@@ -5,6 +5,7 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 ## What the skill writes
 
 1. **One experiment per round**, named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The dashboard groups experiments into loops by that prefix. The UI calls a round a lap.
+   The dashboard also reads experiments named `<prefix>-iteration-1`, `<prefix>-iteration-2`, and so on. Iterations count from 1, so iteration n is lap n − 1 and iteration 1 is the baseline lap. The `support-desk-demo` agent has a loop with these names. It is not known which tool wrote them.
 2. **Round 0 is the baseline audit**: no override, n trials per case.
 3. **Every later round makes one change**, stored as the experiment's override. Its description starts `Round <n>: <the change>`, then `Hypothesis: …`.
 4. **Round 0's description ends with one line, `Loop settings: {json}`.** It carries the rules from `kitaru-loop.json`: `name`, `criteria`, `allowed_changes`, `allowed_models` and `gate_evaluators`. `settings_line` in the skill's `loop.py` writes it.
