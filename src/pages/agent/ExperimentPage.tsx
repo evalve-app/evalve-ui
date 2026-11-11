@@ -173,10 +173,10 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
   // replay id → case name and session numbers, so the grid can label cases.
   const cases = useMemo(() => {
     const byBaseline = new Map((baseline.data ?? []).map((s) => [s.session.id, s.session]));
-    const m = new Map<string, { name: string; order: number; resultSessionId: string | null }>();
+    const m = new Map<string, CaseRef>();
     for (const r of replays.data ?? []) {
       const b = byBaseline.get(r.baseline_session_id ?? "");
-      m.set(r.id, { name: caseName(b?.name) || `#${b?.number ?? "?"}`, order: b?.number ?? 0, resultSessionId: r.result_session_id ?? null });
+      m.set(r.id, { name: caseName(b?.name) || `#${b?.number ?? "?"}`, order: b?.number ?? 0, recordedSessionId: r.baseline_session_id ?? null, resultSessionId: r.result_session_id ?? null });
     }
     return m;
   }, [replays.data, baseline.data]);
@@ -233,7 +233,21 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
   );
 }
 
-function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map<string, { name: string; order: number }> }) {
+// A case in a run: its name, its recorded session, and the replay's result session.
+type CaseRef = { name: string; order: number; recordedSessionId: string | null; resultSessionId: string | null };
+
+// One cell of the case grid. It opens its session when there is one.
+function GridCell({ passed, sessionId, title }: { passed: boolean; sessionId: string | null; title: string }) {
+  const square = <span className={passed ? "cell pass" : "cell fail"} />;
+  if (!sessionId) return <span className={passed ? "cell pass" : "cell fail"} title={`${title}. No session to open`} />;
+  return (
+    <Link to={`/sessions/${sessionId}`} className="cell-hit" title={title} aria-label={`${title}. Open session`}>
+      {square}
+    </Link>
+  );
+}
+
+function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map<string, CaseRef> }) {
   const { total, resultPassed, baselinePassed } = passCounts(aggregate);
   const delta = total ? Math.round(((resultPassed - baselinePassed) / total) * 100) : 0;
 
@@ -242,6 +256,8 @@ function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map
       id: r.replay_id,
       name: cases.get(r.replay_id)?.name ?? "…",
       order: cases.get(r.replay_id)?.order ?? 0,
+      recordedSessionId: cases.get(r.replay_id)?.recordedSessionId ?? null,
+      resultSessionId: cases.get(r.replay_id)?.resultSessionId ?? null,
       before: !!r.baseline?.passed,
       after: !!r.result?.passed,
     }))
@@ -291,8 +307,8 @@ function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map
             const change = !r.before && r.after ? "fixed" : r.before && !r.after ? "regressed" : "";
             return (
               <div key={r.id} className={`case-col ${change}`} title={`${r.name}: ${r.before ? "Pass" : "Fail"} → ${r.after ? "Pass" : "Fail"}`}>
-                <span className={r.before ? "cell pass" : "cell fail"} />
-                <span className={r.after ? "cell pass" : "cell fail"} />
+                <GridCell passed={r.before} sessionId={r.recordedSessionId} title={`${r.name}, recorded session: ${r.before ? "Pass" : "Fail"}`} />
+                <GridCell passed={r.after} sessionId={r.resultSessionId} title={`${r.name}, this run: ${r.after ? "Pass" : "Fail"}`} />
                 <span className="case-num">{r.name.replace(/^\D+-?/, "") || r.name}</span>
               </div>
             );

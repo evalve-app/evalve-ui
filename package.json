@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "gen:api": "openapi-typescript openapi.json -o src/api/schema.d.ts",
-    "gen:tokens": "node scripts/build-tokens.mjs"
+    "gen:tokens": "node scripts/build-tokens.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tanstack/react-query": "5.105.0",
@@ -26,6 +27,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   }
 }
