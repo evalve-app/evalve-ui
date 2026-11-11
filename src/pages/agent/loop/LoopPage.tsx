@@ -106,7 +106,7 @@ export function LoopPage() {
 
       {!loop.isLoading && loop.totalLaps > 0 && !c ? (
         <Alert variant="warning" title="This loop's rules aren't on the server">
-          Round 0 has no "Loop settings" line, so pass^k, the gate and the status can't be worked out here. The rules are in the project's kitaru-loop.json.
+          The baseline lap has no "Loop settings" line, so pass^k, the gate and the status can't be worked out here. The rules are in the project's kitaru-loop.json.
         </Alert>
       ) : null}
 

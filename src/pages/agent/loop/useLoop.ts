@@ -233,7 +233,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     let outcome: LoopOutcome;
     if (running) outcome = { kind: "running" };
     else if (known && !parseSettings(round0?.description)) outcome = known.outcome;
-    else if (!c || !decision) outcome = { kind: "stopped", why: "Round 0 has no Loop settings line, so the stop rules can't be applied" };
+    else if (!c || !decision) outcome = { kind: "stopped", why: "The baseline lap has no Loop settings line, so the stop rules can't be applied" };
     else if (decision.action === "stop_success")
       outcome = {
         kind: "completed",
