@@ -10,6 +10,7 @@ import { formatPercent } from "../../../lib/format";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
 import { passRate, type Gate } from "../../../lib/loopRules";
 import { CHANGE_FIELD_LABELS, type Criteria } from "../../../lib/loops";
+import { CaseCell, type CellState } from "./CaseCell";
 import { LoopStatus } from "./LoopListTab";
 import { useLoop, type CaseInfo, type Lap } from "./useLoop";
 
@@ -292,7 +293,7 @@ export function Legend({ single = false }: { single?: boolean }) {
   );
 }
 
-function cellState(s: { c: number; n: number } | undefined) {
+function cellState(s: { c: number; n: number } | undefined): CellState {
   if (!s || s.n === 0) return "none";
   if (s.c === s.n) return "pass";
   if (s.c === 0) return "fail";
@@ -397,7 +398,7 @@ export function LapGrid({ laps, cases, selected, onToggle, c, winnerLap }: { lap
                   const tip = all && s.mvp ? plain : all ? `${cs.name}, lap ${l.lap}: ${sel ? `${sel.c}/${sel.n} ${l.lap === 0 ? "baseline" : "selection"}` : ""}${cf ? `, ${cf.c}/${cf.n} confirmation` : ""}` : `${cs.name}, lap ${l.lap}: no result`;
                   return (
                     <td key={cs.id} className="lg-case">
-                      <span className={`cell ${cellState(all)}`} title={tip} />
+                      <CaseCell target={l.targets.get(cs.id) ?? { kind: "none", reason: "No result" }} state={cellState(all)} tip={tip} />
                     </td>
                   );
                 })}

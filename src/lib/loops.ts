@@ -35,6 +35,12 @@ export type LoopSettings = {
   gate_evaluators?: string[]; // evaluator names that gate; all binary evaluators when absent
 };
 
+// Does this evaluator's result decide if a case passed? With no gating list,
+// every evaluator gates, and so does a result with no evaluator name.
+export function isGating(gatingEvaluators: string[] | undefined, evaluator: string | null | undefined): boolean {
+  return !gatingEvaluators || !evaluator || gatingEvaluators.includes(evaluator);
+}
+
 export const DEFAULT_CRITERIA: Criteria = {
   trials_per_round: 5,
   k: 3,

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EyeOff, LogOut } from "lucide-react";
 import { getCurrentAccount, logout, UnauthorizedError } from "./api/client";
 import { Alert, Avatar, EvalveLogo, Switch } from "./design-system/components";
 import { useEmptyPreview } from "./lib/emptyPreview";
+import { useDismiss } from "./lib/useDismiss";
 import { LoginPage } from "./pages/LoginPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
@@ -109,20 +110,7 @@ function AccountMenu({ name }: { name: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Close on a click outside the menu or on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(ref, open, useCallback(() => setOpen(false), []));
 
   async function signOut() {
     await logout();

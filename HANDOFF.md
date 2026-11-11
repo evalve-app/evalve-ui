@@ -21,7 +21,7 @@ npm run dev
 
 Open http://localhost:5173 and sign in with your Kitaru account. The dev server forwards `/api` to the team Kitaru server (`https://34-196-198-190.sslip.io`). To point at another server, copy `.env.example` to `.env`.
 
-Useful checks: `npm run typecheck` and `npm run build`. There are no automated tests.
+Useful checks: `npm test` (Vitest unit tests), `npm run typecheck` and `npm run build`.
 
 ## Deployment is not part of this handoff
 

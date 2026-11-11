@@ -9,12 +9,12 @@ import {
   type Experiment,
   type ExperimentRun,
 } from "../../../api/client";
+import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, lapSummary, loopHypothesis, parseSettings, type LoopSettings } from "../../../lib/loops";
+import { groupLoops, isGating, lapSummary, loopHypothesis, parseSettings, type LoopSettings } from "../../../lib/loops";
 
 export type CaseInfo = { id: string; name: string; order: number };
-export type Phase = "screen" | "trial" | "confirmation";
 
 export type Lap = {
   lap: number;
@@ -30,6 +30,7 @@ export type Lap = {
   selection: Stats; // screen + trial runs
   confirmation: Stats | null;
   cases: Stats; // every scored run, for the grid
+  targets: Map<string, CellTarget>; // case id → what its grid cell opens
   meanPassK: number | null; // on the selection trials
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
@@ -117,21 +118,29 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
 
     // Per run: did each case pass every gating evaluator?
     const runCases = new Map<string, Map<string, boolean>>();
+    // Per run: each case's result session and pass/fail evaluator results, for the grid cells.
+    const runSessions = new Map<string, Map<string, Pick<CellRun, "sessionId" | "results">>>();
     scored.forEach((run, i) => {
       const a = aggs[i]?.data;
       const r = reps[i]?.data;
       if (!a || !r) return;
-      const toBaseline = new Map(r.map((x) => [x.id, x.baseline_session_id ?? x.id]));
+      const byReplay = new Map(r.map((x) => [x.id, x]));
       const passed = new Map<string, boolean>();
+      const sessions = new Map<string, Pick<CellRun, "sessionId" | "results">>();
       for (const agg of a) {
         if (agg.data_type !== "bool") continue; // metrics don't gate here
-        if (gateNames && agg.evaluator_name && !gateNames.includes(agg.evaluator_name)) continue;
         for (const rep of agg.replays ?? []) {
-          const key = toBaseline.get(rep.replay_id) ?? rep.replay_id;
+          const replay = byReplay.get(rep.replay_id);
+          const key = replay?.baseline_session_id ?? rep.replay_id;
+          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, results: [] };
+          cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
+          sessions.set(key, cell);
+          if (!isGating(gateNames, agg.evaluator_name)) continue;
           passed.set(key, (passed.get(key) ?? true) && !!rep.result?.passed);
         }
       }
       runCases.set(run.id, passed);
+      runSessions.set(run.id, sessions);
     });
 
     const tally = (list: ExperimentRun[]): Stats => {
@@ -178,6 +187,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         selection,
         confirmation,
         cases: tally(done),
+        targets: new Map(), // filled in once case names are known
         meanPassK: c ? meanPassK(selection, c.k) : null,
         selectionGate: c && sel.length ? gate(c, selection, base) : null,
         confirmationGate: c && confirmation ? gate(c, confirmation, base) : null,
@@ -193,6 +203,16 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         return { id, name: caseName(s?.name) || (s ? `#${s.number}` : "…"), order: s?.number ?? 0 };
       })
       .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+
+    for (const l of laps) {
+      for (const cs of cases) {
+        const runsForCase: CellRun[] = l.runs.flatMap((r) => {
+          const x = runCases.get(r.id)?.has(cs.id) ? runSessions.get(r.id)?.get(cs.id) : undefined;
+          return x ? [{ run: r.number, phase: l.phases.get(r.id) ?? "trial", ...x }] : [];
+        });
+        l.targets.set(cs.id, cellTarget({ caseName: cs.name, lap: l.lap, runs: runsForCase, gatingEvaluators: gateNames }));
+      }
+    }
 
     const running = laps.some((l) => l.running);
     const facts: LapFacts[] = laps.map((l) => ({
