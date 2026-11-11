@@ -65,12 +65,15 @@ export function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-const ROUND_NAME = /^(.+)-(?:round|lap)-(\d+)$/i;
+const ROUND_NAME = /^(.+)-(round|lap|iteration)-(\d+)$/i;
 
 // "day-30-refunds-round-1" → { slug: "day-30-refunds", lap: 1 }
+// Iterations count from 1: "support-desk-demo-iteration-1" → { slug: "support-desk-demo", lap: 0 }
 export function parseRoundName(experimentName: string): { slug: string; lap: number } | null {
   const m = experimentName.match(ROUND_NAME);
-  return m ? { slug: m[1], lap: Number(m[2]) } : null;
+  if (!m) return null;
+  const lap = m[2].toLowerCase() === "iteration" ? Number(m[3]) - 1 : Number(m[3]);
+  return lap >= 0 ? { slug: m[1], lap } : null;
 }
 
 // Group an agent's experiments into loops by name prefix.
@@ -105,7 +108,7 @@ export function lapSummary(description: string | null | undefined, lap: number) 
   if (lap === 0) return "Baseline audit, no changes";
   const first = (description ?? "").split("\n")[0] ?? "";
   return first
-    .replace(/^\s*(lap|round)\s*\d+\s*:\s*/i, "")
+    .replace(/^\s*(lap|round|iteration)\s*\d+\s*:\s*/i, "")
     .replace(/\s*Hypothesis:.*$/i, "")
     .trim();
 }

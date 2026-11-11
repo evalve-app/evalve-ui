@@ -12,7 +12,7 @@ import { CHANGE_FIELD_LABELS, groupLoops } from "../../../lib/loops";
 import { useLoop, type Lap, type LoopOutcome } from "./useLoop";
 
 // Every loop for this agent. A loop is the experiments the kitaru-loop skill
-// named `<prefix>-round-N` (docs/loop-contract.md).
+// named `<prefix>-round-N`, or `<prefix>-iteration-N` from 1 (docs/loop-contract.md).
 export function LoopListTab() {
   const { agentId = "" } = useParams();
   const navigate = useNavigate();

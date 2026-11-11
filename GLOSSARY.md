@@ -25,7 +25,7 @@ A set of experiments that the `kitaru-loop` skill runs to improve an agent, one 
 
 **Lap**:
 One experiment in a loop. Lap 0 is the baseline lap, and each later lap makes one change.
-_Avoid_: Round (the skill's and the server's word; use it only when you name a server experiment)
+_Avoid_: Round, iteration (words in server experiment names; use them only when you name a server experiment)
 
 **Baseline lap**:
 Lap 0 of a loop. It replays the cohort with no change, and later laps are scored against it.

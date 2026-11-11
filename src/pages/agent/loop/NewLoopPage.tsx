@@ -79,7 +79,7 @@ export function NewLoopPage() {
 
   const problems = [
     !slug && "Give the loop a name.",
-    taken && `Experiments named ${slug}-round-N already exist.`,
+    taken && `A loop named ${slug} already exists.`,
     !cohortVersionId && "Pick a cohort.",
     chosen.length === 0 && "Pick at least one evaluator.",
     changes.length === 0 && "Pick at least one thing that may change.",
