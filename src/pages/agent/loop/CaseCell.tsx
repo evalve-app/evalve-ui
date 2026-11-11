@@ -43,26 +43,35 @@ function CellMenu({ target, tip, square }: { target: Extract<CellTarget, { kind:
   useDismiss(ref, open, close);
 
   // The grid scrolls sideways and would clip the menu, so the menu is fixed to
-  // the viewport. Place it below the cell, or above when there is no room
-  // below, and keep it inside the viewport.
+  // the viewport. Place it below the cell, or above when it fits there and
+  // not below. When it fits on neither side, use the side with more room and
+  // let the menu scroll inside that room.
   useLayoutEffect(() => {
     if (!open || !button.current || !menu.current) return;
     const cell = button.current.getBoundingClientRect();
     const { width, height } = menu.current.getBoundingClientRect();
-    const below = cell.bottom + GAP;
-    const top = below + height <= window.innerHeight - EDGE ? below : Math.max(EDGE, cell.top - GAP - height);
+    const roomBelow = window.innerHeight - EDGE - (cell.bottom + GAP);
+    const roomAbove = cell.top - GAP - EDGE;
+    const placeBelow = height <= roomBelow || (height > roomAbove && roomBelow >= roomAbove);
+    const maxHeight = Math.max(0, placeBelow ? roomBelow : roomAbove);
+    const shown = Math.min(height, maxHeight);
+    const top = placeBelow ? cell.bottom + GAP : cell.top - GAP - shown;
     const left = Math.max(EDGE, Math.min(cell.left, window.innerWidth - EDGE - width));
-    setPos({ position: "fixed", top, left, right: "auto" });
+    setPos({ position: "fixed", top, left, right: "auto", maxHeight, overflowY: "auto" });
   }, [open]);
 
-  // Close on scroll or resize, so the menu never drifts away from its cell.
+  // Close on a page scroll or a resize, so the menu never drifts away from its
+  // cell. A scroll inside the menu itself keeps it open.
   useEffect(() => {
     if (!open) return;
     menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
-    window.addEventListener("scroll", close, true);
+    const onScroll = (e: Event) => {
+      if (!menu.current?.contains(e.target as Node)) close();
+    };
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", close);
     return () => {
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", close);
     };
   }, [open, close]);
