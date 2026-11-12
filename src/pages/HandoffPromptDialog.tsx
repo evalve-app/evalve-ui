@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { Button } from "../design-system/components";
+import { createCopyFeedback, type CopyState } from "../lib/copyFeedback";
 
 // Shows a handoff prompt: text for the person to paste into a coding agent.
 // The dialog creates nothing; the coding agent does the work.
@@ -21,8 +22,8 @@ export function HandoffPromptDialog({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
-  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [feedback] = useState(() => createCopyFeedback({ write: (text) => navigator.clipboard.writeText(text), onChange: setCopyState }));
 
   // A native <dialog> gives focus trapping and Escape-to-close for free.
   useEffect(() => {
@@ -30,24 +31,10 @@ export function HandoffPromptDialog({
     if (!d) return;
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
-    // A closed dialog forgets the copy result, so that it opens with "Copy prompt" again.
-    if (!open) {
-      clearTimeout(resetTimer.current);
-      setCopyState("idle");
-    }
-  }, [open]);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopyState("done");
-    } catch {
-      // The browser can refuse the clipboard (no permission, or no HTTPS).
-      setCopyState("failed");
-    }
-    clearTimeout(resetTimer.current);
-    resetTimer.current = setTimeout(() => setCopyState("idle"), 2000);
-  }
+    // A closed dialog forgets the copy result, and ignores a clipboard write
+    // that is not complete, so that it opens with "Copy prompt" again.
+    if (!open) feedback.reset();
+  }, [open, feedback]);
 
   return (
     <dialog ref={ref} className="dialog" onClose={onClose} aria-labelledby={titleId}>
@@ -67,7 +54,7 @@ export function HandoffPromptDialog({
       </div>
       {hint ? <p className="dialog-hint">{hint}</p> : null}
       <div className="dialog-footer">
-        <Button icon={copyState === "done" ? Check : Copy} onClick={copy}>
+        <Button icon={copyState === "done" ? Check : Copy} onClick={() => feedback.copy(prompt)}>
           <span aria-live="polite">{copyState === "done" ? "Copied" : copyState === "failed" ? "Could not copy" : "Copy prompt"}</span>
         </Button>
       </div>
