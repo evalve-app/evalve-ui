@@ -12,7 +12,7 @@
     "trial": 1
   },
   "src/lib/loopResults.test.ts": {
-    "winner": 14,
+    "winner": 15,
     "regression": 3,
     "regressed": 2,
     "baseline audit": 1,
@@ -26,6 +26,9 @@
     "regressed": 2,
     "baseline session": 1,
     "trial": 2
+  },
+  "src/lib/loopRules.test.ts": {
+    "trial": 1
   },
   "src/lib/loopRules.ts": {
     "regression": 1,

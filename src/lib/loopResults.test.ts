@@ -673,25 +673,41 @@ describe("runResults", () => {
     expect(cells.get("s2")?.results).toEqual([{ evaluator: "action-correct", passed: false }]);
   });
 
-  it("gives no result for a replay that has no passed flag", () => {
+  it("gives no result for a replay that has no passed flag, and keeps the case", () => {
     const agg = aggregate({ data_type: "str", replays: [{ replay_id: "p1", result: verdict(true, "pass") }, { replay_id: "p2", result: null }] as EvalAggregate["replays"] });
     const { passed, cells } = runResults([agg], replays, ["action-correct"]);
-    expect([...passed]).toEqual([["s1", true]]);
+    expect([...passed]).toEqual([["s1", true], ["s2", null]]);
     expect(cells.has("s2")).toBe(false);
   });
 
-  it("gives a case no pass when one gating evaluator gave it no result", () => {
+  it("gives a case no score when one required evaluator gave it no result", () => {
     const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(true) }] as EvalAggregate["replays"] });
     const tone = aggregate({ name: "tone", evaluator_name: "tone", replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(null) }] as EvalAggregate["replays"] });
     const { passed, cells } = runResults([action, tone], replays, undefined);
-    expect([...passed]).toEqual([["s1", true]]);
+    expect([...passed]).toEqual([["s1", true], ["s2", null]]);
     expect(cells.get("s2")?.results).toEqual([{ evaluator: "action-correct", passed: true }]);
   });
 
-  it("fails a case that one gating evaluator failed, also when a second gave it no result", () => {
+  it("fails a case that one required evaluator failed, also when a second gave it no result", () => {
     const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(false) }] as EvalAggregate["replays"] });
     const tone = aggregate({ name: "tone", evaluator_name: "tone", replays: [{ replay_id: "p1", result: null }, { replay_id: "p2", result: verdict(true) }] as EvalAggregate["replays"] });
-    expect([...runResults([action, tone], replays, undefined).passed]).toEqual([["s1", false]]);
+    expect([...runResults([action, tone], replays, undefined).passed]).toEqual([["s1", false], ["s2", null]]);
+  });
+
+  it("requires an evaluator of the gating list that gave no result at all", () => {
+    const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(false) }] as EvalAggregate["replays"] });
+    const tone = aggregate({ name: "tone", evaluator_name: "tone", replays: [{ replay_id: "p1", result: verdict(null) }, { replay_id: "p2", result: null }] as EvalAggregate["replays"] });
+    const { passed, evaluators } = runResults([action, tone], replays, ["action-correct", "tone"]);
+    expect([...passed]).toEqual([["s1", null], ["s2", false]]);
+    expect(evaluators).toEqual(["action-correct", "tone"]);
+  });
+
+  it("does not require a metric in a loop with no gating list", () => {
+    const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(true) }] as EvalAggregate["replays"] });
+    const cost = aggregate({ name: "cost", evaluator_name: "cost", data_type: "float", replays: [{ replay_id: "p1", result: { ...verdict(null), score: 0.4 } }] as EvalAggregate["replays"] });
+    const { passed, evaluators } = runResults([action, cost], replays, undefined);
+    expect([...passed]).toEqual([["s1", true]]);
+    expect(evaluators).toEqual(["action-correct"]);
   });
 
   it("ignores an evaluator that gives no pass or fail result", () => {
@@ -706,5 +722,22 @@ describe("runResults", () => {
     const { passed, cells } = runResults([agg], replays, ["action-correct"]);
     expect(passed.size).toBe(0);
     expect(cells.get("s1")?.results).toEqual([{ evaluator: "tone", passed: false }]);
+  });
+});
+
+describe("a required evaluator that gave no result", () => {
+  const cells = new Map<string, RunCell>([["s1", { sessionId: "r1", results: [{ evaluator: "action-correct", passed: true }] }]]);
+  const lists = evaluatorReplays(cells, cases, ["action-correct", "tone"], ["action-correct", "tone"]);
+
+  it("gets an empty list of replays", () => {
+    expect(lists.map((e) => [e.evaluator, e.replays.length])).toEqual([["action-correct", 1], ["tone", 0]]);
+  });
+
+  it("gives the case no result in the Results section, and its column no squares", () => {
+    const lap = { lap: 0, summary: "", running: false, screenGreen: null, selectionGate: null, confirmationGate: null, runs: [{ status: "completed" }], evaluatorReplays: lists } as unknown as ResultsLap;
+    const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3 }).rows[0];
+    expect(row.noResults).toBeNull();
+    expect(row.cells.map((c) => c?.evaluator ?? null)).toEqual(["action-correct", null]);
+    expect(row.replays.map((r) => r.result)).toEqual(["No result"]);
   });
 });

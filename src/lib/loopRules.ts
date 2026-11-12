@@ -7,6 +7,23 @@ import type { Criteria } from "./loops";
 export type CaseStat = { c: number; n: number }; // passes, scored trials
 export type Stats = Map<string, CaseStat>; // by case (baseline session id)
 
+// The stats of some runs of one lap. Each run gives, by case, if the case
+// passed (see runResults). A null is a run with no score for the case: the
+// case stays in the stats and the run adds no scored run, so `gate` reads
+// the lap as incomplete.
+export function caseStats(runs: Map<string, boolean | null>[]): Stats {
+  const stats: Stats = new Map();
+  for (const run of runs) {
+    for (const [id, ok] of run) {
+      const s = stats.get(id) ?? { c: 0, n: 0 };
+      if (ok != null) s.n += 1;
+      if (ok) s.c += 1;
+      stats.set(id, s);
+    }
+  }
+  return stats;
+}
+
 function choose(n: number, k: number) {
   if (k < 0 || k > n) return 0;
   let r = 1;
