@@ -34,6 +34,7 @@ The dev server forwards every `/api` request to the Kitaru server, so the browse
 
 - **New Kitaru version:** replace `openapi.json` with the server's `/openapi.json`, then run `npm run gen:api`.
 - **New design tokens:** replace `src/design-system/tokens.json`, then run `npm run gen:tokens`.
+- **New Evalve Loop release:** run `node scripts/package-loop-release.mjs ../loop-skills/evalve-loop <version>` from a reviewed skills checkout. The script packages the public release files and pins their checksums in the New Loop prompt. Keep the previous version directories in `public/skills/evalve-loop/` so existing prompts can still fetch them.
 
 ## Deploy
 

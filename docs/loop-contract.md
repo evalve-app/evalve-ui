@@ -29,8 +29,10 @@ This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from
 
 The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the baseline experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning lap.
 
-The Loop tab has a switch, kept per browser (`src/lib/loopMode.tsx`). It changes how a loop is shown and what the New loop form asks for. It does not change the data.
+The Loop tab remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The New loop form starts in MVP and has its own version switch.
 
 - **Post-MVP** shows the skill's full rules: several trials per lap, mean pass^k, the gate, and confirmation.
-- **MVP** shows a plain pass rate and one Passed / Not passed result per lap. On the loop page, the pass rate of a lap is the share of cases that passed each gating evaluator in the first completed run of the lap. The compare page still uses the share of case runs that passed, over every run of the lap. Its New loop form asks for one number, the pass rate target, and writes a config with one trial per lap and k = 1. With those settings mean pass^1 is the pass rate, so the same skill runs it.
+- **MVP** shows a plain pass rate and one Passed / Not passed result per lap. On the loop page, the pass rate of a lap is the share of cases that passed each gating evaluator in the first completed run of the lap. The compare page uses the share of case runs that passed over every run of the lap.
+
+The MVP New loop form asks for consecutive green runs, a total run-attempt cap, and a replay budget. The handoff prompt pins the Kitaru server, cohort, evaluator versions, and an Evalve Loop release hosted by the dashboard. The coding agent verifies the release files and saves them with the per-loop config in the agent project. It resolves the replay tool policy, evaluator parameters, and models the replay worker can access before launching the loop.
 

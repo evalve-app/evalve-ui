@@ -1,9 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-// The Loop tab has two versions the team is comparing:
-//   "mvp"  – one run per lap, stop at a pass rate the user picks.
-//   "post" – the full kitaru-loop rules (several trials, pass^k, confirmation).
-// The choice is a per-browser preview setting, like the empty-state preview.
+// The loop list and detail pages remember the browser’s preferred scoring view.
 export type LoopMode = "mvp" | "post";
 
 const KEY = "evalve.loop-mode";
@@ -40,7 +37,10 @@ export function useLoopMode(): LoopMode {
 }
 
 export function LoopModeToggle() {
-  const current = useLoopMode();
+  return <LoopModeTabs mode={useLoopMode()} onChange={setLoopMode} />;
+}
+
+export function LoopModeTabs({ mode, onChange }: { mode: LoopMode; onChange: (mode: LoopMode) => void }) {
   const options: { id: LoopMode; label: string }[] = [
     { id: "mvp", label: "MVP" },
     { id: "post", label: "Post-MVP" },
@@ -48,7 +48,7 @@ export function LoopModeToggle() {
   return (
     <div className="ev-tabs ev-tabs-default loop-mode" role="tablist" aria-label="Loop version">
       {options.map((o) => (
-        <button key={o.id} type="button" role="tab" className="ev-tab" aria-selected={current === o.id} onClick={() => setLoopMode(o.id)}>
+        <button key={o.id} type="button" role="tab" className="ev-tab" aria-selected={mode === o.id} onClick={() => onChange(o.id)}>
           {o.label}
         </button>
       ))}
