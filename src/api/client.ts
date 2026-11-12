@@ -141,6 +141,7 @@ export type ExperimentRun = components["schemas"]["ExperimentRunResponse"];
 export type EvalAggregate = components["schemas"]["EvaluationAggregateResponse"];
 export type Replay = components["schemas"]["ReplayResponse"];
 export type Cohort = components["schemas"]["CohortResponse"];
+export type Device = components["schemas"]["DeviceResponse"];
 export type CohortVersion = components["schemas"]["CohortVersionResponse"];
 
 async function unwrap<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>, what: string): Promise<T> {
@@ -284,4 +285,34 @@ export async function getReplayForSession(sessionId: string): Promise<Replay | n
 
 export async function getExperimentRun(runId: string) {
   return unwrap(api.GET("/api/v1/experiment-runs/{experiment_run_id}", { params: { path: { experiment_run_id: runId } } }), "the run");
+}
+
+// A response that was not a success, with the reason the server gave. For a
+// page that chooses its text from the status and the detail.
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string | null,
+  ) {
+    super(detail ?? `HTTP ${status}`);
+  }
+}
+
+async function unwrapOrApiError<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
+  const { data, error, response } = await p;
+  if (data === undefined) throw new ApiError(response.status, errorDetail(error));
+  return data;
+}
+
+// The device that asks to sign in. The server shows a device that no account
+// approved yet only to a caller who has its user code.
+export async function getDevice(deviceId: string, userCode: string): Promise<Device> {
+  return unwrapOrApiError(api.GET("/api/v1/devices/{device_id}", { params: { path: { device_id: deviceId }, query: { user_code: userCode } } }));
+}
+
+// Approves the device for the signed-in account. The server calls this "verify".
+export async function approveDevice(deviceId: string, userCode: string): Promise<Device> {
+  return unwrapOrApiError(
+    api.POST("/api/v1/devices/{device_id}/verify", { params: { path: { device_id: deviceId } }, body: { user_code: userCode, trusted: false } }),
+  );
 }

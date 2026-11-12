@@ -5,7 +5,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 ## Next
 
 1. **Clickable cells in the loop grid and the experiment grid.** Clicking a case cell should open that session (`/sessions/:id`). A cell in a multi-run lap covers several sessions, so the plan is a small menu listing each run as passed or failed. With one run per lap, go straight to the session. The replays already loaded in `useLoop.ts` carry `baseline_session_id` and `result_session_id`.
-2. **CLI login page** (`/devices/verify`). Needed before this app can replace the Kitaru UI. It calls `GET /api/v1/devices/{device_id}` and `POST /api/v1/devices/{device_id}/verify`.
+2. ~~**CLI login page** (`/devices/verify`). Needed before this app can replace the Kitaru UI. It calls `GET /api/v1/devices/{device_id}` and `POST /api/v1/devices/{device_id}/verify`.~~ Built. Not tested yet with a real `kitaru login`.
 3. **Evaluators, Workers, Jobs, Investigations.** Placeholders today. Build simple read-only lists, or hide them from the nav for the demo.
 
 ## Session page extras (Kitaru has these, we don't)

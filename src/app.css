@@ -151,6 +151,11 @@ h1, h2, p { margin: 0; }
 .verdict-pass { background: var(--tint-success-15); color: var(--text-success-text); }
 .verdict-fail { background: var(--tint-destructive-15); color: var(--text-destructive-text); }
 
+/* Approve a device */
+.device-page { max-width: 600px; }
+.device-intro { color: var(--text-muted-foreground); font-size: 14px; line-height: 20px; }
+.device-intro strong { color: var(--text-foreground); font-weight: 600; }
+
 /* Cohorts */
 .inline-field { display: inline-flex; align-items: center; gap: var(--spacing-2); }
 .cohort-version-bar { gap: var(--spacing-4); }
