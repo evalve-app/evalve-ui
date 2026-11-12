@@ -11,6 +11,20 @@
   "src/lib/loopMode.tsx": {
     "trial": 1
   },
+  "src/lib/loopResults.test.ts": {
+    "winner": 14,
+    "regression": 3,
+    "regressed": 2,
+    "baseline audit": 1,
+    "round 0": 1,
+    "trial": 3
+  },
+  "src/lib/loopResults.ts": {
+    "winner": 12,
+    "regression": 2,
+    "regressed": 2,
+    "trial": 2
+  },
   "src/lib/loopRules.ts": {
     "regression": 1,
     "regressed": 4,
@@ -19,13 +33,13 @@
   },
   "src/lib/loops.test.ts": {
     "winner": 12,
-    "round 0": 2,
+    "round 0": 3,
     "iteration": 7
   },
   "src/lib/loops.ts": {
     "winner": 14,
     "regression": 3,
-    "baseline audit": 2,
+    "baseline audit": 1,
     "round 0": 4,
     "iteration": 5,
     "trial": 3,
@@ -42,8 +56,19 @@
   "src/pages/agent/PassRate.tsx": {
     "baseline session": 1
   },
+  "src/pages/agent/loop/AgentDiffSection.tsx": {
+    "winner": 5
+  },
   "src/pages/agent/loop/CaseCell.tsx": {
     "trial": 2
+  },
+  "src/pages/agent/loop/LapViews.tsx": {
+    "winner": 11,
+    "regression": 1,
+    "regressed": 5,
+    "baseline audit": 1,
+    "trial": 8,
+    "judge": 1
   },
   "src/pages/agent/loop/LoopComparePage.tsx": {
     "winner": 2
@@ -53,19 +78,19 @@
     "trial": 1
   },
   "src/pages/agent/loop/LoopPage.tsx": {
-    "winner": 12,
-    "regression": 4,
-    "regressed": 5,
-    "baseline audit": 1,
+    "winner": 1,
+    "regression": 3,
     "round 0": 1,
-    "trial": 18,
-    "judge": 1
+    "trial": 9
   },
   "src/pages/agent/loop/NewLoopPage.tsx": {
     "regression": 7,
     "re-run": 1,
     "trial": 19,
     "gate evaluator": 4
+  },
+  "src/pages/agent/loop/ResultsSection.tsx": {
+    "winner": 3
   },
   "src/pages/agent/loop/useLoop.ts": {
     "winner": 6,

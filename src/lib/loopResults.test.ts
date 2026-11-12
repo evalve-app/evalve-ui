@@ -293,7 +293,7 @@ describe("resultsTable", () => {
     expect(rows.map((r) => r.status)).toEqual(["Completed", "Failed", "Stopped", "Not started"]);
   });
 
-  it("gives the lap result from the rule of the MVP view: the baseline lap is not judged, a later lap passed or failed", () => {
+  it("gives the lap result from the rule of the MVP view: the baseline lap has no result, a later lap passed or failed", () => {
     const met = { met: true, incomplete: false, meanPassK: 1, belowFloor: [], regressed: [], flaky: [], improved: [], belowTarget: false };
     const criteria = { ...DEFAULT_CRITERIA, trials_per_round: 1, k: 1, confirmation_round: false };
     const rows = resultsTable(loop([lap(0), lap(1, { selectionGate: { ...met, met: false, regressed: ["s1"] } }), lap(2, { selectionGate: met })], { criteria })).rows;
@@ -514,7 +514,7 @@ describe("finalResults", () => {
 
   // The shape of `day-30-refunds`: 5 runs for each lap, pass^3, and an outcome that the known loops list gives.
   // One run is 20 of 23, under the 90% target, but the loop passed on pass^3 over 5 runs.
-  describe("a loop that the rules judge on more than one run for each lap", () => {
+  describe("a loop that the rules decide on more than one run for each lap", () => {
     const row = (n: number) => Array.from({ length: 23 }, (_, i) => (i < n ? 1 : 0));
     const ids = Array.from({ length: 23 }, (_, i) => `s${i + 1}`);
     const lap23 = (lap: number, n: number): FinalLap => ({ ...finalLap(lap, {}), evaluatorReplays: [{ evaluator: "support-desk-action-correct", replays: row(n).map((p, i) => ({ caseId: ids[i], caseName: ids[i], sessionId: null, passed: p === 1 })) }] });

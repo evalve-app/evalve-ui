@@ -451,9 +451,9 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
 
   // A row only for a criterion that the dashboard can measure: no lap limit, no budget, no metric gates.
   // The numbers here come from one run of the lap. The rule of a loop with
-  // settings uses each trial of the lap (mean pass^k), so one run gives the
-  // number of the rule only with one trial for each lap and k = 1. With more
-  // trials (for example `day-30-refunds`: 5 runs, pass^3) there are no rows,
+  // settings uses each run of the lap (mean pass^k), so one run gives the
+  // number of the rule only with one run for each lap and k = 1. With more
+  // runs (for example `day-30-refunds`: 5 runs, pass^3) there are no rows,
   // so that a row cannot say ✗ below a "Passed" badge.
   let criteria: FinalResults["criteria"] = null;
   const greens = parseEvalveLoop(baselineLap?.experiment.description)?.requiredGreens;
