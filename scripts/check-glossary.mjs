@@ -50,12 +50,23 @@ function sourceFiles(dir) {
   });
 }
 
+// Makes a code name read as its words, so that "baselineSession",
+// "baseline_session", and "baseline-session" all match "baseline session".
+function words(text) {
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .toLowerCase();
+}
+
 const counts = {};
 for (const file of sourceFiles(join(root, "src")).sort()) {
-  const text = readFileSync(file, "utf8").toLowerCase();
+  const text = words(readFileSync(file, "utf8"));
+  // Forward slashes on each system, so that the baseline is the same on Windows.
+  const key = relative(root, file).replace(/\\/g, "/");
   for (const word of AVOID) {
-    const n = text.split(word).length - 1;
-    if (n > 0) (counts[relative(root, file)] ??= {})[word] = n;
+    const n = text.split(words(word)).length - 1;
+    if (n > 0) (counts[key] ??= {})[word] = n;
   }
 }
 
