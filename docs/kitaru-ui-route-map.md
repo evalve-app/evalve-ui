@@ -15,7 +15,8 @@ Full API spec: `GET /openapi.json` on the server (99 paths, no login needed).
   - a list: `{"field":"experiment_id","op":"in","value":["<id>","<id>"]}`
   - combined: `{"and":[{...},{"field":"investigation_session_id","op":"is_null"}]}`
 - **Sorting:** `?sort=created:desc`.
-- **CLI login handoff:** the server sends the browser to `{DASHBOARD_URL}/devices/verify?...`. That page calls `GET /api/v1/devices/{device_id}` and `POST /api/v1/devices/{device_id}/verify`.
+- **CLI login handoff:** the server sends the browser to `{DASHBOARD_URL}/devices/verify?device_id=<id>&user_code=<code>`. That page calls `GET /api/v1/devices/{device_id}?user_code=<code>` and `POST /api/v1/devices/{device_id}/verify`.
+- **Facts that `openapi.json` does not hold:** error detail texts and link formats are only in the Kitaru source (the `kitaru` Python package, checked at version 0.27.6). Look in `kitaru/server/domain/` for the error classes and their texts (for example `device.py`: "Device authorization has expired", "Device is locked"), and in `kitaru/server/adapters/rest/routers/` for the status of each error.
 
 ## Pages and the calls they make
 
