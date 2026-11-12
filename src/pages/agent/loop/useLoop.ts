@@ -12,7 +12,7 @@ import {
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type CaseInfo = { id: string; name: string; order: number };
 
@@ -35,8 +35,6 @@ export type Lap = {
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
 };
-
-const isActiveRun = (run: ExperimentRun) => run.status === "running" || run.status === "canceling";
 
 export type LoopData = {
   slug: string;
@@ -79,7 +77,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     queryKey: ["experiment-runs", ids],
     queryFn: () => listExperimentRuns(ids),
     enabled: ids.length > 0,
-    refetchInterval: (q) => (q.state.data?.some(isActiveRun) || (evalve && (!evalve.result || evalve.result.status === "running")) ? 4000 : false),
+    refetchInterval: (q) => (shouldPollLoopRuns(evalve, ids, q.state.data ?? []) ? 4000 : false),
   });
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);

@@ -139,7 +139,21 @@ type EvalveResult =
   | { status: "stop_success"; winnerLap: number }
   | { status: "stop_attempt_cap" | "stop_budget"; reason: string | null };
 
-type EvalveLoop = { requiredGreens: number; result: EvalveResult | null };
+type PublishedRun = { experimentId: string; runId: string };
+type EvalveLoop = { requiredGreens: number; result: EvalveResult | null; publishedRuns: PublishedRun[] };
+
+function parsePublishedRuns(laps: unknown): PublishedRun[] {
+  if (!Array.isArray(laps)) return [];
+  return laps.flatMap((lap: unknown) => {
+    if (!lap || typeof lap !== "object" || !("experiment_id" in lap) || !("runs" in lap)) return [];
+    const experimentId = lap.experiment_id;
+    if (typeof experimentId !== "string" || !Array.isArray(lap.runs)) return [];
+    return lap.runs.flatMap((run: unknown) => {
+      if (!run || typeof run !== "object" || !("run_id" in run) || typeof run.run_id !== "string") return [];
+      return [{ experimentId, runId: run.run_id }];
+    });
+  });
+}
 
 function descriptionRecord(description: string, prefix: string): Record<string, unknown> | null {
   const line = description.split("\n").find((line) => line.startsWith(prefix));
@@ -175,7 +189,30 @@ export function parseEvalveLoop(description: string | null | undefined): EvalveL
       result = { status };
     }
   }
-  return { requiredGreens, result };
+  return {
+    requiredGreens,
+    result,
+    publishedRuns: result && result.status !== "running" ? parsePublishedRuns(saved?.laps) : [],
+  };
+}
+
+export function isActiveRun(run: Pick<ExperimentRun, "status">): boolean {
+  return run.status === "running" || run.status === "canceling";
+}
+
+export function shouldPollLoopRuns(
+  evalve: EvalveLoop | null,
+  experimentIds: string[],
+  cachedRuns: Pick<ExperimentRun, "id" | "status">[],
+): boolean {
+  if (cachedRuns.some(isActiveRun)) return true;
+  if (!evalve) return false;
+  if (!evalve.result || evalve.result.status === "running") return true;
+
+  // The experiment description and run list update independently. A terminal
+  // description can arrive before the query has seen the final replay.
+  const cachedIds = new Set(cachedRuns.map((run) => run.id));
+  return evalve.publishedRuns.some(({ experimentId, runId }) => experimentIds.includes(experimentId) && !cachedIds.has(runId));
 }
 
 export function resolveLoopOutcome(

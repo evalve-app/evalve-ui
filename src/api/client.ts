@@ -165,8 +165,14 @@ export async function getExperiment(experimentId: string) {
 export async function listExperimentRuns(experimentIds: string[]) {
   if (experimentIds.length === 0) return [];
   const filter: Filter = { field: "experiment_id", op: "in", value: experimentIds };
-  const page = await unwrap(api.GET("/api/v1/experiment-runs", { params: { query: { filter: filter as never, size: 200 } } }), "runs");
-  return [...page.items].sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""));
+  const runs: ExperimentRun[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await unwrap(api.GET("/api/v1/experiment-runs", { params: { query: { filter: filter as never, size: 200, cursor } } }), "runs");
+    runs.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return runs.sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""));
 }
 
 export async function getRunAggregates(runId: string) {

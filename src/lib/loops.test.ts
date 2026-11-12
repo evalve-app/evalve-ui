@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, resolveLoopOutcome } from "./loops";
+import { knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -69,6 +69,30 @@ describe("loop status", () => {
     expect(resolveLoopOutcome(parseEvalveLoop(baseline), null, false, "completed")).toEqual({ kind: "running" });
     expect(resolveLoopOutcome(read({ status: "running" }), null, false, "completed")).toEqual({ kind: "running" });
     expect(resolveLoopOutcome(null, null, false, "completed")).toEqual({ kind: "running" });
+  });
+
+  it("keeps polling a completed loop until its final replay arrives", () => {
+    const evalve = read({
+      status: "stop_success", winner_lap: 1,
+      laps: [{ experiment_id: "candidate", runs: [{ run_id: "first" }, { run_id: "final" }] }],
+    });
+    const first = { id: "first", status: "completed" as const };
+    const final = { id: "final", status: "completed" as const };
+    expect(resolveLoopOutcome(evalve, null, false, "completed")).toMatchObject({ kind: "completed" });
+    expect(shouldPollLoopRuns(evalve, ["candidate"], [first])).toBe(true);
+    expect(shouldPollLoopRuns(evalve, ["candidate"], [first, { ...final, status: "running" }])).toBe(true);
+    expect(shouldPollLoopRuns(evalve, ["candidate"], [first, final])).toBe(false);
+  });
+
+  it("ignores published replays from laps outside the current view", () => {
+    const evalve = read({
+      status: "stop_attempt_cap",
+      laps: [
+        { experiment_id: "older-lap", runs: [{ run_id: "older" }] },
+        { experiment_id: "visible-lap", runs: [{ run_id: "final" }] },
+      ],
+    });
+    expect(shouldPollLoopRuns(evalve, ["visible-lap"], [{ id: "final", status: "failed" }])).toBe(false);
   });
 
   it("ignores malformed results and results for a different loop", () => {
