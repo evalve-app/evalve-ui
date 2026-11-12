@@ -5,13 +5,7 @@ import { listInvestigations } from "../../api/client";
 import { Alert, StatusLabel } from "../../design-system/components";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
-import { investigationRows, type InvestigationRow } from "../../lib/investigations";
-
-const STATUS_TONE: Record<InvestigationRow["status"], "success" | "warning" | "muted"> = {
-  pending: "muted",
-  in_progress: "warning",
-  completed: "success",
-};
+import { investigationRows } from "../../lib/investigations";
 
 // Investigations for one agent, the one that changed last first. Read-only: a
 // row opens nothing.
@@ -68,7 +62,7 @@ export function InvestigationsTab() {
                         </span>
                       </td>
                       <td>
-                        <StatusLabel status={r.status} tone={STATUS_TONE[r.status]}>
+                        <StatusLabel status={r.status} tone={r.statusTone}>
                           {r.statusLabel}
                         </StatusLabel>
                       </td>

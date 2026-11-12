@@ -1,19 +1,17 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
-import { listAgents, listEvaluators } from "../api/client";
 import { Alert } from "../design-system/components";
 import { useEmptyPreview } from "../lib/emptyPreview";
 import { evaluatorRows } from "../lib/evaluators";
 import { formatDateTime, formatRelative, shortId } from "../lib/format";
+import { agentsQuery, evaluatorsQuery } from "../lib/queries";
 
 // Every evaluator on the server, by name. Read-only: a row opens nothing.
-// The server call asks for 100 evaluators and the page has no paging, so
-// evaluator 101 does not show.
 export function EvaluatorsPage() {
-  const evaluators = useQuery({ queryKey: ["evaluators"], queryFn: listEvaluators });
+  const evaluators = useQuery(evaluatorsQuery());
   // Only for the agent names in the Scope column. The table does not wait for it.
-  const agents = useQuery({ queryKey: ["agents"], queryFn: listAgents });
+  const agents = useQuery(agentsQuery());
   const preview = useEmptyPreview().on;
 
   const agentNames = Object.fromEntries((agents.data ?? []).map((a) => [a.id, a.name]));
@@ -24,7 +22,6 @@ export function EvaluatorsPage() {
       <div className="page-header">
         <div className="page-heading">
           <h1 className="page-title">Evaluators</h1>
-          {evaluators.isSuccess ? <span className="count-chip">{rows.length}</span> : null}
         </div>
       </div>
 

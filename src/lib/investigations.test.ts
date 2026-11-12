@@ -14,6 +14,15 @@ describe("investigationRows", () => {
     expect(row.reviewed).toBe("3 of 12");
   });
 
+  it("gives each status a tone for its dot", () => {
+    const rows = investigationRows([
+      investigation("a", "2026-11-03T10:00:00Z", { status: "pending" }),
+      investigation("b", "2026-11-02T10:00:00Z", { status: "in_progress" }),
+      investigation("c", "2026-11-01T10:00:00Z", { status: "completed" }),
+    ]);
+    expect(rows.map((r) => r.statusTone)).toEqual(["muted", "warning", "success"]);
+  });
+
   it("writes the status in words", () => {
     const rows = investigationRows([
       investigation("a", "2026-11-03T10:00:00Z", { status: "pending" }),

@@ -245,6 +245,8 @@ export async function startExperimentRun(experimentId: string, cohortVersionId: 
 
 export type Evaluator = components["schemas"]["EvaluatorResponse"];
 
+// Every evaluator. The call asks for 100 and no caller has paging, so
+// evaluator 101 does not show.
 export async function listEvaluators() {
   const page = await unwrap(api.GET("/api/v1/evaluators", { params: { query: { size: 100 } } }), "evaluators");
   return page.items;
