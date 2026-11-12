@@ -245,8 +245,22 @@ export async function startExperimentRun(experimentId: string, cohortVersionId: 
 
 export type Evaluator = components["schemas"]["EvaluatorResponse"];
 
+// Every evaluator. The call asks for 100 and no caller has paging, so
+// evaluator 101 does not show.
 export async function listEvaluators() {
   const page = await unwrap(api.GET("/api/v1/evaluators", { params: { query: { size: 100 } } }), "evaluators");
+  return page.items;
+}
+
+// ---- Investigations -------------------------------------------------------
+
+export type Investigation = components["schemas"]["InvestigationResponse"];
+
+// The investigations of one agent. The call asks for 100 and the tab has no
+// paging, so investigation 101 does not show.
+export async function listInvestigations(agentId: string) {
+  const filter: Filter = { field: "agent_id", op: "eq", value: agentId };
+  const page = await unwrap(api.GET("/api/v1/investigations", { params: { query: { filter: filter as never, size: 100 } } }), "investigations");
   return page.items;
 }
 

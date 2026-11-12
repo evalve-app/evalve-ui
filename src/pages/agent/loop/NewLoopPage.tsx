@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy } from "lucide-react";
-import { getAgent, listEvaluators, listExperiments } from "../../../api/client";
+import { getAgent, listExperiments } from "../../../api/client";
+import { evaluatorsQuery } from "../../../lib/queries";
 import { Button, Checkbox, Input, Switch } from "../../../design-system/components";
 import { versionLabel } from "../../../lib/cohorts";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
@@ -30,7 +31,7 @@ export function NewLoopPage() {
 
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
   const { cohorts, versionsByCohort } = useCohorts(agentId);
-  const evaluators = useQuery({ queryKey: ["evaluators"], queryFn: listEvaluators });
+  const evaluators = useQuery(evaluatorsQuery());
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
 
   const cohortOptions = (cohorts.data ?? []).flatMap((c) =>

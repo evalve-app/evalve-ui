@@ -2,17 +2,18 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, Plus, RefreshCw, Search } from "lucide-react";
-import { listAgents, type Agent } from "../api/client";
+import { type Agent } from "../api/client";
 import { Alert, Button } from "../design-system/components";
 import { NewAgentDialog } from "./NewAgentDialog";
 import { formatRelative } from "../lib/format";
 import { useEmptyPreview } from "../lib/emptyPreview";
+import { agentsQuery } from "../lib/queries";
 
 // Layout follows Kitaru's agents page: title and count, then search,
 // Refresh and New agent, then a grid of agent cards.
 // API: GET /api/v1/agents?size=50 (see docs/kitaru-ui-route-map.md).
 export function AgentsPage() {
-  const agents = useQuery({ queryKey: ["agents"], queryFn: listAgents });
+  const agents = useQuery(agentsQuery());
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
 

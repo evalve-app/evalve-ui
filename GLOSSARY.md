@@ -18,6 +18,12 @@ _Avoid_: Test, example
 A session that re-runs one case, with or without a change. Its result session is the session that the replay produced.
 _Avoid_: Re-run, rerun session
 
+### Investigations
+
+**Investigation**:
+A named set of one agent's sessions that a person reviews one at a time. The person gives each session a verdict: acceptable, problematic, or uncertain.
+_Avoid_: Review, audit
+
 ### Cohorts
 
 **Cohort**:
@@ -27,6 +33,12 @@ _Avoid_: Dataset, test set
 **Cohort version**:
 One fixed set of recorded sessions in a cohort. Adding or removing a session makes a new version. Its sessions are the cases.
 _Avoid_: Snapshot, revision
+
+### Evaluators
+
+**Evaluator**:
+A named check that scores one session and gives a result for it. Evaluators are kept as numbered versions. An experiment names the evaluators that score its replays.
+_Avoid_: Judge, grader, metric
 
 ### Loops
 
