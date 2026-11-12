@@ -11,6 +11,7 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
+import { evaluatorReplays, type EvaluatorReplays } from "../../../lib/loopResults";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
 import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
@@ -31,6 +32,8 @@ export type Lap = {
   confirmation: Stats | null;
   cases: Stats; // every scored run, for the grid
   targets: Map<string, CellTarget>; // case id → what its grid cell opens
+  // Each gating evaluator's replays in case order, from the first completed run. Empty with no completed run.
+  evaluatorReplays: EvaluatorReplays[];
   meanPassK: number | null; // on the selection trials
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
@@ -44,6 +47,7 @@ export type LoopData = {
   laps: Lap[];
   totalLaps: number;
   cases: CaseInfo[];
+  cohortCaseCount: number | null; // cases in the cohort; null until the cohort loads
   running: boolean;
   winnerLap: number | null;
   decision: Decision | null;
@@ -173,6 +177,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         confirmation,
         cases: tally(done),
         targets: new Map(), // filled in once case names are known
+        evaluatorReplays: [], // filled in once case names are known
         meanPassK: c ? meanPassK(selection, c.k) : null,
         selectionGate: c && sel.length ? gate(c, selection, base) : null,
         confirmationGate: c && confirmation ? gate(c, confirmation, base) : null,
@@ -197,6 +202,11 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         });
         l.targets.set(cs.id, cellTarget({ caseName: cs.name, lap: l.lap, runs: runsForCase, gatingEvaluators: gateNames }));
       }
+      // The server gives evaluation values for only the 50 most recent replays
+      // of a run, so a cohort of more than 50 cases gets 50 replays in each
+      // list. `cohortCaseCount` lets the page say "first 50 of N".
+      const firstDone = l.runs.find((r) => runCases.has(r.id));
+      l.evaluatorReplays = evaluatorReplays(firstDone ? runSessions.get(firstDone.id) : undefined, cases, gateNames);
     }
 
     const running = laps.some((l) => l.running);
@@ -236,6 +246,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       laps,
       totalLaps: ordered.length,
       cases,
+      cohortCaseCount: baseline.data?.length ?? null,
       running,
       winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
       decision,

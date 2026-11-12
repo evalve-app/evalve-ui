@@ -2,7 +2,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { Alert } from "../../../design-system/components";
 import { useLoopMode } from "../../../lib/loopMode";
-import { CompareCard, LapGrid, Legend } from "./LoopPage";
+import { CompareCard, LapGrid, Legend } from "./LapViews";
 import { useLoop } from "./useLoop";
 
 // The laps picked on the loop page, side by side: their rows from the grid,

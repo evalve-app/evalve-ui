@@ -344,6 +344,15 @@ h1, h2, p { margin: 0; }
 .diff-line.del { background: var(--tint-destructive-15); color: var(--text-destructive-text); }
 .diff-line.gap { color: var(--text-muted-foreground); font-style: italic; }
 
+/* Loop page, MVP view. One subsection for each section component. The lap
+   grid, the stat tiles and the trend line above are shared with the Post-MVP view. */
+
+/* Loop page: Results section (ResultsSection.tsx) */
+
+/* Loop page: Final results section (FinalResultsSection.tsx) */
+
+/* Loop page: Agent diff section (AgentDiffSection.tsx) */
+
 /* New loop form */
 .form-header { display: flex; flex-direction: column; gap: var(--spacing-1); }
 .detail-title.sans { font-family: var(--font-sans); font-size: 20px; line-height: 28px; }
