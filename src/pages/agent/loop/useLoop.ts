@@ -49,6 +49,7 @@ export type LoopData = {
   cases: CaseInfo[];
   cohortCaseCount: number | null; // cases in the cohort; null until the cohort loads
   firstCohortCase: CaseInfo | null; // the first case of the cohort, in case order; null until the cohort loads
+  cohortFailed: boolean; // the cohort request failed, so the two values above stay null
   running: boolean;
   winnerLap: number | null;
   decision: Decision | null;
@@ -255,6 +256,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       cases,
       cohortCaseCount: baseline.data?.length ?? null,
       firstCohortCase,
+      cohortFailed: baseline.isError,
       running,
       winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
       decision,
@@ -263,5 +265,5 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       error: (experiments.error ?? runs.error ?? null) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, baseline.data, scored, resultsKey, slug, evalve]);
+  }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve]);
 }

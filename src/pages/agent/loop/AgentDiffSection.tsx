@@ -21,7 +21,8 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
     firstCase,
     // A failed request and a session with no prompt give null values, which is the fallback.
     // Until the cohort loads, the page does not know the first case, so the prompt waits.
-    before: { loading: hasWinningLap && (firstCase ? own.isPending : loop.cohortCaseCount == null), failed: own.isError, prompt: own.data?.prompt ?? null, model: own.data?.model ?? null, modelParams: own.data?.modelParams ?? null },
+    // A failed cohort request gives no first case at all, which is also the fallback.
+    before: { loading: hasWinningLap && (firstCase ? own.isPending : loop.cohortCaseCount == null && !loop.cohortFailed), failed: own.isError || loop.cohortFailed, prompt: own.data?.prompt ?? null, model: own.data?.model ?? null, modelParams: own.data?.modelParams ?? null },
   });
   if (!diff) return null;
   const { prompt } = diff;

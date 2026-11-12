@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { agentDiff, evaluatorReplays, finalResults, resultsTable, type AgentDiffInput, type AgentDiffLap, type FinalResultsLoop, type ResultsLap, type RunCell } from "./loopResults";
 import { DEFAULT_CRITERIA, lapSummary } from "./loops";
@@ -97,8 +101,15 @@ describe("agentDiff", () => {
     expect(agentDiff(input())!.prompt).toMatchObject({ counts: { added: 2, removed: 1, unchanged: 2 } });
   });
 
+  // The copied diff of a change from `before` to `after`.
+  const copied = (before: string, after: string) => {
+    const d = agentDiff(input({ before: { loading: false, prompt: before, model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after }, [])] }))!;
+    if (d.prompt.kind !== "diff") throw new Error(`no diff: ${d.prompt.kind}`);
+    return d.prompt.copy.text;
+  };
+
   it("gives a unified diff of the system prompt to copy", () => {
-    expect(agentDiff(input())!.prompt).toMatchObject({
+    expect(agentDiff(input({ before: { loading: false, prompt: BEFORE + "\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: AFTER + "\n" }, [])] }))!.prompt).toMatchObject({
       copy: {
         label: "Copy diff",
         text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,3 +1,4 @@", " You are a support agent.", "-Be polite.", "+Be polite and brief.", " Refund when asked.", "+Refuse refunds after day 30.", ""].join("\n"),
@@ -111,12 +122,42 @@ describe("agentDiff", () => {
     const after = [...before];
     after[1] = "LINE 2";
     after.push("line 21");
-    const d = agentDiff(input({ before: { loading: false, prompt: before.join("\n"), model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after.join("\n") }, [])] }))!;
+    const d = agentDiff(input({ before: { loading: false, prompt: before.join("\n") + "\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after.join("\n") + "\n" }, [])] }))!;
     expect(d.prompt).toMatchObject({
       copy: {
         text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,5 +1,5 @@", " line 1", "-line 2", "+LINE 2", " line 3", " line 4", " line 5", "@@ -18,3 +18,4 @@", " line 18", " line 19", " line 20", "+line 21", ""].join("\n"),
       },
     });
+  });
+
+  it("does not count the final newline of a prompt as one more line", () => {
+    const d = agentDiff(input({ before: { loading: false, prompt: "old\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: "new\n" }, [])] }))!;
+    expect(d.prompt).toMatchObject({ counts: { added: 1, removed: 1, unchanged: 0 } });
+    expect(copied("old\n", "new\n")).toBe(["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,1 +1,1 @@", "-old", "+new", ""].join("\n"));
+  });
+
+  it("marks a last line that has no final newline", () => {
+    expect(copied("keep\nold", "keep\nnew")).toBe(["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,2 +1,2 @@", " keep", "-old", "\\ No newline at end of file", "+new", "\\ No newline at end of file", ""].join("\n"));
+  });
+
+  it.each([
+    ["a final newline in the two prompts", "one\ntwo\nthree\n", "one\n2\nthree\nfour\n"],
+    ["no final newline in the two prompts", "one\ntwo\nthree", "one\n2\nthree"],
+    ["no final newline, with a change in the last line", "one\ntwo", "one\n2"],
+    ["no final newline, with lines added at the end", "one\ntwo", "one\ntwo\nthree"],
+    ["no final newline, with the last line removed", "one\ntwo\nthree", "one\ntwo"],
+    ["a final newline that the winning lap adds", "one\ntwo", "one\n2\n"],
+    ["a final newline that the winning lap removes", "one\ntwo\n", "zero\none\ntwo"],
+    ["a change far from an end with no final newline", ["a", "b", "c", "d", "e", "f", "g", "h"].join("\n"), ["a", "B", "c", "d", "e", "f", "g", "h"].join("\n")],
+  ])("gives a diff that git applies to the exact prompt: %s", (_name, before, after) => {
+    const dir = mkdtempSync(join(tmpdir(), "agent-diff-"));
+    try {
+      writeFileSync(join(dir, "system_prompt"), before);
+      execFileSync("git", ["apply", "-"], { cwd: dir, input: copied(before, after) });
+      expect(readFileSync(join(dir, "system_prompt"), "utf8")).toBe(after);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 
   it("names the recorded session that gave the before prompt", () => {
@@ -340,9 +381,18 @@ describe("resultsTable", () => {
     const row = resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0];
     expect(row.replays).toEqual([
       { caseId: "s1", caseName: "refund-01", sessionId: "r-s1", badges: [{ evaluator: "action-correct", passed: false, text: "action-correct: failed" }, { evaluator: "tone", passed: true, text: "tone: passed" }], status: "Completed", result: "Failed" },
-      { caseId: "s2", caseName: "refund-02", sessionId: "r-s2", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: null, text: "tone: no result" }], status: "Completed", result: "Passed" },
+      { caseId: "s2", caseName: "refund-02", sessionId: "r-s2", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: null, text: "tone: no result" }], status: "Completed", result: "No result" },
       { caseId: "s3", caseName: "refund-03", sessionId: "r-s3", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: false, text: "tone: failed" }], status: "Completed", result: "Failed" },
     ]);
+  });
+
+  it("gives a replay the result Passed only when each gating evaluator passed it", () => {
+    const lists = [
+      { evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true)] },
+      { evaluator: "tone", replays: [replay("s1", true)] },
+    ];
+    const row = resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0];
+    expect(row.replays.map((r) => r.result)).toEqual(["Passed", "No result"]);
   });
 
   it("gives each replay in the list its status from the server, as a word", () => {
@@ -377,7 +427,7 @@ describe("finalResults", () => {
   }
 
   // One run for each lap and k = 1: the pass rate of that run is the number that the rule of the loop uses.
-  const criteria = { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 1, k: 1 };
+  const criteria = { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 1, k: 1, confirmation_round: false };
   const passed = { kind: "completed", passed: true, winnerLap: 2, title: "Lap 2 passed", detail: "It met every check across 1 runs." } as const;
   const notPassed = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: "The loop ran all 4 laps it was allowed." } as const;
 
@@ -454,6 +504,27 @@ describe("finalResults", () => {
     const r = finalResults(worse)!;
     expect(r.line).toContain("Best lap: lap 1");
     expect(r.cards[0]).toEqual({ label: "action-correct", value: "25%", sub: "1 of 4 · was 2 of 4" });
+  });
+
+  it("shows no Criteria card when a confirmation run also decides the lap", () => {
+    // The first run of lap 2 passes each case, but the loop did not pass: the confirmation run failed.
+    const r = finalResults({ ...passedLoop, outcome: notPassed, settings: { criteria: { ...criteria, confirmation_round: true } } })!;
+    expect(r.criteria).toBeNull();
+    expect(r.criteriaSummary).toBeNull();
+  });
+
+  it("shows no Criteria card when its rows do not agree with the outcome", () => {
+    // Each row is met, but a rule that the page cannot measure (the floor for each case) failed the loop.
+    const r = finalResults({ ...passedLoop, outcome: notPassed })!;
+    expect(r.criteria).toBeNull();
+  });
+
+  it("does not count a case as passed when a gating evaluator gave it no result", () => {
+    const partial = finalLap(1, { "action-correct": [1, 1, 1, 1], tone: [1, 1] });
+    const r = finalResults({ ...notPassedLoop, laps: [laps[0], partial], totalLaps: 2 })!;
+    expect(r.bars[1]).toMatchObject({ lap: 1, text: "50%" });
+    // No result is not a failure, so those cases did not get worse.
+    expect(r.cards.find((c) => c.label === "Got worse")).toMatchObject({ value: "0" });
   });
 
   it("names no best lap when only the baseline lap has a score", () => {
@@ -535,7 +606,7 @@ describe("finalResults", () => {
       outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
       laps: [lap23(0, 0), lap23(1, 20)],
       totalLaps: 2,
-      settings: { criteria: { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 5, k: 3 } },
+      settings: { criteria: { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 5, k: 3, confirmation_round: true } },
     };
 
     it("shows no criteria row, because one run does not give the number that the rule uses", () => {

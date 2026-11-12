@@ -178,7 +178,7 @@ function ReplayList({ lap, replays }: { lap: number; replays: ResultsReplay[] })
                 <StatusLabel status={r.status} />
               </td>
               <td>
-                <Badge variant={r.result === "Passed" ? "success" : "destructive"}>{r.result}</Badge>
+                <Badge variant={r.result === "Passed" ? "success" : r.result === "Failed" ? "destructive" : "neutral"}>{r.result}</Badge>
               </td>
             </tr>
           ))}

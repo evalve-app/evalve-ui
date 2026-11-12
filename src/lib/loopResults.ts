@@ -54,13 +54,15 @@ export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: C
 const passedCount = (replays: ReplayResult[]) => replays.filter((r) => r.passed).length;
 
 // Case id → did the case pass every gating evaluator in the lap? Empty for a lap with no score.
-function casePasses(lists: EvaluatorReplays[]): Map<string, boolean> {
-  const passes = new Map<string, boolean>();
-  for (const e of lists) for (const r of e.replays) passes.set(r.caseId, (passes.get(r.caseId) ?? true) && r.passed);
-  return passes;
+// False: a gating evaluator failed the case. Null: no evaluator failed it, but
+// one or more gave no result, so the case is not a pass and not a failure.
+function casePasses(lists: EvaluatorReplays[]): Map<string, boolean | null> {
+  const results = new Map<string, boolean[]>();
+  for (const e of lists) for (const r of e.replays) results.set(r.caseId, [...(results.get(r.caseId) ?? []), r.passed]);
+  return new Map([...results].map(([id, list]) => [id, list.includes(false) ? false : list.length === lists.length ? true : null]));
 }
 
-const passCount = (passes: Map<string, boolean>) => [...passes.values()].filter(Boolean).length;
+const passCount = (passes: Map<string, boolean | null>) => [...passes.values()].filter((ok) => ok === true).length;
 
 // Agent diff section
 
@@ -129,7 +131,10 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
     };
   else if (before.prompt === after) prompt = { kind: "unchanged", text: "The system prompt of the winning lap is the same as the agent's own prompt." };
   else {
-    const diff = diffLines(before.prompt, after);
+    // A final newline ends the last line. It is not one more empty line.
+    const old = withoutFinalNewline(before.prompt);
+    const now = withoutFinalNewline(after);
+    const diff = diffLines(old.text, now.text);
     let oldNumber = 0;
     let newNumber = 0;
     const lines = diff.map((l): PromptDiffLine => {
@@ -142,7 +147,7 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
       kind: "diff",
       lines,
       counts: { added: count("add"), removed: count("del"), unchanged: count("same") },
-      copy: { label: "Copy diff", text: unifiedDiff(lines), primary: true },
+      copy: { label: "Copy diff", text: unifiedDiff(diff, old.newline, now.newline), primary: true },
       source: firstCase ? { sessionId: firstCase.id, name: firstCase.name } : null,
     };
   }
@@ -178,9 +183,28 @@ function lapPassCount(lap: AgentDiffLap): { passed: number; total: number } | nu
   return passes.size ? { passed: passCount(passes), total: passes.size } : null;
 }
 
+const withoutFinalNewline = (text: string) => (text.endsWith("\n") ? { text: text.slice(0, -1), newline: true } : { text, newline: false });
+
+const NO_NEWLINE = "\\ No newline at end of file";
+
 // A unified diff that `git apply` and `patch` read: one hunk for each group of
-// changes, with UNIFIED_CONTEXT unchanged lines around it.
-function unifiedDiff(lines: PromptDiffLine[]): string {
+// changes, with UNIFIED_CONTEXT unchanged lines around it. `oldNewline` and
+// `newNewline` say if the last line of each text ends with a newline. A last
+// line with no newline gets the marker that the format requires.
+function unifiedDiff(diff: DiffLine[], oldNewline: boolean, newNewline: boolean): string {
+  const lines = [...diff];
+  // The index of the last old line (side "add" is not old) or the last new line.
+  const last = (side: "add" | "del") => lines.reduce((found, l, i) => (l.kind !== side ? i : found), -1);
+  // An unchanged line is a changed line when its newline is not the same in the
+  // two texts: the last line of one text, with no newline there, and a line
+  // with a newline in the other text.
+  const lastOld = last("add");
+  const lastNew = last("del");
+  const changed = lastOld === lastNew ? (oldNewline !== newNewline ? lastOld : -1) : lastOld > lastNew ? (newNewline ? -1 : lastNew) : oldNewline ? -1 : lastOld;
+  if (changed >= 0 && lines[changed].kind === "same") lines.splice(changed, 1, { kind: "del", text: lines[changed].text }, { kind: "add", text: lines[changed].text });
+  const oldEnd = oldNewline ? -1 : last("add");
+  const newEnd = newNewline ? -1 : last("del");
+
   const keep = lines.map(() => false);
   lines.forEach((l, i) => {
     if (l.kind !== "same") for (let k = Math.max(0, i - UNIFIED_CONTEXT); k <= Math.min(lines.length - 1, i + UNIFIED_CONTEXT); k++) keep[k] = true;
@@ -202,7 +226,10 @@ function unifiedDiff(lines: PromptDiffLine[]): string {
     const newCount = hunk.filter((l) => l.kind !== "del").length;
     // A side with no lines gives the line before the hunk, as the format requires.
     out.push(`@@ -${oldCount ? oldSeen + 1 : oldSeen},${oldCount} +${newCount ? newSeen + 1 : newSeen},${newCount} @@`);
-    for (const l of hunk) out.push(`${l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}${l.text}`);
+    hunk.forEach((l, k) => {
+      out.push(`${l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}${l.text}`);
+      if (i + k === oldEnd || i + k === newEnd) out.push(NO_NEWLINE);
+    });
     oldSeen += oldCount;
     newSeen += newCount;
     i = end;
@@ -277,7 +304,9 @@ export type ResultsReplay = {
   sessionId: string | null;
   badges: { evaluator: string; passed: boolean | null; text: string }[]; // one for each column
   status: string;
-  result: "Passed" | "Failed"; // passed: no gating evaluator failed
+  // Failed: a gating evaluator failed the case. Passed: each gating evaluator passed it.
+  // No result: no evaluator failed it, but one or more gave no result.
+  result: "Passed" | "Failed" | "No result";
 };
 
 // The replay status from the server, as a word. "Stopped" is also the word for a canceled run.
@@ -291,7 +320,7 @@ function lapReplays(l: ResultsLap, evaluators: string[], cases: CaseInfo[]): Res
     const any = found.find((r) => r);
     if (!any) return [];
     const badges = found.map((r, i) => ({ evaluator: evaluators[i], passed: r ? r.passed : null, text: `${evaluators[i]}: ${r ? (r.passed ? "passed" : "failed") : "no result"}` }));
-    return [{ caseId: cs.id, caseName: any.caseName, sessionId: any.sessionId, badges, status: replayStatus(any.status), result: badges.some((b) => b.passed === false) ? ("Failed" as const) : ("Passed" as const) }];
+    return [{ caseId: cs.id, caseName: any.caseName, sessionId: any.sessionId, badges, status: replayStatus(any.status), result: badges.some((b) => b.passed === false) ? ("Failed" as const) : badges.every((b) => b.passed === true) ? ("Passed" as const) : ("No result" as const) }];
   });
 }
 
@@ -382,7 +411,7 @@ export type FinalResultsLoop = {
     evaluatorReplays: EvaluatorReplays[];
   }[];
   totalLaps: number;
-  settings: { criteria: Pick<Criteria, "cohort_target_mean_pass_k" | "no_regression" | "max_rounds" | "trials_per_round" | "k"> } | null;
+  settings: { criteria: Pick<Criteria, "cohort_target_mean_pass_k" | "no_regression" | "max_rounds" | "trials_per_round" | "k" | "confirmation_round"> } | null;
 };
 
 export type FinalResults = {
@@ -430,7 +459,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   const baselineLap = loop.laps.find((l) => l.lap === 0);
   const baseline = casePasses(baselineLap?.evaluatorReplays ?? []);
   // Got worse: passed in the baseline lap and failed in the lap in use. Null when one of the two has no score.
-  const gotWorse = inUse && baseline.size ? [...inUse.passes].filter(([id, ok]) => !ok && baseline.get(id) === true).length : null;
+  const gotWorse = inUse && baseline.size ? [...inUse.passes].filter(([id, ok]) => ok === false && baseline.get(id) === true).length : null;
 
   const duration = loopDuration(loop.laps);
   const line = [outcome.title, !outcome.passed && inUse ? `Best lap: lap ${inUse.lap.lap}` : null, duration].filter(Boolean).join(" · ");
@@ -454,8 +483,9 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   // The numbers here come from one run of the lap. The rule of a loop with
   // settings uses each run of the lap (mean pass^k), so one run gives the
   // number of the rule only with one run for each lap and k = 1. With more
-  // runs (for example `day-30-refunds`: 5 runs, pass^3) there are no rows,
-  // so that a row cannot say ✗ below a "Passed" badge.
+  // runs (for example `day-30-refunds`: 5 runs, pass^3), or with a
+  // confirmation run that also decides the lap, there are no rows, so that
+  // the rows cannot contradict the badge.
   let criteria: FinalResults["criteria"] = null;
   const greens = parseEvalveLoop(baselineLap?.experiment.description)?.requiredGreens;
   if (inUse && greens != null) {
@@ -466,10 +496,14 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
         value: `${passCount(inUse.passes)} of ${inUse.passes.size} cases passed in lap ${inUse.lap.lap}`,
       },
     ];
-  } else if (inUse && loop.settings && loop.settings.criteria.trials_per_round === 1 && loop.settings.criteria.k === 1) {
+  } else if (inUse && loop.settings && loop.settings.criteria.trials_per_round === 1 && loop.settings.criteria.k === 1 && !loop.settings.criteria.confirmation_round) {
     const c = loop.settings.criteria;
-    criteria = [{ met: inUse.rate >= c.cohort_target_mean_pass_k, label: `Pass rate, at least ${formatPercent(c.cohort_target_mean_pass_k)}`, value: formatPercent(inUse.rate) }];
-    if (c.no_regression && gotWorse != null) criteria.push({ met: gotWorse === 0, label: "No case got worse", value: `${gotWorse} ${gotWorse === 1 ? "case" : "cases"} got worse` });
+    const rows = [{ met: inUse.rate >= c.cohort_target_mean_pass_k, label: `Pass rate, at least ${formatPercent(c.cohort_target_mean_pass_k)}`, value: formatPercent(inUse.rate) }];
+    if (c.no_regression && gotWorse != null) rows.push({ met: gotWorse === 0, label: "No case got worse", value: `${gotWorse} ${gotWorse === 1 ? "case" : "cases"} got worse` });
+    // The loop has more rules than these rows (the floor for each case, the
+    // budget). When the rows do not agree with the outcome, a rule that the
+    // page cannot measure decided it, so the card does not show.
+    if (rows.every((r) => r.met) === outcome.passed) criteria = rows;
   }
 
   return {
