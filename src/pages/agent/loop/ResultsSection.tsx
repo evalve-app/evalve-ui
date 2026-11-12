@@ -1,16 +1,17 @@
-import { Fragment, useState, type ComponentProps } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { Badge, StatusLabel } from "../../../design-system/components";
 import { resultsTable, type ResultsCell, type ResultsReplay, type ResultsRow } from "../../../lib/loopResults";
-import { LAP_PAGE, type LapPanel } from "./LapViews";
+import { LAP_PAGE } from "./LapViews";
+import type { LoopData } from "./useLoop";
 
 const TONE_VARIANT = { success: "success", destructive: "destructive", neutral: "neutral" } as const;
 
 // The Results section of the loop page (MVP view): what occurred in each lap.
 // A table with one row for each lap and one column for each gating evaluator.
 // The view model (`resultsTable`) makes the rows. This component only lays them out.
-export function ResultsSection({ loop, onShowOlder }: ComponentProps<typeof LapPanel>) {
+export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOlder: () => void }) {
   const [open, setOpen] = useState<number[]>([]); // the laps whose rows are open; all closed at first
   const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.settings?.criteria ?? null, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount });
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
@@ -143,45 +144,47 @@ function LapResultBadge({ result }: { result: NonNullable<ResultsRow["result"]> 
 // The replays of an open row: case name, one badge for each gating evaluator, status, result.
 function ReplayList({ lap, replays }: { lap: number; replays: ResultsReplay[] }) {
   return (
-    <table className="rs-replays" aria-label={`Replays of lap ${lap}`}>
-      <thead>
-        <tr>
-          <th>Case</th>
-          <th>Gating evaluators</th>
-          <th>Status</th>
-          <th>Result</th>
-        </tr>
-      </thead>
-      <tbody>
-        {replays.map((r) => (
-          <tr key={r.caseId}>
-            <td className="mono">
-              {r.sessionId ? (
-                <Link to={`/sessions/${r.sessionId}`} target="_blank" rel="noreferrer" className="inline-link" title="Open the result session in a new tab">
-                  {r.caseName}
-                </Link>
-              ) : (
-                r.caseName
-              )}
-            </td>
-            <td>
-              <span className="rs-badges">
-                {r.badges.map((b) => (
-                  <Badge key={b.evaluator} variant={b.passed == null ? "neutral" : b.passed ? "success" : "destructive"} mono>
-                    {b.evaluator}: {b.passed == null ? "no result" : b.passed ? "passed" : "failed"}
-                  </Badge>
-                ))}
-              </span>
-            </td>
-            <td>
-              <StatusLabel status={r.status} />
-            </td>
-            <td>
-              <Badge variant={r.result === "Passed" ? "success" : "destructive"}>{r.result}</Badge>
-            </td>
+    <div className="rs-replays-wrap">
+      <table className="rs-replays" aria-label={`Replays of lap ${lap}`}>
+        <thead>
+          <tr>
+            <th>Case</th>
+            <th>Gating evaluators</th>
+            <th>Status</th>
+            <th>Result</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {replays.map((r) => (
+            <tr key={r.caseId}>
+              <td className="mono">
+                {r.sessionId ? (
+                  <Link to={`/sessions/${r.sessionId}`} target="_blank" rel="noreferrer" className="inline-link" title="Open the result session in a new tab">
+                    {r.caseName}
+                  </Link>
+                ) : (
+                  r.caseName
+                )}
+              </td>
+              <td>
+                <span className="rs-badges">
+                  {r.badges.map((b) => (
+                    <Badge key={b.evaluator} variant={b.passed == null ? "neutral" : b.passed ? "success" : "destructive"} mono>
+                      {b.evaluator}: {b.passed == null ? "no result" : b.passed ? "passed" : "failed"}
+                    </Badge>
+                  ))}
+                </span>
+              </td>
+              <td>
+                <StatusLabel status={r.status} />
+              </td>
+              <td>
+                <Badge variant={r.result === "Passed" ? "success" : "destructive"}>{r.result}</Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

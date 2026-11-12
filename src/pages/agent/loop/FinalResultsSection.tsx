@@ -1,5 +1,5 @@
 import { Check, X } from "lucide-react";
-import { Badge } from "../../../design-system/components";
+import { Alert, Badge } from "../../../design-system/components";
 import { finalResults } from "../../../lib/loopResults";
 import type { LoopData } from "./useLoop";
 
@@ -32,39 +32,49 @@ export function FinalResultsSection({ loop }: { loop: LoopData }) {
         ))}
       </div>
 
-      {r.bars.length > 0 ? (
-        <div className="final-results-panel">
-          <h4 className="final-results-panel-title">Pass rate by lap</h4>
-          <div className="final-results-bars" role="img" aria-label={r.chartLabel}>
-            {r.bars.map((bar) => (
-              <div key={bar.lap} className="final-results-bar-col" aria-hidden>
-                <span className="final-results-bar-value">{bar.text}</span>
-                <div className="final-results-bar-track">
-                  <div className={bar.inUse ? "final-results-bar in-use" : "final-results-bar"} style={{ height: `${bar.rate * 100}%` }} />
+      <div className="final-results-cols">
+        {r.bars.length > 0 ? (
+          <div className="final-results-panel">
+            <div className="final-results-panel-head">
+              <h4 className="final-results-panel-title">Pass rate by lap</h4>
+              <span className="panel-sub">Cases that passed each gating evaluator</span>
+            </div>
+            <div className="final-results-bars" role="img" aria-label={r.chartLabel}>
+              {r.bars.map((bar) => (
+                <div key={bar.lap} className="final-results-bar-col" aria-hidden>
+                  <span className="final-results-bar-value">{bar.text}</span>
+                  <div className="final-results-bar-track">
+                    <div className={bar.inUse ? "final-results-bar in-use" : "final-results-bar"} style={{ height: `${bar.rate * 100}%` }} />
+                  </div>
+                  <span className="final-results-bar-label">{bar.label}</span>
                 </div>
-                <span className="final-results-bar-label">{bar.label}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {r.criteria ? (
-        <div className="final-results-panel">
-          <h4 className="final-results-panel-title">Criteria</h4>
-          <ul className="final-results-criteria">
-            {r.criteria.map((row) => (
-              <li key={row.label} className="final-results-criterion">
-                {row.met ? <Check size={14} className="final-results-mark met" aria-label="Met" /> : <X size={14} className="final-results-mark not-met" aria-label="Not met" />}
-                <span className="final-results-criterion-label">{row.label}</span>
-                <span className="final-results-criterion-value">{row.value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        {r.criteria ? (
+          <div className="final-results-panel">
+            <div className="final-results-panel-head">
+              <h4 className="final-results-panel-title">Criteria</h4>
+              <span className="panel-sub">{r.criteriaSummary}</span>
+            </div>
+            <ul className="final-results-criteria">
+              {r.criteria.map((row) => (
+                <li key={row.label} className="final-results-criterion">
+                  {row.met ? <Check size={14} className="final-results-mark met" aria-label="Met" /> : <X size={14} className="final-results-mark not-met" aria-label="Not met" />}
+                  <span className="final-results-criterion-label">{row.label}</span>
+                  <span className="final-results-criterion-value">{row.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
 
-      <p className="final-results-note">{r.note}</p>
+      <Alert variant="neutral" title={r.note.title}>
+        {r.note.text}
+      </Alert>
     </section>
   );
 }

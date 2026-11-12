@@ -29,20 +29,10 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
   return (
     <section className="agent-diff" aria-labelledby="agent-diff-title">
       <div className="agent-diff-head">
-        <div>
-          <h3 id="agent-diff-title" className="agent-diff-title">
-            Agent diff
-          </h3>
-          <p className="panel-sub">The change that lap {diff.winnerLap}, the winning lap, made to the agent.</p>
-        </div>
-        <div className="agent-diff-actions">
-          {diff.chips.map((c) => (
-            <span key={c} className="criteria-chip">
-              {c}
-            </span>
-          ))}
-          {copy ? <CopyButton copy={copy} /> : null}
-        </div>
+        <h3 id="agent-diff-title" className="section-title">
+          Agent diff
+        </h3>
+        <p className="agent-diff-sub">The change that lap {diff.winnerLap}, the winning lap, made to the agent.</p>
       </div>
 
       <div className="agent-diff-card">
@@ -86,17 +76,28 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
             ))}
           </div>
         ) : null}
+        {prompt.kind === "diff" && prompt.source ? (
+          <p className="agent-diff-source field-hint">
+            The "before" side is the agent's own prompt, from the recorded session{" "}
+            <Link to={`/sessions/${prompt.source.sessionId}`} className="inline-link mono">
+              {prompt.source.name}
+            </Link>
+            .
+          </p>
+        ) : null}
+        {diff.chips.length || copy ? (
+          <div className="agent-diff-card-foot">
+            <span className="agent-diff-chips">
+              {diff.chips.map((c) => (
+                <span key={c} className="criteria-chip">
+                  {c}
+                </span>
+              ))}
+            </span>
+            {copy ? <CopyButton copy={copy} /> : null}
+          </div>
+        ) : null}
       </div>
-
-      {prompt.kind === "diff" && prompt.source ? (
-        <p className="field-hint">
-          The "before" side is the agent's own prompt, from the recorded session{" "}
-          <Link to={`/sessions/${prompt.source.sessionId}`} className="inline-link mono">
-            {prompt.source.name}
-          </Link>
-          .
-        </p>
-      ) : null}
 
       {diff.changedFields.length ? (
         <dl className="agent-diff-fields">
@@ -111,49 +112,57 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
         </dl>
       ) : null}
 
-      {diff.lapRows.length ? (
-        <div className="agent-diff-card">
-          <div className="agent-diff-card-head">
-            <span className="agent-diff-card-title">What each lap changed</span>
-            <span className="panel-sub">Cases that passed, from the lap before to this lap</span>
+      <div className="agent-diff-cols">
+        {diff.lapRows.length ? (
+          <div className="agent-diff-card">
+            <div className="agent-diff-card-head">
+              <span className="agent-diff-card-title">What each lap changed</span>
+              <span className="panel-sub">Cases that passed, from the lap before to this lap</span>
+            </div>
+            <ul className="agent-diff-laps">
+              {diff.lapRows.map((r) => (
+                <li key={r.lap}>
+                  <span className="agent-diff-lap mono">
+                    Lap {r.lap}
+                    {r.winning ? (
+                      <span className="winner-mark" title="The winning lap" aria-label="the winning lap">
+                        ★
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="agent-diff-lap-summary">{r.summary || <span className="muted">—</span>}</span>
+                  <span className={`agent-diff-lap-change mono ${r.trend ?? "none"}`}>{r.change}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="agent-diff-laps">
-            {diff.lapRows.map((r) => (
-              <li key={r.lap}>
-                <span className="agent-diff-lap mono">
-                  Lap {r.lap}
-                  {r.winning ? (
-                    <span className="winner-mark" title="The winning lap" aria-label="the winning lap">
-                      ★
-                    </span>
-                  ) : null}
-                </span>
-                <span className="agent-diff-lap-summary">{r.summary || <span className="muted">—</span>}</span>
-                <span className={`agent-diff-lap-change mono ${r.trend ?? "none"}`}>{r.change}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        ) : null}
 
-      <Alert variant="neutral" title="Apply it yourself">
-        The dashboard does not change your agent. To use the change of the winning lap, apply it in the code of your agent.
-      </Alert>
+        <Alert variant="neutral" title="Apply it yourself">
+          The dashboard does not change your agent. To use the change of the winning lap, apply it in the code of your agent.
+        </Alert>
+      </div>
     </section>
   );
 }
 
-// The one primary button of the loop page.
+// "Copy diff" is the one primary button of the loop page. The copy of a full
+// prompt with no diff is an outline button.
 function CopyButton({ copy }: { copy: AgentDiffCopy }) {
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
   async function onCopy() {
-    await navigator.clipboard.writeText(copy.text);
-    setDone(true);
-    setTimeout(() => setDone(false), 1500);
+    try {
+      await navigator.clipboard.writeText(copy.text);
+      setState("done");
+    } catch {
+      // The browser can refuse the clipboard (no permission, or no HTTPS).
+      setState("failed");
+    }
+    setTimeout(() => setState("idle"), 1500);
   }
   return (
-    <Button icon={done ? Check : Copy} onClick={onCopy}>
-      {done ? "Copied" : copy.label}
+    <Button variant={copy.primary ? "default" : "outline"} icon={state === "done" ? Check : Copy} onClick={onCopy}>
+      <span aria-live="polite">{state === "done" ? "Copied" : state === "failed" ? "Could not copy" : copy.label}</span>
     </Button>
   );
 }

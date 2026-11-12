@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { GitCompareArrows } from "lucide-react";
 import { Button, Checkbox } from "../../../design-system/components";
@@ -11,8 +11,9 @@ import { CHANGE_FIELD_LABELS, type Criteria } from "../../../lib/loops";
 import { CaseCell, type CellState } from "./CaseCell";
 import type { CaseInfo, Lap, LoopData } from "./useLoop";
 
-// The lap views that the loop page and the compare page share: the lap grid
-// panel, the stat tiles, the trend line, and the compare card.
+// The lap views of the Post-MVP view of the loop page (the lap grid panel, the
+// stat tiles, the trend line) and of the compare page (the lap grid, the
+// compare card). Only the compare page shows them in the MVP view.
 
 export const LAP_PAGE = 20;
 const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
@@ -30,20 +31,17 @@ export function useScore() {
   };
 }
 
-// The lap grid in its panel, with the compare checkboxes and the control that shows older laps.
+// The lap grid in its panel, with the compare checkboxes and the control that shows older laps. Post-MVP view only.
 export function LapPanel({ loop, selected, onToggle, onCompare, onShowOlder }: { loop: LoopData; selected: number[]; onToggle: (lap: number) => void; onCompare: () => void; onShowOlder: () => void }) {
-  const s = useScore();
-  // One run per lap: a cell is simply passed or failed, never mixed.
-  const single = s.mvp && loop.laps.every((l) => l.runs.length <= 1);
   return (
     <div className="panel lap-panel">
       <div className="panel-head">
         <div>
           <div className="panel-title">Every case, every lap</div>
-          <div className="panel-sub">{single ? "Each cell is one case in that lap's run." : "Each cell is one case across all of that lap's runs."} Tick two or more laps to compare what changed between them.</div>
+          <div className="panel-sub">Each cell is one case across all of that lap's runs. Tick two or more laps to compare what changed between them.</div>
         </div>
         <div className="lap-panel-actions">
-          <Legend single={single} />
+          <Legend />
           <Button variant="outline" size="sm" icon={GitCompareArrows} disabled={selected.length < 2} onClick={onCompare}>
             {selected.length >= 2 ? `Compare ${selected.length} laps` : "Compare laps"}
           </Button>
@@ -59,28 +57,22 @@ export function LapPanel({ loop, selected, onToggle, onCompare, onShowOlder }: {
   );
 }
 
-// The four stat tiles and the trend line.
+// The four stat tiles and the trend line, on mean pass^k. Post-MVP view only.
 export function LoopStats({ loop }: { loop: LoopData }) {
-  const s = useScore();
   const c = loop.settings?.criteria ?? null;
   const base = loop.laps.find((l) => l.lap === 0) ?? null;
-  const rated = loop.laps.filter((l) => s.of(l) != null);
-  const best = rated.reduce<Lap | null>((m, l) => (m == null || s.of(l)! > s.of(m)! ? l : m), null);
+  const rated = loop.laps.filter((l) => l.meanPassK != null);
+  const best = rated.reduce<Lap | null>((m, l) => (m == null || l.meanPassK! > m.meanPassK! ? l : m), null);
   const latest = loop.laps[loop.laps.length - 1];
-  const baseStats = base ? [...s.stats(base).values()] : [];
+  const baseStats = base ? [...base.selection.values()] : [];
   const flaky = baseStats.filter((x) => x.c > 0 && x.c < x.n).length;
   const failing = baseStats.filter((x) => x.c === 0).length;
-  const single = s.mvp && loop.laps.every((l) => l.runs.length <= 1);
   return (
     <>
       <div className="stat-row">
-        <Stat
-          label={s.mvp ? "Baseline pass rate" : `Baseline mean pass^${c?.k ?? "k"}`}
-          value={s.show(s.of(base))}
-          sub={base ? (s.mvp ? `lap 0 · ${flaky + failing} of ${baseStats.length} cases ${single ? "failed" : "failed at least once"}` : `lap 0 · ${flaky} flaky, ${failing} failing`) : ""}
-        />
-        <Stat label="Best" value={s.show(s.of(best))} sub={best ? `lap ${best.lap}` : ""} />
-        <Stat label="Latest" value={s.show(s.of(latest))} sub={latest ? `lap ${latest.lap}${latest.running ? ", running" : ""}` : ""} />
+        <Stat label={`Baseline mean pass^${c?.k ?? "k"}`} value={fmt(base?.meanPassK)} sub={base ? `lap 0 · ${flaky} flaky, ${failing} failing` : ""} />
+        <Stat label="Best" value={fmt(best?.meanPassK)} sub={best ? `lap ${best.lap}` : ""} />
+        <Stat label="Latest" value={fmt(latest?.meanPassK)} sub={latest ? `lap ${latest.lap}${latest.running ? ", running" : ""}` : ""} />
         <Stat label="Laps run" value={String(Math.max(loop.totalLaps - 1, 0))} sub={c ? `of ${c.max_rounds} max` : ""} />
       </div>
       {c ? <Trend laps={loop.laps} k={c.k} target={c.cohort_target_mean_pass_k} winnerLap={loop.winnerLap} /> : null}
@@ -88,34 +80,30 @@ export function LoopStats({ loop }: { loop: LoopData }) {
   );
 }
 
-function Stat({ label, value, sub, extra }: { label: string; value: string; sub: string; extra?: ReactNode }) {
+function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="stat">
       <span className="stat-label">{label}</span>
       <span className="stat-value-row">
         <span className="stat-value mono">{value}</span>
-        {extra}
       </span>
       <span className="stat-sub">{sub}</span>
     </div>
   );
 }
 
-// The score per lap as a line. The axis starts just below the lowest value so
+// Mean pass^k per lap as a line. The axis starts just below the lowest value so
 // small moves are visible; the dashed line is the cohort target.
 function Trend({ laps, k, target, winnerLap }: { laps: Lap[]; k: number; target: number; winnerLap: number | null }) {
-  const s = useScore();
-  // A pass^k target (k > 1) is not a pass rate, so the MVP view leaves it off.
-  const goal = s.mvp && k !== 1 ? null : target;
-  const values = laps.map((l) => s.of(l)).filter((v): v is number => v != null);
+  const values = laps.map((l) => l.meanPassK).filter((v): v is number => v != null);
   if (values.length === 0) return null;
-  const lowest = Math.min(...values, goal ?? 1);
+  const lowest = Math.min(...values, target);
   const lo = Math.max(0, Math.floor((lowest - 0.05) * 10) / 10);
   const span = 1 - lo || 1;
   const y = (v: number) => ((v - lo) / span) * 100;
   const x = (i: number) => (laps.length === 1 ? 50 : (i / (laps.length - 1)) * 100);
   const pts = laps.map((l, i) => {
-    const v = s.of(l);
+    const v = l.meanPassK;
     return v == null ? null : { x: x(i), y: y(v), v, l };
   });
   const line = pts.filter(Boolean).map((p) => `${p!.x},${100 - p!.y}`).join(" ");
@@ -125,19 +113,15 @@ function Trend({ laps, k, target, winnerLap }: { laps: Lap[]; k: number; target:
     <div className="panel">
       <div className="panel-head">
         <div>
-          <div className="panel-title">{s.mvp ? "Pass rate by lap" : `Mean pass^${k} by lap`}</div>
-          <div className="panel-sub">
-            {s.mvp
-              ? `The share of case runs that passed.${goal != null ? ` Dashed line: the ${formatPercent(goal)} target.` : ""}`
-              : `On each lap's selection trials. Dashed line: the ${target} cohort target.`}
-          </div>
+          <div className="panel-title">{`Mean pass^${k} by lap`}</div>
+          <div className="panel-sub">{`On each lap's selection trials. Dashed line: the ${target} cohort target.`}</div>
         </div>
       </div>
-      <div className="trend" role="img" aria-label={`${s.mvp ? "Pass rate" : `Mean pass^${k}`} by lap: ${laps.map((l) => `lap ${l.lap} ${s.show(s.of(l))}`).join(", ")}`}>
+      <div className="trend" role="img" aria-label={`Mean pass^${k} by lap: ${laps.map((l) => `lap ${l.lap} ${fmt(l.meanPassK)}`).join(", ")}`}>
         <div className="trend-axis" aria-hidden>
           {ticks.map((t) => (
             <span key={t} style={{ bottom: `${y(t)}%` }}>
-              {s.mvp ? formatPercent(t) : t.toFixed(2)}
+              {t.toFixed(2)}
             </span>
           ))}
         </div>
@@ -145,14 +129,14 @@ function Trend({ laps, k, target, winnerLap }: { laps: Lap[]; k: number; target:
           {ticks.map((t) => (
             <div key={t} className="trend-grid" style={{ bottom: `${y(t)}%` }} />
           ))}
-          {goal != null ? <div className="trend-target" style={{ bottom: `${y(goal)}%` }} /> : null}
+          <div className="trend-target" style={{ bottom: `${y(target)}%` }} />
           <svg className="trend-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
             <polyline points={line} vectorEffect="non-scaling-stroke" />
           </svg>
           {pts.map((p, i) =>
             p ? (
-              <div key={laps[i].lap} className={p.l.lap === winnerLap ? "trend-point passed" : p.l.running ? "trend-point running" : "trend-point"} style={{ left: `${p.x}%`, bottom: `${p.y}%` }} title={`Lap ${p.l.lap}: ${s.show(p.v)}`}>
-                <span className="trend-value mono">{s.show(p.v)}</span>
+              <div key={laps[i].lap} className={p.l.lap === winnerLap ? "trend-point passed" : p.l.running ? "trend-point running" : "trend-point"} style={{ left: `${p.x}%`, bottom: `${p.y}%` }} title={`Lap ${p.l.lap}: ${fmt(p.v)}`}>
+                <span className="trend-value mono">{fmt(p.v)}</span>
               </div>
             ) : null,
           )}
@@ -310,7 +294,7 @@ const word = (x: { c: number; n: number }) => (x.n === 1 ? (x.c ? "passed" : "fa
 export function CompareCard({ a, b, cases, agentId }: { a: Lap; b: Lap; cases: CaseInfo[]; agentId: string }) {
   const s = useScore();
   const rows = cases
-    .map((cs) => ({ name: cs.name, before: s.stats(a).get(cs.id), after: s.stats(b).get(cs.id), conf: s.mvp ? undefined : b.confirmation?.get(cs.id) }))
+    .map((cs) => ({ id: cs.id, name: cs.name, before: s.stats(a).get(cs.id), after: s.stats(b).get(cs.id), conf: s.mvp ? undefined : b.confirmation?.get(cs.id) }))
     .filter((r) => r.before && r.after && r.before.c / r.before.n !== r.after.c / r.after.n);
   const improved = rows.filter((r) => r.after!.c / r.after!.n > r.before!.c / r.before!.n);
   const worse = rows.filter((r) => r.after!.c / r.after!.n < r.before!.c / r.before!.n);
@@ -318,7 +302,7 @@ export function CompareCard({ a, b, cases, agentId }: { a: Lap; b: Lap; cases: C
   const fb = new Map(changedFields(b.experiment.override).map((f) => [f.key, f.value]));
   const keys = [...new Set([...fa.keys(), ...fb.keys()])].filter((k) => JSON.stringify(fa.get(k)) !== JSON.stringify(fb.get(k)));
   const chip = (r: (typeof rows)[number]) => (
-    <span key={r.name} className="case-chip mono" title={r.conf ? `Confirmation: ${r.conf.c}/${r.conf.n}` : undefined}>
+    <span key={r.id} className="case-chip mono" title={r.conf ? `Confirmation: ${r.conf.c}/${r.conf.n}` : undefined}>
       {r.name} {word(r.before!)} → {word(r.after!)}
     </span>
   );

@@ -11,7 +11,7 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
-import { evaluatorReplays, type EvaluatorReplays } from "../../../lib/loopResults";
+import { evaluatorReplays, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
 import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
@@ -107,21 +107,21 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
 
     // Per run: did each case pass every gating evaluator?
     const runCases = new Map<string, Map<string, boolean>>();
-    // Per run: each case's result session and pass/fail evaluator results, for the grid cells.
-    const runSessions = new Map<string, Map<string, Pick<CellRun, "sessionId" | "results">>>();
+    // Per run: each case's result session, replay status and pass/fail evaluator results, for the grid cells.
+    const runSessions = new Map<string, Map<string, RunCell>>();
     scored.forEach((run, i) => {
       const a = aggs[i]?.data;
       const r = reps[i]?.data;
       if (!a || !r) return;
       const byReplay = new Map(r.map((x) => [x.id, x]));
       const passed = new Map<string, boolean>();
-      const sessions = new Map<string, Pick<CellRun, "sessionId" | "results">>();
+      const sessions = new Map<string, RunCell>();
       for (const agg of a) {
         if (agg.data_type !== "bool") continue; // metrics don't gate here
         for (const rep of agg.replays ?? []) {
           const replay = byReplay.get(rep.replay_id);
           const key = replay?.baseline_session_id ?? rep.replay_id;
-          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, results: [] };
+          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
           cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
           sessions.set(key, cell);
           if (!isGating(gateNames, agg.evaluator_name)) continue;

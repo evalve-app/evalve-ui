@@ -46,6 +46,14 @@ describe("evaluatorReplays", () => {
   it("gives no lists for a lap with no completed run", () => {
     expect(evaluatorReplays(undefined, cases, ["action-correct"])).toEqual([]);
   });
+
+  it("gives each replay the status that the server gives for it", () => {
+    const withStatus = new Map<string, RunCell>([
+      ["s1", { sessionId: "r1", status: "completed", results: [{ evaluator: "action-correct", passed: true }] }],
+      ["s2", { sessionId: null, status: "failed", results: [{ evaluator: "action-correct", passed: false }] }],
+    ]);
+    expect(evaluatorReplays(withStatus, cases, ["action-correct"])[0].replays.map((r) => r.status)).toEqual(["completed", "failed"]);
+  });
 });
 
 // ---- Agent diff section (#20): start ----------------------------------------
@@ -129,8 +137,13 @@ describe("agentDiff", () => {
       kind: "after-only",
       note: "The recorded sessions use the agent's own setting, which Kitaru doesn't store, so there's no line-by-line diff. Lap 1, the winning lap, sets the system prompt to:",
       text: AFTER,
-      copy: { label: "Copy prompt", text: AFTER },
+      copy: { label: "Copy prompt", text: AFTER, primary: false },
     });
+  });
+
+  it("makes \"Copy diff\" the one primary button: the copy of a full prompt with no diff is not primary", () => {
+    expect(agentDiff(input())!.prompt).toMatchObject({ copy: { label: "Copy diff", primary: true } });
+    expect(agentDiff(input({ before: { loading: false, prompt: null, model: null, modelParams: null } }))!.prompt).toMatchObject({ copy: { label: "Copy prompt", primary: false } });
   });
 
   it("says that the prompt did not change when the winning lap has no system prompt override", () => {
@@ -195,7 +208,7 @@ import { resultsTable, type ResultsLap } from "./loopResults";
 import { DEFAULT_CRITERIA, lapSummary } from "./loops";
 
 describe("resultsTable", () => {
-  const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed });
+  const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed, status: "completed" });
   const lap = (n: number, over: Partial<ResultsLap> = {}): ResultsLap => ({
     lap: n,
     summary: n === 0 ? "Baseline lap, no changes" : `Change ${n}`,
@@ -303,6 +316,14 @@ describe("resultsTable", () => {
     ]);
   });
 
+  it("gives each replay in the list its status from the server, as a word", () => {
+    const statuses = ["completed", "failed", "canceled", "evaluating", "pending", undefined];
+    const replays = statuses.map((status, i) => ({ ...replay(`s${i + 1}`, true), status }));
+    const sixCases = statuses.map((_, i) => ({ id: `s${i + 1}`, name: `refund-0${i + 1}` }));
+    const row = resultsTable(loop([lap(0, { evaluatorReplays: [{ evaluator: "action-correct", replays }] })], { cases: sixCases })).rows[0];
+    expect(row.replays.map((r) => r.status)).toEqual(["Completed", "Failed", "Stopped", "Evaluating", "Pending", "No status"]);
+  });
+
   it("lists no replays for a lap with no completed run", () => {
     expect(resultsTable(loop([lap(0, { runs: [{ status: "running" }], evaluatorReplays: [] })])).rows[0].replays).toEqual([]);
   });
@@ -361,14 +382,14 @@ describe("finalResults", () => {
   it("names the winning lap and the duration in the heading of a loop that passed", () => {
     const r = finalResults(passedLoop)!;
     expect(r.badge).toEqual({ label: "Passed", tone: "success" });
-    expect(r.line).toBe("Lap 2 passed · 12m 5s");
+    expect(r.line).toBe("Lap 2 passed · 12 min");
     expect(r.detail).toBe("It met every check across 1 runs.");
   });
 
   it("names the best lap in the heading of a loop that did not pass, with a neutral badge", () => {
     const r = finalResults(notPassedLoop)!;
     expect(r.badge).toEqual({ label: "Not passed", tone: "neutral" });
-    expect(r.line).toBe("No lap passed · Best lap: lap 1 · 8m 0s");
+    expect(r.line).toBe("No lap passed · Best lap: lap 1 · 8 min");
     expect(r.detail).toBe("The loop ran all 4 laps it was allowed.");
   });
 
@@ -377,7 +398,7 @@ describe("finalResults", () => {
       finalLap(0, { "action-correct": [1, 1, 1, 1] }, { runs: [{ started_at: "2026-01-01T12:00:00Z", ended_at: "2026-01-01T12:30:00Z" }] }),
       finalLap(1, { "action-correct": [1, 1, 1, 1] }, { runs: [{ started_at: "2026-01-01T10:00:00Z", ended_at: "2026-01-01T11:00:00Z" }] }),
     ];
-    expect(finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 1, title: "Lap 1 passed" }, laps: long, totalLaps: 2 })!.line).toBe("Lap 1 passed · 2h 30m");
+    expect(finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 1, title: "Lap 1 passed" }, laps: long, totalLaps: 2 })!.line).toBe("Lap 1 passed · 2 h 30 min");
   });
 
   it("leaves the duration out when no run has a start and an end", () => {
@@ -417,11 +438,11 @@ describe("finalResults", () => {
   });
 
   it("gives the laps after the baseline lap, with the limit from the loop settings", () => {
-    expect(finalResults(passedLoop)!.cards[2]).toEqual({ label: "Laps", value: "2", sub: "of 4 max" });
+    expect(finalResults(passedLoop)!.cards[2]).toEqual({ label: "Laps", value: "2", sub: "after the baseline lap · limit 4" });
   });
 
   it("gives no limit on the Laps card for a loop with no settings", () => {
-    expect(finalResults({ ...passedLoop, settings: null })!.cards[2]).toEqual({ label: "Laps", value: "2", sub: "" });
+    expect(finalResults({ ...passedLoop, settings: null })!.cards[2]).toEqual({ label: "Laps", value: "2", sub: "after the baseline lap" });
   });
 
   it("gives one bar for each lap that has a score, with the pass rate over all gating evaluators", () => {
@@ -469,8 +490,15 @@ describe("finalResults", () => {
     expect(finalResults({ ...passedLoop, settings: null })!.criteria).toBeNull();
   });
 
-  it("says that the agent was not changed", () => {
-    expect(finalResults(passedLoop)!.note).toBe("Nothing was changed in your agent");
+  it("says how many criteria the lap in use met", () => {
+    expect(finalResults(passedLoop)!.criteriaSummary).toBe("all met");
+    expect(finalResults(notPassedLoop)!.criteriaSummary).toBe("0 of 2 met");
+    expect(finalResults({ ...passedLoop, settings: null })!.criteriaSummary).toBeNull();
+  });
+
+  it("says that the agent was not changed, and points to the diff only for a loop that passed", () => {
+    expect(finalResults(passedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop changed only its own copy of the agent. The change of the winning lap is below." });
+    expect(finalResults(notPassedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop changed only its own copy of the agent." });
   });
 });
 // ── Final results section (#19): end ────────────────────────────────────────

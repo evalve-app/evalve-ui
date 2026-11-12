@@ -64,7 +64,7 @@ export function LoopPage() {
         {c ? <CriteriaLine c={c} mvp={mvp} changes={loop.settings!.allowed_changes.map((f) => CHANGE_FIELD_LABELS[f] ?? f)} /> : null}
         {mvp && fullRules && c ? (
           <p className="field-hint">
-            This loop ran with the Post-MVP rules ({c.trials_per_round} trials per lap, pass^{c.k}). The MVP view shows its plain pass rate across those runs.
+            This loop ran with the Post-MVP rules ({c.trials_per_round} runs per lap, pass^{c.k}). The MVP view shows the first completed run of each lap.
           </p>
         ) : null}
       </div>
@@ -98,7 +98,7 @@ export function LoopPage() {
 
       {loop.laps.length > 0 && mvp ? (
         <>
-          <ResultsSection {...lapPanel} />
+          <ResultsSection loop={loop} onShowOlder={lapPanel.onShowOlder} />
           <FinalResultsSection loop={loop} />
           <AgentDiffSection loop={loop} />
         </>
