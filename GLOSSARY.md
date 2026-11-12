@@ -18,6 +18,16 @@ _Avoid_: Test, example
 A session that re-runs one case, with or without a change. Its result session is the session that the replay produced.
 _Avoid_: Re-run, rerun session
 
+### Cohorts
+
+**Cohort**:
+A named set of recorded sessions for one agent, kept as numbered versions. An experiment replays a cohort version, not the cohort itself.
+_Avoid_: Dataset, test set
+
+**Cohort version**:
+One fixed set of recorded sessions in a cohort. Adding or removing a session makes a new version. Its sessions are the cases.
+_Avoid_: Snapshot, revision
+
 ### Loops
 
 **Loop**:
