@@ -11,11 +11,11 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
-import { evaluatorReplays, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
+import { evaluatorReplays, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
 import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
-export type CaseInfo = { id: string; name: string; order: number };
+export type { CaseInfo };
 
 export type Lap = {
   lap: number;
@@ -48,6 +48,7 @@ export type LoopData = {
   totalLaps: number;
   cases: CaseInfo[];
   cohortCaseCount: number | null; // cases in the cohort; null until the cohort loads
+  firstCohortCase: CaseInfo | null; // the first case of the cohort, in case order; null until the cohort loads
   running: boolean;
   winnerLap: number | null;
   decision: Decision | null;
@@ -187,12 +188,18 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     const caseIds = new Set<string>();
     for (const l of laps) for (const k of l.cases.keys()) caseIds.add(k);
     const byId = new Map((baseline.data ?? []).map((s) => [s.session.id, s.session]));
-    const cases: CaseInfo[] = [...caseIds]
-      .map((id) => {
-        const s = byId.get(id);
-        return { id, name: caseName(s?.name) || (s ? `#${s.number}` : "…"), order: s?.number ?? 0 };
-      })
-      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+    // Case order: the number of the recorded session, then the name.
+    const inCaseOrder = (ids: string[]): CaseInfo[] =>
+      ids
+        .map((id) => {
+          const s = byId.get(id);
+          return { id, name: caseName(s?.name) || (s ? `#${s.number}` : "…"), order: s?.number ?? 0 };
+        })
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map(({ id, name }) => ({ id, name }));
+    const cases = inCaseOrder([...caseIds]);
+    // The first case of the whole cohort, also when it has no result in the laps that are loaded.
+    const firstCohortCase = inCaseOrder([...byId.keys()])[0] ?? null;
 
     for (const l of laps) {
       for (const cs of cases) {
@@ -247,6 +254,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       totalLaps: ordered.length,
       cases,
       cohortCaseCount: baseline.data?.length ?? null,
+      firstCohortCase,
       running,
       winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
       decision,

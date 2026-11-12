@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluatorReplays, type RunCell } from "./loopResults";
+import { agentDiff, evaluatorReplays, finalResults, resultsTable, type AgentDiffInput, type AgentDiffLap, type FinalResultsLoop, type ResultsLap, type RunCell } from "./loopResults";
+import { DEFAULT_CRITERIA, lapSummary } from "./loops";
 
 const cases = [
   { id: "s1", name: "refund-01" },
@@ -55,9 +56,6 @@ describe("evaluatorReplays", () => {
     expect(evaluatorReplays(withStatus, cases, ["action-correct"])[0].replays.map((r) => r.status)).toEqual(["completed", "failed"]);
   });
 });
-
-// ---- Agent diff section (#20): start ----------------------------------------
-import { agentDiff, type AgentDiffInput, type AgentDiffLap } from "./loopResults";
 
 describe("agentDiff", () => {
   // One lap: its override, and one gating evaluator with one replay for each case.
@@ -141,6 +139,16 @@ describe("agentDiff", () => {
     });
   });
 
+  it("says that the page could not load the agent's own prompt when the request for it failed, and keeps the fallback", () => {
+    const d = agentDiff(input({ before: { loading: false, failed: true, prompt: null, model: null, modelParams: null } }))!;
+    expect(d.prompt).toEqual({
+      kind: "after-only",
+      note: "The page could not load the agent's own prompt, so there's no line-by-line diff. Lap 1, the winning lap, sets the system prompt to:",
+      text: AFTER,
+      copy: { label: "Copy prompt", text: AFTER, primary: false },
+    });
+  });
+
   it("makes \"Copy diff\" the one primary button: the copy of a full prompt with no diff is not primary", () => {
     expect(agentDiff(input())!.prompt).toMatchObject({ copy: { label: "Copy diff", primary: true } });
     expect(agentDiff(input({ before: { loading: false, prompt: null, model: null, modelParams: null } }))!.prompt).toMatchObject({ copy: { label: "Copy prompt", primary: false } });
@@ -202,10 +210,6 @@ describe("agentDiff", () => {
     expect(d.lapRows[0].change).toBe("0 → 1 / 2");
   });
 });
-// ---- Agent diff section (#20): end ------------------------------------------
-// ---- Results table (#18): start ----
-import { resultsTable, type ResultsLap } from "./loopResults";
-import { DEFAULT_CRITERIA, lapSummary } from "./loops";
 
 describe("resultsTable", () => {
   const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed, status: "completed" });
@@ -238,10 +242,15 @@ describe("resultsTable", () => {
   it("shows one square for each replay, in case order, with a name that gives the case and the result", () => {
     const cell = resultsTable(loop([lap(0)])).rows[0].cells[0]!;
     expect(cell.squares).toEqual([
-      { caseId: "s1", passed: false, sessionId: "r-s1", label: "refund-01: failed" },
-      { caseId: "s2", passed: true, sessionId: "r-s2", label: "refund-02: passed" },
-      { caseId: "s3", passed: true, sessionId: "r-s3", label: "refund-03: passed" },
+      { caseId: "s1", passed: false, sessionId: "r-s1", label: "refund-01: failed", name: "refund-01: failed. Open the result session in a new tab" },
+      { caseId: "s2", passed: true, sessionId: "r-s2", label: "refund-02: passed", name: "refund-02: passed. Open the result session in a new tab" },
+      { caseId: "s3", passed: true, sessionId: "r-s3", label: "refund-03: passed", name: "refund-03: passed. Open the result session in a new tab" },
     ]);
+  });
+
+  it("says that a square has no result session when the replay has none", () => {
+    const lists = [{ evaluator: "action-correct", replays: [{ ...replay("s1", false), sessionId: null }] }];
+    expect(resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0].cells[0]!.squares).toEqual([{ caseId: "s1", passed: false, sessionId: null, label: "refund-01: failed", name: "refund-01: failed. No result session" }]);
   });
 
   it("counts the passed replays, in the failure tone when a replay failed", () => {
@@ -275,7 +284,7 @@ describe("resultsTable", () => {
 
   it("marks the winning lap, and only that lap", () => {
     const rows = resultsTable(loop([lap(0), lap(1), lap(2)], { winnerLap: 1 })).rows;
-    expect(rows.map((r) => r.winner)).toEqual([false, true, false]);
+    expect(rows.map((r) => r.winning)).toEqual([false, true, false]);
     expect(rows[1].result).toMatchObject({ label: "Passed", tone: "success" });
   });
 
@@ -299,8 +308,28 @@ describe("resultsTable", () => {
 
   it("shows a lap with no completed run with its number, summary and run status, and no squares or result", () => {
     const row = resultsTable(loop([lap(0), lap(1, { running: true, runs: [{ status: "running" }], evaluatorReplays: [] })], { criteria: DEFAULT_CRITERIA })).rows[1];
-    expect(row).toMatchObject({ lap: 1, summary: "Change 1", status: "Running", hasResults: false, result: null });
+    expect(row).toMatchObject({ lap: 1, summary: "Change 1", status: "Running", noResults: "No results yet", result: null });
     expect(row.cells).toEqual([null]);
+  });
+
+  it("gives a lap with results no text in the place of the squares", () => {
+    expect(resultsTable(loop([lap(0)])).rows[0].noResults).toBeNull();
+  });
+
+  it('says "No results yet" for each lap with no completed run, whatever the run status', () => {
+    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], evaluatorReplays: [] }), lap(2, { runs: [{ status: "canceled" }], evaluatorReplays: [] }), lap(3, { runs: [], evaluatorReplays: [] })])).rows;
+    expect(rows.slice(1).map((r) => r.noResults)).toEqual(["No results yet", "No results yet", "No results yet"]);
+  });
+
+  it("says that a completed run gave no results, and does not show it as a lap with no run", () => {
+    const row = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "completed" }], evaluatorReplays: [] })], { criteria: DEFAULT_CRITERIA, winnerLap: 1 })).rows[1];
+    expect(row).toMatchObject({ status: "Completed", noResults: "No results from a gating evaluator", result: null, replays: [] });
+    expect(row.cells).toEqual([null]);
+  });
+
+  it("gives the status of the completed run when a later run of the lap still runs", () => {
+    const row = resultsTable(loop([lap(0, { runs: [{ status: "completed" }, { status: "running" }] })])).rows[0];
+    expect(row.status).toBe("Completed");
   });
 
   it("lists the replays of a lap in case order, each with one badge for each gating evaluator and a result", () => {
@@ -310,9 +339,9 @@ describe("resultsTable", () => {
     ];
     const row = resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0];
     expect(row.replays).toEqual([
-      { caseId: "s1", caseName: "refund-01", sessionId: "r-s1", badges: [{ evaluator: "action-correct", passed: false }, { evaluator: "tone", passed: true }], status: "Completed", result: "Failed" },
-      { caseId: "s2", caseName: "refund-02", sessionId: "r-s2", badges: [{ evaluator: "action-correct", passed: true }, { evaluator: "tone", passed: null }], status: "Completed", result: "Passed" },
-      { caseId: "s3", caseName: "refund-03", sessionId: "r-s3", badges: [{ evaluator: "action-correct", passed: true }, { evaluator: "tone", passed: false }], status: "Completed", result: "Failed" },
+      { caseId: "s1", caseName: "refund-01", sessionId: "r-s1", badges: [{ evaluator: "action-correct", passed: false, text: "action-correct: failed" }, { evaluator: "tone", passed: true, text: "tone: passed" }], status: "Completed", result: "Failed" },
+      { caseId: "s2", caseName: "refund-02", sessionId: "r-s2", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: null, text: "tone: no result" }], status: "Completed", result: "Passed" },
+      { caseId: "s3", caseName: "refund-03", sessionId: "r-s3", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: false, text: "tone: failed" }], status: "Completed", result: "Failed" },
     ]);
   });
 
@@ -328,10 +357,6 @@ describe("resultsTable", () => {
     expect(resultsTable(loop([lap(0, { runs: [{ status: "running" }], evaluatorReplays: [] })])).rows[0].replays).toEqual([]);
   });
 });
-// ---- Results table (#18): end ----
-
-// ── Final results section (#19): start ──────────────────────────────────────
-import { finalResults, type FinalResultsLoop } from "./loopResults";
 
 describe("finalResults", () => {
   type FinalLap = FinalResultsLoop["laps"][number];
@@ -351,7 +376,8 @@ describe("finalResults", () => {
     };
   }
 
-  const criteria = { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4 };
+  // One run for each lap and k = 1: the pass rate of that run is the number that the rule of the loop uses.
+  const criteria = { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 1, k: 1 };
   const passed = { kind: "completed", passed: true, winnerLap: 2, title: "Lap 2 passed", detail: "It met every check across 1 runs." } as const;
   const notPassed = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: "The loop ran all 4 laps it was allowed." } as const;
 
@@ -486,6 +512,43 @@ describe("finalResults", () => {
     ]);
   });
 
+  // The shape of `day-30-refunds`: 5 runs for each lap, pass^3, and an outcome that the known loops list gives.
+  // One run is 20 of 23, under the 90% target, but the loop passed on pass^3 over 5 runs.
+  describe("a loop that the rules judge on more than one run for each lap", () => {
+    const row = (n: number) => Array.from({ length: 23 }, (_, i) => (i < n ? 1 : 0));
+    const ids = Array.from({ length: 23 }, (_, i) => `s${i + 1}`);
+    const lap23 = (lap: number, n: number): FinalLap => ({ ...finalLap(lap, {}), evaluatorReplays: [{ evaluator: "support-desk-action-correct", replays: row(n).map((p, i) => ({ caseId: ids[i], caseName: ids[i], sessionId: null, passed: p === 1 })) }] });
+    const day30: FinalResultsLoop = {
+      outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
+      laps: [lap23(0, 0), lap23(1, 20)],
+      totalLaps: 2,
+      settings: { criteria: { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 5, k: 3 } },
+    };
+
+    it("shows no criteria row, because one run does not give the number that the rule uses", () => {
+      const r = finalResults(day30)!;
+      expect(r.badge.label).toBe("Passed");
+      expect(r.criteria).toBeNull();
+      expect(r.criteriaSummary).toBeNull();
+    });
+
+    it("keeps the cards and the limit of the Laps card", () => {
+      expect(finalResults(day30)!.cards).toEqual([
+        { label: "support-desk-action-correct", value: "87%", sub: "20 of 23 · was 0 of 23" },
+        { label: "Got worse", value: "0", sub: "of 23 cases, baseline lap to lap 1" },
+        { label: "Laps", value: "1", sub: "after the baseline lap · limit 4" },
+      ]);
+    });
+
+    it("shows no criteria row for several runs with k = 1 also", () => {
+      expect(finalResults({ ...day30, settings: { criteria: { ...day30.settings!.criteria, k: 1 } } })!.criteria).toBeNull();
+    });
+  });
+
+  it("never shows an unmet criterion below a Passed badge", () => {
+    for (const loop of [passedLoop, { ...passedLoop, settings: null }]) expect(finalResults(loop)!.criteria?.every((c) => c.met) ?? true).toBe(true);
+  });
+
   it("gives no criteria for a loop with no rules on the server", () => {
     expect(finalResults({ ...passedLoop, settings: null })!.criteria).toBeNull();
   });
@@ -501,4 +564,3 @@ describe("finalResults", () => {
     expect(finalResults(notPassedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop changed only its own copy of the agent." });
   });
 });
-// ── Final results section (#19): end ────────────────────────────────────────

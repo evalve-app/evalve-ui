@@ -3,7 +3,13 @@
 // plain loop data and returns what one section shows, with all text that
 // depends on server data already made. The section components only lay it out.
 import type { CellRun } from "./cellTarget";
-import { isGating } from "./loops";
+import { diffLines, type DiffLine } from "./diff";
+import { formatLongDuration, formatPercent } from "./format";
+import type { Gate } from "./loopRules";
+import { isGating, parseEvalveLoop, type Criteria, type LoopOutcome } from "./loops";
+
+// One case of the loop's cohort: the id of its recorded session, and its name.
+export type CaseInfo = { id: string; name: string };
 
 // One replay of one case, as one gating evaluator scored it. `status` is the
 // replay status from the server, when the loop data has the replay.
@@ -22,7 +28,7 @@ const UNNAMED = "Unnamed evaluator";
 // data hook gives the first completed run). `cases` sets the order, so each
 // lap of a loop has the same order. A case with no result in the run is left
 // out. Evaluators follow the loop's gating list, or name order with no list.
-export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: { id: string; name: string }[], gatingEvaluators: string[] | undefined): EvaluatorReplays[] {
+export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: CaseInfo[], gatingEvaluators: string[] | undefined): EvaluatorReplays[] {
   if (!run) return [];
   const lists = new Map<string, ReplayResult[]>();
   for (const cs of cases) {
@@ -44,8 +50,19 @@ export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: {
     .sort((a, b) => rank(a.evaluator) - rank(b.evaluator) || a.evaluator.localeCompare(b.evaluator));
 }
 
-// ---- Agent diff section (#20): start ----------------------------------------
-import { diffLines, type DiffLine } from "./diff";
+// The replays that passed.
+const passedCount = (replays: ReplayResult[]) => replays.filter((r) => r.passed).length;
+
+// Case id → did the case pass every gating evaluator in the lap? Empty for a lap with no score.
+function casePasses(lists: EvaluatorReplays[]): Map<string, boolean> {
+  const passes = new Map<string, boolean>();
+  for (const e of lists) for (const r of e.replays) passes.set(r.caseId, (passes.get(r.caseId) ?? true) && r.passed);
+  return passes;
+}
+
+const passCount = (passes: Map<string, boolean>) => [...passes.values()].filter(Boolean).length;
+
+// Agent diff section
 
 // The fields of a lap's override that the Agent diff section reads.
 export type AgentDiffOverride = { system_prompt?: string | null; model?: string | Record<string, string> | null; model_params?: Record<string, unknown> | null };
@@ -55,13 +72,13 @@ export type AgentDiffLap = { lap: number; summary: string; override: AgentDiffOv
 
 // The agent's own settings, from the first LLM step of a recorded session.
 // `loading` is true while the request runs. A value is null when the session
-// does not give it, and all values are null after a failed request.
-export type AgentBefore = { loading: boolean; prompt: string | null; model: string | null; modelParams: Record<string, unknown> | null };
+// does not give it. `failed` is true after a failed request, and then all values are null.
+export type AgentBefore = { loading: boolean; failed?: boolean; prompt: string | null; model: string | null; modelParams: Record<string, unknown> | null };
 
 export type AgentDiffInput = {
   winnerLap: number | null;
   laps: AgentDiffLap[];
-  firstCase: { id: string; name: string } | null; // the recorded session that gives the "before" prompt
+  firstCase: CaseInfo | null; // the recorded session that gives the "before" prompt
   before: AgentBefore;
 };
 
@@ -93,9 +110,9 @@ const UNIFIED_CONTEXT = 3;
 // What the Agent diff section shows, or null for no section: a loop with no
 // winning lap, or a winning lap that is not in `laps`.
 export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput): AgentDiff | null {
-  const winner = winnerLap == null ? undefined : laps.find((l) => l.lap === winnerLap);
-  if (!winner) return null;
-  const o = winner.override ?? {};
+  const winning = winnerLap == null ? undefined : laps.find((l) => l.lap === winnerLap);
+  if (!winning) return null;
+  const o = winning.override ?? {};
   const after = o.system_prompt || null;
   const hasParams = !!o.model_params && Object.keys(o.model_params).length > 0;
 
@@ -105,7 +122,8 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
   else if (!before.prompt)
     prompt = {
       kind: "after-only",
-      note: `The recorded sessions use the agent's own setting, which Kitaru doesn't store, so there's no line-by-line diff. Lap ${winner.lap}, the winning lap, sets the system prompt to:`,
+      // A failed request does not show that Kitaru has no prompt, so it has its own note.
+      note: `${before.failed ? "The page could not load the agent's own prompt" : "The recorded sessions use the agent's own setting, which Kitaru doesn't store"}, so there's no line-by-line diff. Lap ${winning.lap}, the winning lap, sets the system prompt to:`,
       text: after,
       copy: { label: "Copy prompt", text: after, primary: false },
     };
@@ -144,22 +162,20 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
         summary: l.summary,
         change: now ? `${prev ? prev.passed : "—"} → ${now.passed} / ${now.total}` : "No results yet",
         trend: now && prev ? (now.passed > prev.passed ? "better" : now.passed < prev.passed ? "worse" : "same") : null,
-        winning: l.lap === winner.lap,
+        winning: l.lap === winning.lap,
       },
     ];
   });
 
-  return { winnerLap: winner.lap, prompt, chips: [o.model ? null : "model unchanged", hasParams ? null : "parameters unchanged"].filter((c): c is string => !!c), changedFields, lapRows };
+  return { winnerLap: winning.lap, prompt, chips: [o.model ? null : "model unchanged", hasParams ? null : "parameters unchanged"].filter((c): c is string => !!c), changedFields, lapRows };
 }
 
 const settingText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 
 // The cases that passed each gating evaluator in the lap's first completed run, or null with no results.
 function lapPassCount(lap: AgentDiffLap): { passed: number; total: number } | null {
-  const byCase = new Map<string, boolean>();
-  for (const e of lap.evaluatorReplays) for (const r of e.replays) byCase.set(r.caseId, (byCase.get(r.caseId) ?? true) && r.passed);
-  if (byCase.size === 0) return null;
-  return { passed: [...byCase.values()].filter(Boolean).length, total: byCase.size };
+  const passes = casePasses(lap.evaluatorReplays);
+  return passes.size ? { passed: passCount(passes), total: passes.size } : null;
 }
 
 // A unified diff that `git apply` and `patch` read: one hunk for each group of
@@ -193,10 +209,8 @@ function unifiedDiff(lines: PromptDiffLine[]): string {
   }
   return out.join("\n") + "\n";
 }
-// ---- Agent diff section (#20): end ------------------------------------------
-// ---- Results table (#18): start ----
-// `formatPercent` and `Criteria` come from the imports of the Final results block below.
-import type { Gate } from "./loopRules";
+
+// Results table
 
 // What the Results table needs of one lap. The `Lap` of the loop data hook fits.
 export type ResultsLap = {
@@ -210,8 +224,9 @@ export type ResultsLap = {
   confirmationGate: Gate | null;
 };
 
-// One replay as a square. `label` is the name of the square's link.
-export type ResultsSquare = { caseId: string; passed: boolean; sessionId: string | null; label: string };
+// One replay as a square. `label` gives the case and the result. `name` is the
+// accessible name of the square: the label, and what the square opens.
+export type ResultsSquare = { caseId: string; passed: boolean; sessionId: string | null; label: string; name: string };
 
 export type ResultsCell = {
   evaluator: string;
@@ -226,11 +241,14 @@ const REPLAY_LIMIT = 50;
 
 function resultsCell(list: EvaluatorReplays, cohortCaseCount: number | null): ResultsCell {
   const n = list.replays.length;
-  const passed = list.replays.filter((r) => r.passed).length;
+  const passed = passedCount(list.replays);
   const cut = n >= REPLAY_LIMIT && cohortCaseCount != null && cohortCaseCount > n;
   return {
     evaluator: list.evaluator,
-    squares: list.replays.map((r) => ({ caseId: r.caseId, passed: r.passed, sessionId: r.sessionId, label: `${r.caseName}: ${r.passed ? "passed" : "failed"}` })),
+    squares: list.replays.map((r) => {
+      const label = `${r.caseName}: ${r.passed ? "passed" : "failed"}`;
+      return { caseId: r.caseId, passed: r.passed, sessionId: r.sessionId, label, name: `${label}. ${r.sessionId ? "Open the result session in a new tab" : "No result session"}` };
+    }),
     count: `${passed} of ${n} passed${cut ? ` · first ${n} of ${cohortCaseCount}` : ""}`,
     tone: passed === n ? "success" : "destructive",
   };
@@ -242,20 +260,22 @@ export type LapResult = { label: string; tone: "success" | "destructive" | "neut
 export type ResultsRow = {
   lap: number;
   summary: string;
-  winner: boolean; // the winning lap gets a ★
+  winning: boolean; // the winning lap gets a ★
   status: string; // the run status from the server, as a word
-  hasResults: boolean; // false: "No results yet", no squares, no result, and the row does not open
+  // Null for a lap with results. If not, the text in the place of the squares:
+  // the lap has no squares and no result, and the row does not open.
+  noResults: string | null;
   result: LapResult | null;
   cells: (ResultsCell | null)[]; // one for each column; null when the lap has no replays for that evaluator
   replays: ResultsReplay[]; // what the open row lists, in case order
 };
 
-// One replay in an open row. A badge with `passed: null` has no result from that evaluator.
+// One replay in an open row. A badge with `passed: null` has no result from that evaluator. `text` is what the badge says.
 export type ResultsReplay = {
   caseId: string;
   caseName: string;
   sessionId: string | null;
-  badges: { evaluator: string; passed: boolean | null }[]; // one for each column
+  badges: { evaluator: string; passed: boolean | null; text: string }[]; // one for each column
   status: string;
   result: "Passed" | "Failed"; // passed: no gating evaluator failed
 };
@@ -264,24 +284,33 @@ export type ResultsReplay = {
 const REPLAY_STATUS: Record<string, string> = { pending: "Pending", evaluating: "Evaluating", completed: "Completed", failed: "Failed", canceled: "Stopped" };
 const replayStatus = (status: string | null | undefined) => (status ? (REPLAY_STATUS[status] ?? status) : "No status");
 
-function lapReplays(l: ResultsLap, evaluators: string[], cases: { id: string; name: string }[]): ResultsReplay[] {
+function lapReplays(l: ResultsLap, evaluators: string[], cases: CaseInfo[]): ResultsReplay[] {
   const byEvaluator = new Map(l.evaluatorReplays.map((e) => [e.evaluator, new Map(e.replays.map((r) => [r.caseId, r]))]));
   return cases.flatMap((cs) => {
     const found = evaluators.map((name) => byEvaluator.get(name)?.get(cs.id));
     const any = found.find((r) => r);
     if (!any) return [];
-    const badges = found.map((r, i) => ({ evaluator: evaluators[i], passed: r ? r.passed : null }));
+    const badges = found.map((r, i) => ({ evaluator: evaluators[i], passed: r ? r.passed : null, text: `${evaluators[i]}: ${r ? (r.passed ? "passed" : "failed") : "no result"}` }));
     return [{ caseId: cs.id, caseName: any.caseName, sessionId: any.sessionId, badges, status: replayStatus(any.status), result: badges.some((b) => b.passed === false) ? ("Failed" as const) : ("Passed" as const) }];
   });
 }
 
 const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Stopping", canceled: "Stopped", failed: "Failed", completed: "Completed" };
 
+const completedRun = (l: ResultsLap) => l.runs.find((r) => r.status === "completed");
+
 // The squares come from the first completed run, so that run gives the status.
 // With no completed run, the newest run gives it.
-function lapStatus(l: ResultsLap, hasResults: boolean): string {
-  const run = (hasResults ? l.runs.find((r) => r.status === "completed") : undefined) ?? l.runs[l.runs.length - 1];
+function lapStatus(l: ResultsLap): string {
+  const run = completedRun(l) ?? l.runs[l.runs.length - 1];
   return run ? (RUN_STATUS[run.status] ?? run.status) : "Not started";
+}
+
+// The run status says if the lap has a completed run. A completed run can have
+// no results from a gating evaluator, which is not the same as no run.
+function noResultsText(l: ResultsLap): string | null {
+  if (l.evaluatorReplays.length > 0) return null;
+  return completedRun(l) ? "No results from a gating evaluator" : "No results yet";
 }
 
 // The rule of the MVP view (the same as `simpleResult` of the lap grid): the
@@ -316,21 +345,21 @@ export type ResultsTable = { evaluators: string[]; rows: ResultsRow[] };
 
 // The Results table: one row for each lap, from the baseline lap to the last
 // lap, and one column for each gating evaluator.
-export function resultsTable(loop: { laps: ResultsLap[]; cases: { id: string; name: string }[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null }): ResultsTable {
+export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null }): ResultsTable {
   const laps = [...loop.laps].sort((a, b) => a.lap - b.lap);
   // Each lap's lists are in the column order already (see evaluatorReplays).
   const evaluators: string[] = [];
   for (const l of laps) for (const e of l.evaluatorReplays) if (!evaluators.includes(e.evaluator)) evaluators.push(e.evaluator);
   const caseName = (id: string) => loop.cases.find((c) => c.id === id)?.name ?? id;
   const rows = laps.map((l) => {
-    const hasResults = l.evaluatorReplays.length > 0;
+    const noResults = noResultsText(l);
     return {
       lap: l.lap,
       summary: l.summary,
-      winner: l.lap === loop.winnerLap,
-      status: lapStatus(l, hasResults),
-      hasResults,
-      result: hasResults ? lapResult(l, loop.criteria, loop.winnerLap, caseName) : null,
+      winning: l.lap === loop.winnerLap,
+      status: lapStatus(l),
+      noResults,
+      result: noResults == null ? lapResult(l, loop.criteria, loop.winnerLap, caseName) : null,
       cells: evaluators.map((name) => {
         const list = l.evaluatorReplays.find((e) => e.evaluator === name);
         return list ? resultsCell(list, loop.cohortCaseCount) : null;
@@ -340,11 +369,8 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: { id: string; na
   });
   return { evaluators, rows };
 }
-// ---- Results table (#18): end ----
 
-// ── Final results section (#19): start ──────────────────────────────────────
-import { formatLongDuration, formatPercent } from "./format";
-import { parseEvalveLoop, type Criteria, type LoopOutcome } from "./loops";
+// Final results section
 
 // The plain loop data that the Final results section reads. The result of the loop data hook fits it.
 export type FinalResultsLoop = {
@@ -356,7 +382,7 @@ export type FinalResultsLoop = {
     evaluatorReplays: EvaluatorReplays[];
   }[];
   totalLaps: number;
-  settings: { criteria: Pick<Criteria, "cohort_target_mean_pass_k" | "no_regression" | "max_rounds"> } | null;
+  settings: { criteria: Pick<Criteria, "cohort_target_mean_pass_k" | "no_regression" | "max_rounds" | "trials_per_round" | "k"> } | null;
 };
 
 export type FinalResults = {
@@ -366,21 +392,12 @@ export type FinalResults = {
   cards: { label: string; value: string; sub: string }[];
   chartLabel: string; // each lap and its rate as text, for the bar chart
   bars: { lap: number; label: string; rate: number; text: string; inUse: boolean }[];
-  criteria: { met: boolean; label: string; value: string }[] | null; // null: the loop has no rules on the server
+  criteria: { met: boolean; label: string; value: string }[] | null; // null: the loop has no rules on the server, or no rule that the dashboard can measure
   criteriaSummary: string | null; // "all met" or "1 of 2 met"; null with no criteria
   note: { title: string; text: string };
 };
 
 type FinalLap = FinalResultsLoop["laps"][number];
-
-// Case id → did the case pass every gating evaluator in the lap? Empty for a lap with no score.
-function casePasses(lap: FinalLap | undefined): Map<string, boolean> {
-  const passes = new Map<string, boolean>();
-  for (const e of lap?.evaluatorReplays ?? []) for (const r of e.replays) passes.set(r.caseId, (passes.get(r.caseId) ?? true) && r.passed);
-  return passes;
-}
-
-const passCount = (passes: Map<string, boolean>) => [...passes.values()].filter(Boolean).length;
 
 // From the earliest run start to the latest run end, over the runs that are loaded. Null with no times.
 function loopDuration(laps: FinalLap[]): string | null {
@@ -403,14 +420,14 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
 
   // The pass rate of each lap that has a score: the cases that passed every gating evaluator.
   const scored = loop.laps.flatMap((lap) => {
-    const passes = casePasses(lap);
+    const passes = casePasses(lap.evaluatorReplays);
     return passes.size ? [{ lap, passes, rate: passCount(passes) / passes.size }] : [];
   });
   // The lap in use: the winning lap, or the best lap (the earliest lap with the highest pass rate).
   const best = scored.reduce<(typeof scored)[number] | null>((m, s) => (m == null || s.rate > m.rate ? s : m), null);
   const inUse = outcome.passed ? scored.find((s) => s.lap.lap === outcome.winnerLap) ?? null : best;
   const baselineLap = loop.laps.find((l) => l.lap === 0);
-  const baseline = casePasses(baselineLap);
+  const baseline = casePasses(baselineLap?.evaluatorReplays ?? []);
   // Got worse: passed in the baseline lap and failed in the lap in use. Null when one of the two has no score.
   const gotWorse = inUse && baseline.size ? [...inUse.passes].filter(([id, ok]) => !ok && baseline.get(id) === true).length : null;
 
@@ -419,11 +436,11 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
 
   const cards: FinalResults["cards"] = [];
   for (const e of inUse?.lap.evaluatorReplays ?? []) {
-    const count = (list: ReplayResult[]) => `${list.filter((r) => r.passed).length} of ${list.length}`;
+    const count = (list: ReplayResult[]) => `${passedCount(list)} of ${list.length}`;
     const was = baselineLap?.evaluatorReplays.find((b) => b.evaluator === e.evaluator);
     cards.push({
       label: e.evaluator,
-      value: formatPercent(e.replays.filter((r) => r.passed).length / e.replays.length),
+      value: formatPercent(passedCount(e.replays) / e.replays.length),
       sub: was && baselineLap !== inUse!.lap ? `${count(e.replays)} · was ${count(was.replays)}` : count(e.replays),
     });
   }
@@ -433,6 +450,11 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   const bars = scored.map((s) => ({ lap: s.lap.lap, label: `Lap ${s.lap.lap}`, rate: s.rate, text: formatPercent(s.rate), inUse: s === inUse }));
 
   // A row only for a criterion that the dashboard can measure: no lap limit, no budget, no metric gates.
+  // The numbers here come from one run of the lap. The rule of a loop with
+  // settings uses each trial of the lap (mean pass^k), so one run gives the
+  // number of the rule only with one trial for each lap and k = 1. With more
+  // trials (for example `day-30-refunds`: 5 runs, pass^3) there are no rows,
+  // so that a row cannot say ✗ below a "Passed" badge.
   let criteria: FinalResults["criteria"] = null;
   const greens = parseEvalveLoop(baselineLap?.experiment.description)?.requiredGreens;
   if (inUse && greens != null) {
@@ -443,7 +465,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
         value: `${passCount(inUse.passes)} of ${inUse.passes.size} cases passed in lap ${inUse.lap.lap}`,
       },
     ];
-  } else if (inUse && loop.settings) {
+  } else if (inUse && loop.settings && loop.settings.criteria.trials_per_round === 1 && loop.settings.criteria.k === 1) {
     const c = loop.settings.criteria;
     criteria = [{ met: inUse.rate >= c.cohort_target_mean_pass_k, label: `Pass rate, at least ${formatPercent(c.cohort_target_mean_pass_k)}`, value: formatPercent(inUse.rate) }];
     if (c.no_regression && gotWorse != null) criteria.push({ met: gotWorse === 0, label: "No case got worse", value: `${gotWorse} ${gotWorse === 1 ? "case" : "cases"} got worse` });
@@ -461,4 +483,3 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
     note: { title: "Nothing was changed in your agent", text: `The loop changed only its own copy of the agent.${outcome.passed ? " The change of the winning lap is below." : ""}` },
   };
 }
-// ── Final results section (#19): end ────────────────────────────────────────

@@ -21,6 +21,9 @@ const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2))
 // The number each lap is judged by, which depends on the MVP / Post-MVP switch.
 // Post-MVP: mean pass^k on the lap's selection trials.
 // MVP: the plain share of case runs that passed, over every run of the lap.
+// Only the compare page shows this number in the MVP view. The sections of the
+// loop page in the MVP view do not use it: they take the pass rate of a lap
+// from its first completed run (see `src/lib/loopResults.ts`).
 export function useScore() {
   const mvp = useLoopMode() === "mvp";
   return {

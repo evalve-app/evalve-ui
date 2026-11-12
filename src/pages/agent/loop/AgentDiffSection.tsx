@@ -9,18 +9,19 @@ import type { LoopData } from "./useLoop";
 
 // The Agent diff section of the loop page (MVP view): what change to apply to
 // the agent. It shows only for a loop with a winning lap. The "before" prompt
-// comes from the recorded session of the first case, with its own query, so
+// comes from the recorded session of the first case of the cohort, with its own query, so
 // the other sections do not wait for it. All text comes from `agentDiff`.
 export function AgentDiffSection({ loop }: { loop: LoopData }) {
-  const firstCase = loop.cases[0] ?? null;
-  const hasWinner = loop.winnerLap != null;
-  const own = useQuery({ ...agentOwnSettingsQuery(firstCase?.id ?? ""), enabled: hasWinner && !!firstCase });
+  const firstCase = loop.firstCohortCase;
+  const hasWinningLap = loop.winnerLap != null;
+  const own = useQuery({ ...agentOwnSettingsQuery(firstCase?.id ?? ""), enabled: hasWinningLap && !!firstCase });
   const diff = agentDiff({
     winnerLap: loop.winnerLap,
     laps: loop.laps.map((l) => ({ lap: l.lap, summary: l.summary, override: l.experiment.override, evaluatorReplays: l.evaluatorReplays })),
     firstCase,
     // A failed request and a session with no prompt give null values, which is the fallback.
-    before: { loading: hasWinner && !!firstCase && own.isPending, prompt: own.data?.prompt ?? null, model: own.data?.model ?? null, modelParams: own.data?.modelParams ?? null },
+    // Until the cohort loads, the page does not know the first case, so the prompt waits.
+    before: { loading: hasWinningLap && (firstCase ? own.isPending : loop.cohortCaseCount == null), failed: own.isError, prompt: own.data?.prompt ?? null, model: own.data?.model ?? null, modelParams: own.data?.modelParams ?? null },
   });
   if (!diff) return null;
   const { prompt } = diff;
