@@ -2,6 +2,7 @@
 // in the MVP view (Results, Final results, Agent diff). Each function takes
 // plain loop data and returns what one section shows, with all text that
 // depends on server data already made. The section components only lay it out.
+import type { EvalAggregate, Replay } from "../api/client";
 import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
@@ -21,6 +22,51 @@ export type EvaluatorReplays = { evaluator: string; replays: ReplayResult[] };
 // One case in one run: its result session, its pass/fail evaluator results, and the status of its replay.
 export type RunCell = Pick<CellRun, "sessionId" | "results"> & { status?: string | null };
 
+// One run's results.
+// - `cells`: by case id, each pass/fail result of the case, for the grid.
+// - `passed`: by case id, did the case pass each required evaluator? False: an
+//   evaluator failed it. Null: no evaluator failed it, but one or more gave it
+//   no result, so the case has no score for this run. It stays in the map so
+//   that the lap is not complete without it.
+// - `evaluators`: the names of the required evaluators.
+// A case id is the id of the recorded session, or the replay id when the
+// replay is not in `replays`. A replay result with no passed flag is no
+// result: it is not a failure.
+//
+// The required evaluators: each evaluator of the run that the gating list
+// names, also when it gave no result. For a loop with no gating list, and for
+// an evaluator with no name, each evaluator that gave a pass/fail result. An
+// evaluator of each data type can set the passed flag. One that sets no flag
+// is a metric, which doesn't gate here.
+export function runResults(aggregates: EvalAggregate[], replays: Replay[], gatingEvaluators: string[] | undefined): { passed: Map<string, boolean | null>; cells: Map<string, RunCell>; evaluators: string[] } {
+  const byReplay = new Map(replays.map((x) => [x.id, x]));
+  const caseId = (replayId: string) => byReplay.get(replayId)?.baseline_session_id ?? replayId;
+  const cells = new Map<string, RunCell>();
+  // Per case: the result of each required evaluator that gave one.
+  const required = new Map<string, boolean[]>();
+  const evaluators: string[] = [];
+  for (const agg of aggregates) {
+    const gaveResult = !!agg.replays?.some((rep) => rep.result?.passed != null);
+    const named = !!gatingEvaluators && !!agg.evaluator_name;
+    const isRequired = named ? gatingEvaluators.includes(agg.evaluator_name!) : gaveResult;
+    if (isRequired) evaluators.push(agg.evaluator_name ?? UNNAMED);
+    for (const rep of agg.replays ?? []) {
+      const key = caseId(rep.replay_id);
+      if (isRequired && !required.has(key)) required.set(key, []);
+      const ok = rep.result?.passed;
+      if (ok == null) continue;
+      const replay = byReplay.get(rep.replay_id);
+      const cell = cells.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
+      cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: ok });
+      cells.set(key, cell);
+      if (isRequired) required.get(key)!.push(ok);
+    }
+  }
+  const passed = new Map<string, boolean | null>();
+  for (const [key, list] of required) passed.set(key, list.includes(false) ? false : list.length === evaluators.length ? true : null);
+  return { passed, cells, evaluators };
+}
+
 // A pass/fail result with no evaluator name gates (see isGating), so it needs a name to show.
 const UNNAMED = "Unnamed evaluator";
 
@@ -28,9 +74,11 @@ const UNNAMED = "Unnamed evaluator";
 // data hook gives the first completed run). `cases` sets the order, so each
 // lap of a loop has the same order. A case with no result in the run is left
 // out. Evaluators follow the loop's gating list, or name order with no list.
-export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: CaseInfo[], gatingEvaluators: string[] | undefined): EvaluatorReplays[] {
+// A `required` evaluator (see runResults) that gave no result gets an empty
+// list, so that no case counts as a pass without it.
+export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: CaseInfo[], gatingEvaluators: string[] | undefined, required: string[] = []): EvaluatorReplays[] {
   if (!run) return [];
-  const lists = new Map<string, ReplayResult[]>();
+  const lists = new Map<string, ReplayResult[]>(required.map((name) => [name, []]));
   for (const cs of cases) {
     const cell = run.get(cs.id);
     for (const r of cell?.results ?? []) {
@@ -338,7 +386,7 @@ function lapStatus(l: ResultsLap): string {
 // The run status says if the lap has a completed run. A completed run can have
 // no results from a gating evaluator, which is not the same as no run.
 function noResultsText(l: ResultsLap): string | null {
-  if (l.evaluatorReplays.length > 0) return null;
+  if (l.evaluatorReplays.some((e) => e.replays.length > 0)) return null;
   return completedRun(l) ? "No results from a gating evaluator" : "No results yet";
 }
 
@@ -391,7 +439,7 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
       result: noResults == null ? lapResult(l, loop.criteria, loop.winnerLap, caseName) : null,
       cells: evaluators.map((name) => {
         const list = l.evaluatorReplays.find((e) => e.evaluator === name);
-        return list ? resultsCell(list, loop.cohortCaseCount) : null;
+        return list?.replays.length ? resultsCell(list, loop.cohortCaseCount) : null;
       }),
       replays: lapReplays(l, evaluators, loop.cases),
     };
@@ -466,6 +514,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
 
   const cards: FinalResults["cards"] = [];
   for (const e of inUse?.lap.evaluatorReplays ?? []) {
+    if (e.replays.length === 0) continue; // a required evaluator that gave no result
     const count = (list: ReplayResult[]) => `${passedCount(list)} of ${list.length}`;
     const was = baselineLap?.evaluatorReplays.find((b) => b.evaluator === e.evaluator);
     cards.push({

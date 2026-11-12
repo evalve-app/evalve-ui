@@ -69,7 +69,7 @@ export function LoopStats({ loop }: { loop: LoopData }) {
   const latest = loop.laps[loop.laps.length - 1];
   const baseStats = base ? [...base.selection.values()] : [];
   const flaky = baseStats.filter((x) => x.c > 0 && x.c < x.n).length;
-  const failing = baseStats.filter((x) => x.c === 0).length;
+  const failing = baseStats.filter((x) => x.n > 0 && x.c === 0).length;
   return (
     <>
       <div className="stat-row">
@@ -271,7 +271,8 @@ export function LapGrid({ laps, cases, selected, onToggle, c, winnerLap }: { lap
                   </td>
                 )}
                 {cases.map((cs) => {
-                  const all = l.cases.get(cs.id);
+                  // A case with no scored run has no result.
+                  const all = l.cases.get(cs.id)?.n ? l.cases.get(cs.id) : undefined;
                   const sel = l.selection.get(cs.id);
                   const cf = l.confirmation?.get(cs.id);
                   const plain = all ? `${cs.name}, lap ${l.lap}: ${all.n === 1 ? (all.c ? "passed" : "failed") : `passed ${all.c} of ${all.n} runs`}` : "";
@@ -298,7 +299,7 @@ export function CompareCard({ a, b, cases, agentId }: { a: Lap; b: Lap; cases: C
   const s = useScore();
   const rows = cases
     .map((cs) => ({ id: cs.id, name: cs.name, before: s.stats(a).get(cs.id), after: s.stats(b).get(cs.id), conf: s.mvp ? undefined : b.confirmation?.get(cs.id) }))
-    .filter((r) => r.before && r.after && r.before.c / r.before.n !== r.after.c / r.after.n);
+    .filter((r) => r.before?.n && r.after?.n && r.before.c / r.before.n !== r.after.c / r.after.n);
   const improved = rows.filter((r) => r.after!.c / r.after!.n > r.before!.c / r.before!.n);
   const worse = rows.filter((r) => r.after!.c / r.after!.n < r.before!.c / r.before!.n);
   const fa = new Map(changedFields(a.experiment.override).map((f) => [f.key, f.value]));

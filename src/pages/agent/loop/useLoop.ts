@@ -11,9 +11,9 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
-import { evaluatorReplays, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
-import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { evaluatorReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
+import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
+import { groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -107,45 +107,23 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     const c = settings?.criteria ?? null;
     const gateNames = settings?.gate_evaluators;
 
-    // Per run: did each case pass every gating evaluator?
-    const runCases = new Map<string, Map<string, boolean>>();
+    // Per run: did each case pass every required evaluator? Null: the run has no score for the case.
+    const runCases = new Map<string, Map<string, boolean | null>>();
+    // Per run: the names of the required evaluators.
+    const runEvaluators = new Map<string, string[]>();
     // Per run: each case's result session, replay status and pass/fail evaluator results, for the grid cells.
     const runSessions = new Map<string, Map<string, RunCell>>();
     scored.forEach((run, i) => {
       const a = aggs[i]?.data;
       const r = reps[i]?.data;
       if (!a || !r) return;
-      const byReplay = new Map(r.map((x) => [x.id, x]));
-      const passed = new Map<string, boolean>();
-      const sessions = new Map<string, RunCell>();
-      for (const agg of a) {
-        if (agg.data_type !== "bool") continue; // metrics don't gate here
-        for (const rep of agg.replays ?? []) {
-          const replay = byReplay.get(rep.replay_id);
-          const key = replay?.baseline_session_id ?? rep.replay_id;
-          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
-          cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
-          sessions.set(key, cell);
-          if (!isGating(gateNames, agg.evaluator_name)) continue;
-          passed.set(key, (passed.get(key) ?? true) && !!rep.result?.passed);
-        }
-      }
+      const { passed, cells: sessions, evaluators } = runResults(a, r, gateNames);
+      runEvaluators.set(run.id, evaluators);
       runCases.set(run.id, passed);
       runSessions.set(run.id, sessions);
     });
 
-    const tally = (list: ExperimentRun[]): Stats => {
-      const m = new Map<string, CaseStat>();
-      for (const run of list) {
-        for (const [k, ok] of runCases.get(run.id) ?? []) {
-          const s = m.get(k) ?? { c: 0, n: 0 };
-          s.n += 1;
-          if (ok) s.c += 1;
-          m.set(k, s);
-        }
-      }
-      return m;
-    };
+    const tally = (list: ExperimentRun[]): Stats => caseStats(list.flatMap((run) => runCases.get(run.id) ?? []));
 
     let baseStats: Stats | null = null;
     const laps: Lap[] = shown.map(({ experiment, lap }) => {
@@ -162,7 +140,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       const confirmation = conf.length ? tally(conf) : null;
       if (lap === 0) baseStats = selection;
       const first = done[0] ? runCases.get(done[0].id)! : null;
-      const firstRunPasses = first ? [...first.values()].filter(Boolean).length : null;
+      const firstRunPasses = first ? [...first.values()].filter((ok) => ok === true).length : null;
       const base = lap === 0 ? null : baseStats;
       return {
         lap,
@@ -205,7 +183,8 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     for (const l of laps) {
       for (const cs of cases) {
         const runsForCase: CellRun[] = l.runs.flatMap((r) => {
-          const x = runCases.get(r.id)?.has(cs.id) ? runSessions.get(r.id)?.get(cs.id) : undefined;
+          // A run with no score for the case is not a run of the cell.
+          const x = runCases.get(r.id)?.get(cs.id) != null ? runSessions.get(r.id)?.get(cs.id) : undefined;
           return x ? [{ run: r.number, phase: l.phases.get(r.id) ?? "trial", ...x }] : [];
         });
         l.targets.set(cs.id, cellTarget({ caseName: cs.name, lap: l.lap, runs: runsForCase, gatingEvaluators: gateNames }));
@@ -214,7 +193,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       // of a run, so a cohort of more than 50 cases gets 50 replays in each
       // list. `cohortCaseCount` lets the page say "first 50 of N".
       const firstDone = l.runs.find((r) => runCases.has(r.id));
-      l.evaluatorReplays = evaluatorReplays(firstDone ? runSessions.get(firstDone.id) : undefined, cases, gateNames);
+      l.evaluatorReplays = evaluatorReplays(firstDone ? runSessions.get(firstDone.id) : undefined, cases, gateNames, firstDone ? runEvaluators.get(firstDone.id) : undefined);
     }
 
     const running = laps.some((l) => l.running);

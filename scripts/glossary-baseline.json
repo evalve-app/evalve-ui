@@ -12,10 +12,11 @@
     "trial": 1
   },
   "src/lib/loopResults.test.ts": {
-    "winner": 14,
+    "winner": 15,
     "regression": 3,
     "regressed": 2,
     "baseline audit": 1,
+    "baseline session": 2,
     "round 0": 1,
     "trial": 3
   },
@@ -23,7 +24,11 @@
     "winner": 12,
     "regression": 2,
     "regressed": 2,
+    "baseline session": 1,
     "trial": 2
+  },
+  "src/lib/loopRules.test.ts": {
+    "trial": 1
   },
   "src/lib/loopRules.ts": {
     "regression": 1,
@@ -94,7 +99,6 @@
   },
   "src/pages/agent/loop/useLoop.ts": {
     "winner": 6,
-    "baseline session": 1,
     "round 0": 2,
     "iteration": 1,
     "trial": 17,
