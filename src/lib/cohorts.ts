@@ -9,8 +9,8 @@ export type CohortRow = {
   description: string | null;
   updated: string;
   // Null until the versions of the cohort load, and when it has none.
-  version: string | null;
-  sessions: number | null;
+  versionLabel: string | null;
+  sessionCount: number | null;
 };
 
 // The display version when the cohort version has one, "v3" when it does not.
@@ -22,17 +22,17 @@ export function versionLabel(v: { version: number; display_version?: string | nu
 // its versions, and has no entry for a cohort whose versions did not load.
 export function cohortRows(cohorts: CohortInput[], versions: Record<string, CohortVersionInput[] | undefined>): CohortRow[] {
   return [...cohorts]
-    .sort((a, b) => b.updated.localeCompare(a.updated))
+    .sort((a, b) => Date.parse(b.updated) - Date.parse(a.updated))
     .map((c) => {
-      const list = versions[c.id] ?? [];
-      const newest = list.reduce<CohortVersionInput | null>((best, v) => (!best || v.version > best.version ? v : best), null);
+      const all = versions[c.id] ?? [];
+      const newest = all.reduce<CohortVersionInput | null>((best, v) => (!best || v.version > best.version ? v : best), null);
       return {
         id: c.id,
         name: c.name,
         description: c.description ?? null,
         updated: c.updated,
-        version: newest ? versionLabel(newest) + (list.length > 1 ? ` · ${list.length} versions` : "") : null,
-        sessions: newest ? newest.session_count : null,
+        versionLabel: newest ? versionLabel(newest) + (all.length > 1 ? ` · ${all.length} versions` : "") : null,
+        sessionCount: newest ? newest.session_count : null,
       };
     });
 }

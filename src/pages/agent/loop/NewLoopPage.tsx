@@ -29,17 +29,12 @@ export function NewLoopPage() {
   const navigate = useNavigate();
 
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
-  const { cohorts, versionLists } = useCohorts(agentId);
+  const { cohorts, versionsByCohort } = useCohorts(agentId);
   const evaluators = useQuery({ queryKey: ["evaluators"], queryFn: listEvaluators });
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
 
-  const cohortOptions = useMemo(
-    () =>
-      (cohorts.data ?? []).flatMap((c, i) =>
-        (versionLists[i]?.data ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count })),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cohorts.data, versionLists.map((v) => v.dataUpdatedAt).join(",")],
+  const cohortOptions = (cohorts.data ?? []).flatMap((c) =>
+    (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count })),
   );
   const agentEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);

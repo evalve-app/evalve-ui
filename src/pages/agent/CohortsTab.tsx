@@ -10,12 +10,10 @@ import { useCohorts } from "../../lib/useCohorts";
 // opens nothing until the cohort page exists.
 export function CohortsTab() {
   const { agentId = "" } = useParams();
-  const { cohorts, versionLists } = useCohorts(agentId);
+  const { cohorts, versionsByCohort } = useCohorts(agentId);
   const preview = useEmptyPreview().on;
 
-  const list = preview ? [] : (cohorts.data ?? []);
-  const versions = Object.fromEntries(list.map((c, i) => [c.id, versionLists[i]?.data]));
-  const rows = cohortRows(list, versions);
+  const rows = cohortRows(preview ? [] : (cohorts.data ?? []), versionsByCohort);
 
   return (
     <div className="tab-page">
@@ -38,7 +36,7 @@ export function CohortsTab() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Cohort</th>
+                <th>Name</th>
                 <th className="fill">Description</th>
                 <th>Version</th>
                 <th className="num">Sessions</th>
@@ -62,8 +60,8 @@ export function CohortsTab() {
                           {r.description || "—"}
                         </span>
                       </td>
-                      <td className="mono">{r.version ?? "—"}</td>
-                      <td className="num">{r.sessions ?? "—"}</td>
+                      <td className="mono">{r.versionLabel ?? "—"}</td>
+                      <td className="num">{r.sessionCount ?? "—"}</td>
                       <td className="muted" title={formatDateTime(r.updated)}>
                         {formatRelative(r.updated)}
                       </td>

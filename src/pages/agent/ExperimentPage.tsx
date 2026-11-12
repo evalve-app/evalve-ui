@@ -405,11 +405,10 @@ function runStatusWord(status: ExperimentRun["status"]) {
 
 // "support-desk-v1-baseline · baseline-2026-11-10" for a cohort version id.
 function useCohortVersionLabel(agentId: string, cohortVersionId: string) {
-  const { cohorts, versionLists } = useCohorts(agentId);
-  for (let i = 0; i < (cohorts.data?.length ?? 0); i++) {
-    const v = versionLists[i]?.data?.find((x) => x.id === cohortVersionId);
+  const { cohorts, versionsByCohort } = useCohorts(agentId);
+  for (const c of cohorts.data ?? []) {
+    const v = versionsByCohort[c.id]?.find((x) => x.id === cohortVersionId);
     if (v) {
-      const c = cohorts.data![i];
       return (
         <>
           <Link to={`/agents/${agentId}/cohorts`} className="inline-link">
