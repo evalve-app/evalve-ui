@@ -1,0 +1,128 @@
+import { useMemo } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, ListChecks } from "lucide-react";
+import { listCohortSessions, listCohortVersions } from "../../api/client";
+import { Alert } from "../../design-system/components";
+import { newestVersion, pickCohortVersion, versionLabel } from "../../lib/cohorts";
+import { formatDateTime } from "../../lib/format";
+import { useCohorts } from "../../lib/useCohorts";
+import { SessionTable } from "./SessionTable";
+
+// One cohort: the sessions in one cohort version at a time, lowest session
+// number first. `?version=N` picks the cohort version, and the newest one
+// shows when the URL names none.
+// API: GET /api/v1/ui/sessions?filter={cohort_version_id eq}&size=1000.
+export function CohortPage() {
+  const { agentId = "", cohortId = "" } = useParams();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+
+  const { cohorts } = useCohorts(agentId);
+  const cohort = cohorts.data?.find((c) => c.id === cohortId);
+  // The same key as useCohorts, so this reads its cache and adds the error state.
+  const versions = useQuery({ queryKey: ["cohort-versions", cohortId], queryFn: () => listCohortVersions(cohortId), enabled: !!cohort });
+
+  const sorted = useMemo(() => [...(versions.data ?? [])].sort((a, b) => b.version - a.version), [versions.data]);
+  const newest = newestVersion(sorted);
+  const version = pickCohortVersion(sorted, params.get("version"));
+
+  const sessions = useQuery({ queryKey: ["cohort-sessions", version?.id], queryFn: () => listCohortSessions(version!.id), enabled: !!version });
+  const rows = useMemo(() => [...(sessions.data ?? [])].sort((a, b) => a.session.number - b.session.number), [sessions.data]);
+
+  const back = (
+    <button type="button" className="back-link" onClick={() => navigate(`/agents/${agentId}/cohorts`)}>
+      <ArrowLeft size={14} aria-hidden />
+      Cohorts
+    </button>
+  );
+
+  if (cohorts.isError || (cohorts.isSuccess && !cohort)) {
+    return (
+      <div className="tab-page">
+        <div className="detail-header">{back}</div>
+        <Alert variant="destructive" title={cohorts.isError ? "Could not load this cohort" : "Cohort not found"}>
+          {cohorts.isError ? cohorts.error.message : "This agent has no cohort with this id."}
+        </Alert>
+      </div>
+    );
+  }
+
+  // The newest version shows with no parameter. Replace the history entry so
+  // the Back button leaves the page.
+  const pick = (n: string) => setParams(n === String(newest?.version) ? {} : { version: n }, { replace: true });
+
+  return (
+    <div className="tab-page">
+      <div className="detail-header">
+        {back}
+        <div className="detail-title-block">
+          <h2 className="detail-title">{cohort?.name ?? " "}</h2>
+          {cohort?.description ? <p className="detail-description">{cohort.description}</p> : null}
+        </div>
+      </div>
+
+      {versions.isError ? (
+        <Alert variant="destructive" title="Could not load the versions of this cohort">
+          {versions.error.message}
+        </Alert>
+      ) : null}
+
+      {version ? (
+        <div className="toolbar">
+          <div className="toolbar-left cohort-version-bar">
+            {sorted.length > 1 ? (
+              <label className="inline-field">
+                <span className="field-label">Cohort version</span>
+                <select className="ev-select native-select" value={String(version.version)} onChange={(e) => pick(e.target.value)}>
+                  {sorted.map((v) => (
+                    <option key={v.id} value={String(v.version)}>
+                      {versionLabel(v)}
+                      {v.id === newest?.id ? " (latest)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className="inline-field">
+                <span className="field-label">Cohort version</span>
+                <span className="mono">{versionLabel(version)}</span>
+              </span>
+            )}
+            <span className="muted">
+              {version.session_count} {version.session_count === 1 ? "session" : "sessions"} · created {formatDateTime(version.created)}
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {sessions.isError ? (
+        <Alert variant="destructive" title="Could not load sessions">
+          {sessions.error.message}
+        </Alert>
+      ) : null}
+
+      {versions.isSuccess && !version ? (
+        <div className="empty-state">
+          <ListChecks size={24} aria-hidden />
+          <p className="empty-text">This cohort has no versions.</p>
+        </div>
+      ) : sessions.isSuccess && rows.length === 0 ? (
+        <div className="empty-state">
+          <ListChecks size={24} aria-hidden />
+          <p className="empty-text">This cohort version has no sessions.</p>
+        </div>
+      ) : sessions.isError || versions.isError ? null : (
+        <SessionTable agentId={agentId} rows={rows} pending={!sessions.isSuccess} />
+      )}
+
+      {version && sessions.isSuccess && version.session_count > rows.length ? (
+        <div className="table-footer">
+          <span className="muted">
+            Showing the first {rows.length} of {version.session_count} sessions.
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}

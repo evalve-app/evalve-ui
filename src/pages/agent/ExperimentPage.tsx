@@ -411,7 +411,7 @@ function useCohortVersionLabel(agentId: string, cohortVersionId: string) {
     if (v) {
       return (
         <>
-          <Link to={`/agents/${agentId}/cohorts`} className="inline-link">
+          <Link to={`/agents/${agentId}/cohorts/${c.id}?version=${v.version}`} className="inline-link">
             {c.name}
           </Link>{" "}
           <span className="muted mono">{versionLabel(v)}</span>
