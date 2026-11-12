@@ -5,7 +5,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 ## Next
 
 1. **Clickable cells in the loop grid and the experiment grid.** Clicking a case cell should open that session (`/sessions/:id`). A cell in a multi-run lap covers several sessions, so the plan is a small menu listing each run as passed or failed. With one run per lap, go straight to the session. The replays already loaded in `useLoop.ts` carry `baseline_session_id` and `result_session_id`.
-2. **Cohorts tab** (`/agents/:id/cohorts`, a placeholder today). Read-only list first. Calls are in `docs/kitaru-ui-route-map.md`.
+2. **Cohort page.** The Cohorts tab (`/agents/:id/cohorts`) is a read-only list, and a row opens nothing. Add a page for one cohort that shows the sessions in each cohort version (`GET /ui/sessions?filter={cohort_version_id eq}`, already in `listCohortSessions`), and make the rows open it.
 3. **CLI login page** (`/devices/verify`). Needed before this app can replace the Kitaru UI. It calls `GET /api/v1/devices/{device_id}` and `POST /api/v1/devices/{device_id}/verify`.
 4. **Evaluators, Workers, Jobs, Investigations.** Placeholders today. Build simple read-only lists, or hide them from the nav for the demo.
 

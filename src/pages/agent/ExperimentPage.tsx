@@ -7,8 +7,6 @@ import {
   getRunAggregates,
   listAgentVersions,
   listCohortSessions,
-  listCohortVersions,
-  listCohorts,
   listExperimentRuns,
   listRunReplays,
   startExperimentRun,
@@ -17,6 +15,8 @@ import {
   type ExperimentRun,
 } from "../../api/client";
 import { Alert, Button, StatusLabel } from "../../design-system/components";
+import { versionLabel } from "../../lib/cohorts";
+import { useCohorts } from "../../lib/useCohorts";
 import { formatDateTime, formatDuration, formatRelative, formatTime } from "../../lib/format";
 import { caseName, changedFields, passCounts, toolPolicyLabel } from "../../lib/experiments";
 import { Delta } from "./PassRate";
@@ -405,20 +405,16 @@ function runStatusWord(status: ExperimentRun["status"]) {
 
 // "support-desk-v1-baseline · baseline-2026-11-10" for a cohort version id.
 function useCohortVersionLabel(agentId: string, cohortVersionId: string) {
-  const cohorts = useQuery({ queryKey: ["cohorts", agentId], queryFn: () => listCohorts(agentId) });
-  const versionLists = useQueries({
-    queries: (cohorts.data ?? []).map((c) => ({ queryKey: ["cohort-versions", c.id], queryFn: () => listCohortVersions(c.id) })),
-  });
-  for (let i = 0; i < (cohorts.data?.length ?? 0); i++) {
-    const v = versionLists[i]?.data?.find((x) => x.id === cohortVersionId);
+  const { cohorts, versionsByCohort } = useCohorts(agentId);
+  for (const c of cohorts.data ?? []) {
+    const v = versionsByCohort[c.id]?.find((x) => x.id === cohortVersionId);
     if (v) {
-      const c = cohorts.data![i];
       return (
         <>
           <Link to={`/agents/${agentId}/cohorts`} className="inline-link">
             {c.name}
           </Link>{" "}
-          <span className="muted mono">{v.display_version ?? `v${v.version}`}</span>
+          <span className="muted mono">{versionLabel(v)}</span>
         </>
       );
     }
