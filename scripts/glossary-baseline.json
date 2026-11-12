@@ -1,0 +1,78 @@
+{
+  "src/api/client.ts": {
+    "baseline session": 1
+  },
+  "src/lib/cellTarget.test.ts": {
+    "trial": 7
+  },
+  "src/lib/cellTarget.ts": {
+    "trial": 2
+  },
+  "src/lib/loopMode.tsx": {
+    "trial": 1
+  },
+  "src/lib/loopRules.ts": {
+    "regression": 1,
+    "regressed": 4,
+    "baseline session": 1,
+    "trial": 12
+  },
+  "src/lib/loops.test.ts": {
+    "winner": 12,
+    "round 0": 2,
+    "iteration": 7
+  },
+  "src/lib/loops.ts": {
+    "winner": 14,
+    "regression": 3,
+    "baseline audit": 2,
+    "round 0": 4,
+    "iteration": 5,
+    "trial": 3,
+    "gate evaluator": 2
+  },
+  "src/pages/SessionPage.tsx": {
+    "baseline session": 2
+  },
+  "src/pages/agent/ExperimentPage.tsx": {
+    "regressed": 4,
+    "baseline session": 2,
+    "rerun": 6
+  },
+  "src/pages/agent/PassRate.tsx": {
+    "baseline session": 1
+  },
+  "src/pages/agent/loop/CaseCell.tsx": {
+    "trial": 2
+  },
+  "src/pages/agent/loop/LoopComparePage.tsx": {
+    "winner": 2
+  },
+  "src/pages/agent/loop/LoopListTab.tsx": {
+    "iteration": 1,
+    "trial": 1
+  },
+  "src/pages/agent/loop/LoopPage.tsx": {
+    "winner": 12,
+    "regression": 4,
+    "regressed": 5,
+    "baseline audit": 1,
+    "round 0": 1,
+    "trial": 18,
+    "judge": 1
+  },
+  "src/pages/agent/loop/NewLoopPage.tsx": {
+    "regression": 7,
+    "re-run": 1,
+    "trial": 19,
+    "gate evaluator": 4
+  },
+  "src/pages/agent/loop/useLoop.ts": {
+    "winner": 6,
+    "baseline session": 1,
+    "round 0": 2,
+    "iteration": 1,
+    "trial": 17,
+    "gate evaluator": 1
+  }
+}
