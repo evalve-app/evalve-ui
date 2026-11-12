@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, approveDevice, getCurrentAccount, getDevice, type Device } from "../api/client";
 import { Alert, Button, Card } from "../design-system/components";
 import { DEVICE_LINK_INCOMPLETE, deviceApproveError, deviceLoadError, type DeviceFailure } from "../lib/devices";
@@ -21,8 +21,10 @@ export function ApproveDevicePage() {
   const linkComplete = deviceId !== "" && userCode !== "";
 
   const me = useQuery({ queryKey: ["me"], queryFn: getCurrentAccount });
+  const queryClient = useQueryClient();
+  const deviceKey = ["device", deviceId, userCode];
   const device = useQuery({
-    queryKey: ["device", deviceId, userCode],
+    queryKey: deviceKey,
     queryFn: () => getDevice(deviceId, userCode),
     enabled: linkComplete,
     // One load only: no silent reload when the network returns.
@@ -30,10 +32,15 @@ export function ApproveDevicePage() {
     refetchOnReconnect: false,
   });
   // No retry: three wrong codes lock the device.
-  const approval = useMutation({ mutationFn: () => approveDevice(deviceId, userCode), retry: false });
+  const approval = useMutation({
+    mutationFn: () => approveDevice(deviceId, userCode),
+    retry: false,
+    // The approval returns the newest state of the device. Keep it in the
+    // cache, so a return to this page does not ask for approval again.
+    onSuccess: (approved) => queryClient.setQueryData(deviceKey, approved),
+  });
 
-  // The approval returns the newest state of the device.
-  const current = approval.data ?? device.data;
+  const current = device.data;
   const approved = current !== undefined && current.status !== "pending";
 
   return (
