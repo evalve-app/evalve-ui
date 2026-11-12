@@ -2,6 +2,7 @@
 // in the MVP view (Results, Final results, Agent diff). Each function takes
 // plain loop data and returns what one section shows, with all text that
 // depends on server data already made. The section components only lay it out.
+import type { EvalAggregate, Replay } from "../api/client";
 import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
@@ -20,6 +21,29 @@ export type EvaluatorReplays = { evaluator: string; replays: ReplayResult[] };
 
 // One case in one run: its result session, its pass/fail evaluator results, and the status of its replay.
 export type RunCell = Pick<CellRun, "sessionId" | "results"> & { status?: string | null };
+
+// One run's results by case id (the id of the recorded session, or the replay
+// id when the replay is not in `replays`). `passed`: did the case pass each
+// gating evaluator? `cells`: each pass/fail result of the case, for the grid.
+export function runResults(aggregates: EvalAggregate[], replays: Replay[], gatingEvaluators: string[] | undefined): { passed: Map<string, boolean>; cells: Map<string, RunCell> } {
+  const byReplay = new Map(replays.map((x) => [x.id, x]));
+  const passed = new Map<string, boolean>();
+  const cells = new Map<string, RunCell>();
+  for (const agg of aggregates) {
+    // An evaluator of each data type can set the passed flag. An evaluator that sets no flag is a metric, and metrics don't gate here.
+    if (agg.data_type !== "bool" && !agg.replays?.some((rep) => rep.result?.passed != null)) continue;
+    for (const rep of agg.replays ?? []) {
+      const replay = byReplay.get(rep.replay_id);
+      const key = replay?.baseline_session_id ?? rep.replay_id;
+      const cell = cells.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
+      cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
+      cells.set(key, cell);
+      if (!isGating(gatingEvaluators, agg.evaluator_name)) continue;
+      passed.set(key, (passed.get(key) ?? true) && !!rep.result?.passed);
+    }
+  }
+  return { passed, cells };
+}
 
 // A pass/fail result with no evaluator name gates (see isGating), so it needs a name to show.
 const UNNAMED = "Unnamed evaluator";

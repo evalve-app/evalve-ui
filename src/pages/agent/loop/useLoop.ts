@@ -11,9 +11,9 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
-import { evaluatorReplays, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
+import { evaluatorReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -115,21 +115,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       const a = aggs[i]?.data;
       const r = reps[i]?.data;
       if (!a || !r) return;
-      const byReplay = new Map(r.map((x) => [x.id, x]));
-      const passed = new Map<string, boolean>();
-      const sessions = new Map<string, RunCell>();
-      for (const agg of a) {
-        if (agg.data_type !== "bool") continue; // metrics don't gate here
-        for (const rep of agg.replays ?? []) {
-          const replay = byReplay.get(rep.replay_id);
-          const key = replay?.baseline_session_id ?? rep.replay_id;
-          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
-          cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
-          sessions.set(key, cell);
-          if (!isGating(gateNames, agg.evaluator_name)) continue;
-          passed.set(key, (passed.get(key) ?? true) && !!rep.result?.passed);
-        }
-      }
+      const { passed, cells: sessions } = runResults(a, r, gateNames);
       runCases.set(run.id, passed);
       runSessions.set(run.id, sessions);
     });
