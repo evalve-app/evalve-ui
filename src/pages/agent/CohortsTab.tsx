@@ -27,7 +27,7 @@ export function CohortsTab() {
         <div className="empty-state">
           <Layers size={24} aria-hidden />
           <p className="empty-title">No cohorts yet</p>
-          <p className="empty-text">A cohort is a fixed set of recorded sessions that experiments replay. Create one with the Kitaru CLI or the kitaru-investigation skill.</p>
+          <p className="empty-text">A cohort is a named set of recorded sessions. Experiments replay one version of it. Create one with the Kitaru CLI or the kitaru-investigation skill.</p>
         </div>
       ) : null}
 
