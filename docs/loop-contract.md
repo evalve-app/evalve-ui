@@ -32,5 +32,5 @@ The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve resul
 The Loop tab has a switch, kept per browser (`src/lib/loopMode.tsx`). It changes how a loop is shown and what the New loop form asks for. It does not change the data.
 
 - **Post-MVP** shows the skill's full rules: several trials per lap, mean pass^k, the gate, and confirmation.
-- **MVP** shows a plain pass rate (the share of case runs that passed, over every run of the lap) and one Passed / Not passed result per lap. Its New loop form asks for one number, the pass rate target, and writes a config with one trial per lap and k = 1. With those settings mean pass^1 is the pass rate, so the same skill runs it.
+- **MVP** shows a plain pass rate and one Passed / Not passed result per lap. On the loop page, the pass rate of a lap is the share of cases that passed each gating evaluator in the first completed run of the lap. The compare page still uses the share of case runs that passed, over every run of the lap. Its New loop form asks for one number, the pass rate target, and writes a config with one trial per lap and k = 1. With those settings mean pass^1 is the pass rate, so the same skill runs it.
 
