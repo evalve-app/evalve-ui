@@ -37,10 +37,11 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Agents | `/agents` | Card grid and search. "New agent" gives a prompt for a coding agent; it does not create anything |
 | Sessions | `/agents/:id/sessions` | Server search, version filter, evaluator columns, load more |
 | Session detail | `/sessions/:id` | Steps on the left, detail on the right. A replay links back to its recorded session, experiment and loop |
+| Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens nothing yet |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
 | Loop | `/agents/:id/loop` | List, New loop form, results, compare laps. See below |
 
-**Placeholders (say "not built yet"):** Cohorts, Investigations, Evaluators, Workers, Jobs.
+**Placeholders (say "not built yet"):** Investigations, Evaluators, Workers, Jobs.
 
 **Missing entirely:** the CLI login page (`/devices/verify`). Alyssa needs it before the app can replace the Kitaru UI, so tell her when it lands.
 

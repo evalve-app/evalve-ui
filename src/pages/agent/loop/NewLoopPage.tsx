@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy } from "lucide-react";
-import { getAgent, listCohortVersions, listCohorts, listEvaluators, listExperiments } from "../../../api/client";
+import { getAgent, listEvaluators, listExperiments } from "../../../api/client";
 import { Button, Checkbox, Input, Switch } from "../../../design-system/components";
+import { versionLabel } from "../../../lib/cohorts";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
+import { useCohorts } from "../../../lib/useCohorts";
 import { CHANGE_FIELD_LABELS, DEFAULT_CRITERIA, groupLoops, slugify, type ChangeField, type Criteria } from "../../../lib/loops";
 
 const CHANGE_HELP: Record<ChangeField, string> = {
@@ -27,17 +29,14 @@ export function NewLoopPage() {
   const navigate = useNavigate();
 
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
-  const cohorts = useQuery({ queryKey: ["cohorts", agentId], queryFn: () => listCohorts(agentId) });
-  const versionLists = useQueries({
-    queries: (cohorts.data ?? []).map((c) => ({ queryKey: ["cohort-versions", c.id], queryFn: () => listCohortVersions(c.id) })),
-  });
+  const { cohorts, versionLists } = useCohorts(agentId);
   const evaluators = useQuery({ queryKey: ["evaluators"], queryFn: listEvaluators });
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
 
   const cohortOptions = useMemo(
     () =>
       (cohorts.data ?? []).flatMap((c, i) =>
-        (versionLists[i]?.data ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${v.display_version ?? `v${v.version}`}`, sessions: v.session_count })),
+        (versionLists[i]?.data ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cohorts.data, versionLists.map((v) => v.dataUpdatedAt).join(",")],

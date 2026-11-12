@@ -154,6 +154,7 @@ h1, h2, p { margin: 0; }
 /* Experiments list */
 .data-table td.wrap { white-space: normal; }
 .data-table td.shrink { max-width: 0; width: 100%; }
+.cohort-desc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
 .exp-name { font: 500 13px/18px var(--font-mono); color: var(--text-foreground); }
 .exp-desc { color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
