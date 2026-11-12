@@ -8,8 +8,8 @@ import { formatPercent, formatRelative } from "../../../lib/format";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
 import { passRate } from "../../../lib/loopRules";
-import { CHANGE_FIELD_LABELS, groupLoops } from "../../../lib/loops";
-import { useLoop, type Lap, type LoopOutcome } from "./useLoop";
+import { CHANGE_FIELD_LABELS, groupLoops, type LoopOutcome } from "../../../lib/loops";
+import { useLoop, type Lap } from "./useLoop";
 
 // Every loop for this agent. A loop is the experiments the kitaru-loop skill
 // named `<prefix>-round-N`, or `<prefix>-iteration-N` from 1 (docs/loop-contract.md).
@@ -107,7 +107,7 @@ function LoopRow({ agentId, slug, mvp, onOpen }: { agentId: string; slug: string
           {loop.hypothesis ? <span className="exp-desc">{loop.hypothesis}</span> : null}
         </div>
       </td>
-      <td>{loop.isLoading ? <span className="muted">…</span> : <LoopStatus outcome={loop.outcome} />}</td>
+      <td>{loop.isLoading && loop.outcome.kind === "running" ? <span className="muted">…</span> : <LoopStatus outcome={loop.outcome} />}</td>
       <td className="num mono">{Math.max(loop.totalLaps - 1, 0)}</td>
       <td>
         {base != null && best != null ? (
@@ -141,9 +141,5 @@ function LoopRow({ agentId, slug, mvp, onOpen }: { agentId: string; slug: string
 export function LoopStatus({ outcome }: { outcome: LoopOutcome }) {
   if (outcome.kind === "running") return <StatusLabel status="Running" />;
   if (outcome.kind === "completed") return <StatusLabel status="Completed" tone={outcome.passed ? "success" : "muted"} />;
-  return (
-    <span className="loop-status" title={outcome.why}>
-      <StatusLabel status="Stopped">Stopped early</StatusLabel>
-    </span>
-  );
+  return <StatusLabel status="Canceled" />;
 }

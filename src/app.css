@@ -384,7 +384,6 @@ h1, h2, p { margin: 0; }
 .menu-toggle-help { color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 
 /* Loop status: "Completed" plus why it stopped */
-.loop-status { display: inline-flex; align-items: center; gap: var(--spacing-2); white-space: nowrap; }
 
 /* Loop rules and gate columns */
 .criteria-line { display: flex; flex-wrap: wrap; gap: var(--spacing-1-5); margin-top: var(--spacing-1); }
