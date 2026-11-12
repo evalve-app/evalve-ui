@@ -16,7 +16,8 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 ## Evaluators, Investigations, Workers, Jobs
 
 - Evaluator detail page with its versions. A row in the Evaluators list opens nothing today.
-- Investigation page with its sessions and their verdicts, and verdict counts in the list. The counts need `GET /investigations/{id}/sessions` for each investigation.
+- Investigation page with its sessions and their verdicts.
+- A count for each verdict (acceptable, problematic, uncertain) in the Investigations list. The list already shows how many sessions have a verdict ("Reviewed"), from `completed_sessions` and `total_sessions`. The split by verdict is not in the list response. It needs `GET /investigations/{id}/sessions` for each investigation.
 - Workers and Jobs lists. The routes `/workers` and `/jobs` still show "Not built yet", but the nav has no link to them.
 - Paging. The Evaluators page and the Investigations tab each load 100 items at most.
 
