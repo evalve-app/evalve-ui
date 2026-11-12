@@ -23,6 +23,11 @@ describe("lapSummary", () => {
     expect(lapSummary("Iteration 2: Tighten the refund policy. Hypothesis: fewer late-fee refunds", 1)).toBe("Tighten the refund policy.");
     expect(lapSummary("Round 2: Use gpt-4.1. Hypothesis: better", 2)).toBe("Use gpt-4.1.");
   });
+
+  it("says that lap 0 is the baseline lap, whatever its description says", () => {
+    expect(lapSummary("Round 0: Unchanged baseline", 0)).toBe("Baseline lap, no changes");
+    expect(lapSummary(null, 0)).toBe("Baseline lap, no changes");
+  });
 });
 
 describe("loop status", () => {

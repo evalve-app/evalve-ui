@@ -243,7 +243,7 @@ export function resolveLoopOutcome(
 
 // The one-line change a lap made: the skill writes "Round N: <change> Hypothesis: …".
 export function lapSummary(description: string | null | undefined, lap: number) {
-  if (lap === 0) return "Baseline audit, no changes";
+  if (lap === 0) return "Baseline lap, no changes";
   const first = (description ?? "").split("\n")[0] ?? "";
   return first
     .replace(/^\s*(lap|round|iteration)\s*\d+\s*:\s*/i, "")

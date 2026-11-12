@@ -126,6 +126,19 @@ export function systemPrompt(node: SessionNode): string | null {
   return null;
 }
 
+// The agent's own settings, as one recorded session used them: the system
+// prompt of the first LLM step that has one, and the model and parameters of
+// the first LLM step. A value is null when the session does not give it.
+export function agentOwnSettings(nodes: SessionNode[]): { prompt: string | null; model: string | null; modelParams: Record<string, unknown> | null } {
+  const llmSteps = nodes.filter((n) => n.node_type === "llm_call");
+  const first = llmSteps[0];
+  return {
+    prompt: llmSteps.map(systemPrompt).find((p) => !!p) ?? null,
+    model: first?.model ?? first?.requested_model ?? null,
+    modelParams: first?.model_params ?? null,
+  };
+}
+
 // What was sent to the model, as a readable back-and-forth.
 export type Turn = { label: string; kind: "user" | "assistant" | "system" | "tool"; text: string; code: boolean };
 

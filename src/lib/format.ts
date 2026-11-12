@@ -35,7 +35,20 @@ export function formatDuration(start: string | null | undefined, end: string | n
   if (ms < 1000) return `${ms}ms`;
   const s = ms / 1000;
   if (s < 60) return `${s.toFixed(1)}s`;
-  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+// A long duration in whole minutes, for the time that a loop took: "12 min", "1 h 12 min".
+export function formatLongDuration(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return "—";
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  if (ms < 0) return "—";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "less than 1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return rest ? `${Math.floor(minutes / 60)} h ${rest} min` : `${Math.floor(minutes / 60)} h`;
 }
 
 export function shortId(id: string) {

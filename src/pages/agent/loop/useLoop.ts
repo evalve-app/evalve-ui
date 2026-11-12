@@ -11,10 +11,11 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
+import { evaluatorReplays, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
 import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
-export type CaseInfo = { id: string; name: string; order: number };
+export type { CaseInfo };
 
 export type Lap = {
   lap: number;
@@ -31,6 +32,8 @@ export type Lap = {
   confirmation: Stats | null;
   cases: Stats; // every scored run, for the grid
   targets: Map<string, CellTarget>; // case id → what its grid cell opens
+  // Each gating evaluator's replays in case order, from the first completed run. Empty with no completed run.
+  evaluatorReplays: EvaluatorReplays[];
   meanPassK: number | null; // on the selection trials
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
@@ -44,6 +47,9 @@ export type LoopData = {
   laps: Lap[];
   totalLaps: number;
   cases: CaseInfo[];
+  cohortCaseCount: number | null; // cases in the cohort; null until the cohort loads
+  firstCohortCase: CaseInfo | null; // the first case of the cohort, in case order; null until the cohort loads
+  cohortFailed: boolean; // the cohort request failed, so the two values above stay null
   running: boolean;
   winnerLap: number | null;
   decision: Decision | null;
@@ -103,21 +109,21 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
 
     // Per run: did each case pass every gating evaluator?
     const runCases = new Map<string, Map<string, boolean>>();
-    // Per run: each case's result session and pass/fail evaluator results, for the grid cells.
-    const runSessions = new Map<string, Map<string, Pick<CellRun, "sessionId" | "results">>>();
+    // Per run: each case's result session, replay status and pass/fail evaluator results, for the grid cells.
+    const runSessions = new Map<string, Map<string, RunCell>>();
     scored.forEach((run, i) => {
       const a = aggs[i]?.data;
       const r = reps[i]?.data;
       if (!a || !r) return;
       const byReplay = new Map(r.map((x) => [x.id, x]));
       const passed = new Map<string, boolean>();
-      const sessions = new Map<string, Pick<CellRun, "sessionId" | "results">>();
+      const sessions = new Map<string, RunCell>();
       for (const agg of a) {
         if (agg.data_type !== "bool") continue; // metrics don't gate here
         for (const rep of agg.replays ?? []) {
           const replay = byReplay.get(rep.replay_id);
           const key = replay?.baseline_session_id ?? rep.replay_id;
-          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, results: [] };
+          const cell = sessions.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
           cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
           sessions.set(key, cell);
           if (!isGating(gateNames, agg.evaluator_name)) continue;
@@ -173,6 +179,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         confirmation,
         cases: tally(done),
         targets: new Map(), // filled in once case names are known
+        evaluatorReplays: [], // filled in once case names are known
         meanPassK: c ? meanPassK(selection, c.k) : null,
         selectionGate: c && sel.length ? gate(c, selection, base) : null,
         confirmationGate: c && confirmation ? gate(c, confirmation, base) : null,
@@ -182,12 +189,18 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     const caseIds = new Set<string>();
     for (const l of laps) for (const k of l.cases.keys()) caseIds.add(k);
     const byId = new Map((baseline.data ?? []).map((s) => [s.session.id, s.session]));
-    const cases: CaseInfo[] = [...caseIds]
-      .map((id) => {
-        const s = byId.get(id);
-        return { id, name: caseName(s?.name) || (s ? `#${s.number}` : "…"), order: s?.number ?? 0 };
-      })
-      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+    // Case order: the number of the recorded session, then the name.
+    const inCaseOrder = (ids: string[]): CaseInfo[] =>
+      ids
+        .map((id) => {
+          const s = byId.get(id);
+          return { id, name: caseName(s?.name) || (s ? `#${s.number}` : "…"), order: s?.number ?? 0 };
+        })
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map(({ id, name }) => ({ id, name }));
+    const cases = inCaseOrder([...caseIds]);
+    // The first case of the whole cohort, also when it has no result in the laps that are loaded.
+    const firstCohortCase = inCaseOrder([...byId.keys()])[0] ?? null;
 
     for (const l of laps) {
       for (const cs of cases) {
@@ -197,6 +210,11 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         });
         l.targets.set(cs.id, cellTarget({ caseName: cs.name, lap: l.lap, runs: runsForCase, gatingEvaluators: gateNames }));
       }
+      // The server gives evaluation values for only the 50 most recent replays
+      // of a run, so a cohort of more than 50 cases gets 50 replays in each
+      // list. `cohortCaseCount` lets the page say "first 50 of N".
+      const firstDone = l.runs.find((r) => runCases.has(r.id));
+      l.evaluatorReplays = evaluatorReplays(firstDone ? runSessions.get(firstDone.id) : undefined, cases, gateNames);
     }
 
     const running = laps.some((l) => l.running);
@@ -236,6 +254,9 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       laps,
       totalLaps: ordered.length,
       cases,
+      cohortCaseCount: baseline.data?.length ?? null,
+      firstCohortCase,
+      cohortFailed: baseline.isError,
       running,
       winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
       decision,
@@ -244,5 +265,5 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       error: (experiments.error ?? runs.error ?? null) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, baseline.data, scored, resultsKey, slug, evalve]);
+  }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve]);
 }

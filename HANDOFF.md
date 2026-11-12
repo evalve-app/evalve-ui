@@ -41,7 +41,7 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Investigations | `/agents/:id/investigations` | Read-only list: status, how many sessions have a verdict, last change. A row opens nothing |
 | Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
-| Loop | `/agents/:id/loop` | List, New loop form, results, compare laps. See below |
+| Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare laps. See below |
 | Evaluators | `/evaluators` | Read-only list of all evaluators: scope (one agent or all agents), provider, latest version. A row opens nothing |
 
 **Placeholders (say "not built yet"):** Workers, Jobs. They are hidden from the nav. The routes `/workers` and `/jobs` still exist.
@@ -68,9 +68,24 @@ The switch sits at the top right of the Loop pages. It is saved per browser and 
 | Score | Plain pass rate | Mean pass^k |
 | Runs per lap | 1 | Several trials, plus a confirmation round |
 | New loop form | One number: the pass rate target | Trials, k, floor, confirmation, screen first |
-| Results grid | One Result column | Gate and Confirmation columns |
+| Loop page | Three sections: Results, Final results, Agent diff | Lap grid with compare checkboxes, four stat tiles, trend line |
 
 MVP uses the same skill with one trial per lap and k = 1, so no second runner is needed.
+
+### The loop page in the MVP view
+
+The page shows the header, then three sections in one column. Each section is one component in `src/pages/agent/loop/`. The text and the numbers come from `src/lib/loopResults.ts`.
+
+| Section | Shows | When |
+| --- | --- | --- |
+| Results (`ResultsSection.tsx`) | One row for each lap and one column for each gating evaluator. A cell has one square for each replay, and a square opens the result session. A row opens to list its replays | Always, when the loop has laps |
+| Final results (`FinalResultsSection.tsx`) | The outcome and the duration, one card for each gating evaluator, "Got worse", "Laps", a bar for the pass rate of each lap, and the criteria with their measured values | A completed loop. A loop that did not pass shows its best lap |
+| Agent diff (`AgentDiffSection.tsx`) | The full system prompt as a diff from the agent's own prompt to the prompt of the winning lap, "Copy diff" (the one primary button of the page), and what each lap changed | A loop with a winning lap |
+
+- **The "before" prompt** comes from the first LLM step of the recorded session of the first case. If that session gives no prompt, the section shows the prompt of the winning lap in full, with a "Copy prompt" button.
+- **A lap with several runs** (a loop that ran with the Post-MVP rules) shows its first completed run in the MVP view.
+- **The server gives results for only the 50 most recent replays of a run.** A cohort with more cases gets 50 squares, and the count says "first 50 of N".
+- **The Post-MVP view and the compare page did not change.** The lap grid, the stat tiles, the trend line and the compare card are in `LapViews.tsx`.
 
 ### One hard-coded loop
 
@@ -103,6 +118,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | `src/api/client.ts` | Every Kitaru call the app makes |
 | `src/pages/` | One file per page; `agent/loop/` is the Loop tab |
 | `src/pages/agent/loop/useLoop.ts` | Loads one loop and works out laps, scores and status |
+| `src/lib/loopResults.ts` | What the three sections of the loop page show in the MVP view |
 | `src/lib/loopRules.ts` | The skill's pass and stop rules, ported |
 | `src/lib/sessionNodes.ts` | Turns a session's raw steps into readable ones |
 | `docs/kitaru-ui-route-map.md` | Which API calls each Kitaru page makes. Use it when building a placeholder page |
@@ -111,6 +127,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 ## Not tested
 
 - A real one-run-per-lap (MVP) loop. None exists on the server yet.
+- The three sections of the loop page with real data. They were checked in a browser only with a mock API.
 - "Run again" on an experiment.
 - Session page: a failed session, a running session, and agents not built on openai-agents. Anything it can't read as text falls back to raw JSON.
 - The budget stop and metric gates are not ported, so a loop stopped on budget shows "Stopped early".

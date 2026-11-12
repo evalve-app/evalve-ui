@@ -64,6 +64,18 @@ The role of a run inside a lap: screen, trial, or confirmation.
 An evaluator whose result decides if a case passed in a loop. A case passes a run only when it passes every gating evaluator.
 _Avoid_: Gate evaluator, scoring evaluator
 
+**Winning lap**:
+The lap that made the loop pass. A loop that did not pass has no winning lap.
+_Avoid_: Winner, best lap (for a loop that passed)
+
+**Best lap**:
+The lap after the baseline lap with the highest pass rate, in a loop that did not pass.
+_Avoid_: Winning lap
+
+**Got worse**:
+A case got worse when it passed in the baseline lap and failed in a later lap.
+_Avoid_: Regression, regressed
+
 ### Sign-in
 
 **Device**:
