@@ -103,7 +103,7 @@ function LoopRow({ agentId, slug, mvp, onOpen }: { agentId: string; slug: string
     <tr className="clickable-row" tabIndex={0} onClick={onOpen} onKeyDown={(e) => e.key === "Enter" && onOpen()}>
       <td className="fill shrink">
         <div className="exp-cell">
-          <span className="exp-name">{slug}</span>
+          <span className="exp-name" title={slug}>{slug}</span>
           {loop.hypothesis ? <span className="exp-desc">{loop.hypothesis}</span> : null}
         </div>
       </td>
