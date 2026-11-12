@@ -1,0 +1,8 @@
+{
+  "version": "0.1.0",
+  "files": {
+    "SKILL.md": "f01fff5582e8d9c598f3794f2e51f9cbf691aa19dc862e75c24a78baa126a8d5",
+    "references/handoff.md": "f79d7c5aa2db063540bc6ca0631b62390929d57fd331aa340b1b02e472870e1a",
+    "scripts/loop.py": "18bdff4e14684ba42f0e97d462cbfd5963e155229c09d86075fbcea43680557b"
+  }
+}
