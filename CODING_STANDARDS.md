@@ -1,10 +1,11 @@
 # Coding standards
 
-Rules for review. Each rule came from a review finding. Tooling covers types and tests (`npm run typecheck`, `npm test`, the Check workflow), so this file holds only judgement calls.
+Rules for review. Each rule came from a review finding. Tooling covers types, tests, and the mechanical rules (`npm run typecheck`, `npm test`, `npm run lint`, the Check workflow), so this file holds only judgement calls.
 
 ## Words
 
 - User-facing text and names in code use the words in `GLOSSARY.md`, and none of its "Avoid" words.
+- `npm run lint` finds only the "Avoid" words that have one meaning in code (the list is in `scripts/check-glossary.mjs`). The review judges the others, such as "test", "review", and "baseline" alone.
 
 ## Documents agree with the diff
 
@@ -30,5 +31,5 @@ Rules for review. Each rule came from a review finding. Tooling covers types and
 ## Pages
 
 - A row or a cell that opens a page holds a real link, so the keyboard and "open in new tab" work.
-- Styles go in `src/app.css` in a section named for the page, and use design tokens only.
+- Styles go in `src/app.css` in a section named for the page. Color, spacing, radius, shadow, and font family use design tokens (`npm run lint` checks color). A size with no token (a width, a font size) can be a px value.
 - A page shows a state for each of: load in progress, load failed, nothing found, and no data.
