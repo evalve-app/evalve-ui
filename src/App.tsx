@@ -8,11 +8,13 @@ import { useEmptyPreview } from "./lib/emptyPreview";
 import { useDismiss } from "./lib/useDismiss";
 import { LoginPage } from "./pages/LoginPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { EvaluatorsPage } from "./pages/EvaluatorsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { ApproveDevicePage } from "./pages/ApproveDevicePage";
 import { SessionPage } from "./pages/SessionPage";
 import { AgentLayout } from "./pages/agent/AgentLayout";
 import { SessionsTab } from "./pages/agent/SessionsTab";
+import { InvestigationsTab } from "./pages/agent/InvestigationsTab";
 import { CohortPage } from "./pages/agent/CohortPage";
 import { CohortsTab } from "./pages/agent/CohortsTab";
 import { ExperimentsTab } from "./pages/agent/ExperimentsTab";
@@ -22,11 +24,10 @@ import { NewLoopPage } from "./pages/agent/loop/NewLoopPage";
 import { LoopPage } from "./pages/agent/loop/LoopPage";
 import { LoopComparePage } from "./pages/agent/loop/LoopComparePage";
 
+// Workers and Jobs have routes but no nav link: their pages are not built.
 const NAV = [
   { to: "/agents", label: "Agents" },
   { to: "/evaluators", label: "Evaluators" },
-  { to: "/workers", label: "Workers" },
-  { to: "/jobs", label: "Jobs" },
 ];
 
 export function App() {
@@ -38,7 +39,7 @@ export function App() {
         <Route path="/agents/:agentId" element={<AgentLayout />}>
           <Route index element={<Navigate to="sessions" replace />} />
           <Route path="sessions" element={<SessionsTab />} />
-          <Route path="investigations" element={<PlaceholderPage title="Investigations" embedded />} />
+          <Route path="investigations" element={<InvestigationsTab />} />
           <Route path="cohorts" element={<CohortsTab />} />
           <Route path="cohorts/:cohortId" element={<CohortPage />} />
           <Route path="experiments" element={<ExperimentsTab />} />
@@ -50,7 +51,7 @@ export function App() {
         </Route>
         <Route path="/sessions/:sessionId" element={<SessionPage />} />
         <Route path="/devices/verify" element={<ApproveDevicePage />} />
-        <Route path="/evaluators" element={<PlaceholderPage title="Evaluators" />} />
+        <Route path="/evaluators" element={<EvaluatorsPage />} />
         <Route path="/workers" element={<PlaceholderPage title="Workers" />} />
         <Route path="/jobs" element={<PlaceholderPage title="Jobs" />} />
       </Route>

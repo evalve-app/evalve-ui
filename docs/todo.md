@@ -6,12 +6,19 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 
 1. ~~**Clickable cells in the loop grid and the experiment grid.** Clicking a case cell should open that session (`/sessions/:id`). A cell in a multi-run lap covers several sessions, so the plan is a small menu listing each run as passed or failed. With one run per lap, go straight to the session. The replays already loaded in `useLoop.ts` carry `baseline_session_id` and `result_session_id`.~~ Built (issue #2).
 2. ~~**CLI login page** (`/devices/verify`). Needed before this app can replace the Kitaru UI. It calls `GET /api/v1/devices/{device_id}` and `POST /api/v1/devices/{device_id}/verify`.~~ Built. Not tested yet with a real `kitaru login`.
-3. **Evaluators, Workers, Jobs, Investigations.** Placeholders today. Build simple read-only lists, or hide them from the nav for the demo.
+3. ~~**Evaluators, Workers, Jobs, Investigations.** Placeholders today. Build simple read-only lists, or hide them from the nav for the demo.~~ Done in #12: Evaluators and Investigations are read-only lists, and Workers and Jobs are hidden from the nav.
 
 ## Session page extras (Kitaru has these, we don't)
 
 - Evaluations tab, Replays tab, Notes, Timeline view, Compare.
 - "Add to cohort" and "Replay" buttons. These change data on the server.
+
+## Evaluators, Investigations, Workers, Jobs
+
+- Evaluator detail page with its versions. A row in the Evaluators list opens nothing today.
+- Investigation page with its sessions and their verdicts, and verdict counts in the list. The counts need `GET /investigations/{id}/sessions` for each investigation.
+- Workers and Jobs lists. The routes `/workers` and `/jobs` still show "Not built yet", but the nav has no link to them.
+- Paging. The Evaluators page and the Investigations tab each load 100 items at most.
 
 ## Cohort page
 

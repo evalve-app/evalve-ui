@@ -38,11 +38,13 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Agents | `/agents` | Card grid and search. "New agent" gives a prompt for a coding agent; it does not create anything |
 | Sessions | `/agents/:id/sessions` | Server search, version filter, evaluator columns, load more |
 | Session detail | `/sessions/:id` | Steps on the left, detail on the right. A replay links back to its recorded session, experiment and loop |
+| Investigations | `/agents/:id/investigations` | Read-only list: status, how many sessions have a verdict, last change. A row opens nothing |
 | Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
 | Loop | `/agents/:id/loop` | List, New loop form, results, compare laps. See below |
+| Evaluators | `/evaluators` | Read-only list of all evaluators: scope (one agent or all agents), provider, latest version. A row opens nothing |
 
-**Placeholders (say "not built yet"):** Investigations, Evaluators, Workers, Jobs.
+**Placeholders (say "not built yet"):** Workers, Jobs. They are hidden from the nav. The routes `/workers` and `/jobs` still exist.
 
 **CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 

@@ -1,11 +1,4 @@
-export function PlaceholderPage({ title, embedded }: { title: string; embedded?: boolean }) {
-  if (embedded) {
-    return (
-      <div className="empty-state">
-        <p className="empty-title">{title} is not built yet</p>
-      </div>
-    );
-  }
+export function PlaceholderPage({ title }: { title: string }) {
   return (
     <section className="page">
       <div className="page-header">
