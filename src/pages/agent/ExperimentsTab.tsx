@@ -125,7 +125,7 @@ export function ExperimentsTab() {
                   >
                     <td className="fill shrink">
                       <div className="exp-cell">
-                        <span className="exp-name">{e.name}</span>
+                        <span className="exp-name" title={e.name}>{e.name}</span>
                         {e.description ? <span className="exp-desc">{e.description}</span> : null}
                       </div>
                     </td>

@@ -164,8 +164,10 @@ h1, h2, p { margin: 0; }
 /* Experiments list */
 .data-table td.wrap { white-space: normal; }
 .data-table td.shrink { max-width: 0; width: 100%; }
-.exp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
-.exp-name { font: 500 13px/18px var(--font-mono); color: var(--text-foreground); }
+/* The cell holds the minimum width. A minimum on .exp-cell overflows the max-width: 0 cell and covers the next column. */
+.data-table td.shrink:has(> .exp-cell) { min-width: 220px; }
+.exp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.exp-name { font: 500 13px/18px var(--font-mono); color: var(--text-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-desc { color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-row { display: inline-flex; flex-wrap: wrap; gap: var(--spacing-1); }
 .change-chip { padding: 1px var(--spacing-2); border: 1px solid var(--border-border); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-secondary-foreground); font-size: 12px; line-height: 18px; white-space: nowrap; }
