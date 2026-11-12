@@ -673,6 +673,27 @@ describe("runResults", () => {
     expect(cells.get("s2")?.results).toEqual([{ evaluator: "action-correct", passed: false }]);
   });
 
+  it("gives no result for a replay that has no passed flag", () => {
+    const agg = aggregate({ data_type: "str", replays: [{ replay_id: "p1", result: verdict(true, "pass") }, { replay_id: "p2", result: null }] as EvalAggregate["replays"] });
+    const { passed, cells } = runResults([agg], replays, ["action-correct"]);
+    expect([...passed]).toEqual([["s1", true]]);
+    expect(cells.has("s2")).toBe(false);
+  });
+
+  it("gives a case no pass when one gating evaluator gave it no result", () => {
+    const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(true) }] as EvalAggregate["replays"] });
+    const tone = aggregate({ name: "tone", evaluator_name: "tone", replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(null) }] as EvalAggregate["replays"] });
+    const { passed, cells } = runResults([action, tone], replays, undefined);
+    expect([...passed]).toEqual([["s1", true]]);
+    expect(cells.get("s2")?.results).toEqual([{ evaluator: "action-correct", passed: true }]);
+  });
+
+  it("fails a case that one gating evaluator failed, also when a second gave it no result", () => {
+    const action = aggregate({ replays: [{ replay_id: "p1", result: verdict(false) }] as EvalAggregate["replays"] });
+    const tone = aggregate({ name: "tone", evaluator_name: "tone", replays: [{ replay_id: "p1", result: null }, { replay_id: "p2", result: verdict(true) }] as EvalAggregate["replays"] });
+    expect([...runResults([action, tone], replays, undefined).passed]).toEqual([["s1", false]]);
+  });
+
   it("ignores an evaluator that gives no pass or fail result", () => {
     const agg = aggregate({ data_type: "float", replays: [{ replay_id: "p1", result: { ...verdict(null), score: 0.4 } }] as EvalAggregate["replays"] });
     const { passed, cells } = runResults([agg], replays, undefined);

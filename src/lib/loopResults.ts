@@ -23,24 +23,37 @@ export type EvaluatorReplays = { evaluator: string; replays: ReplayResult[] };
 export type RunCell = Pick<CellRun, "sessionId" | "results"> & { status?: string | null };
 
 // One run's results by case id (the id of the recorded session, or the replay
-// id when the replay is not in `replays`). `passed`: did the case pass each
-// gating evaluator? `cells`: each pass/fail result of the case, for the grid.
+// id when the replay is not in `replays`). `cells`: each pass/fail result of
+// the case, for the grid. `passed`: did the case pass each gating evaluator?
+// A replay result with no passed flag is no result: it is not a failure. An
+// evaluator of each data type can set the flag, and an evaluator that sets no
+// flag is a metric, which doesn't gate here. A case is not in `passed` when no
+// gating evaluator failed it and one or more gave it no result.
 export function runResults(aggregates: EvalAggregate[], replays: Replay[], gatingEvaluators: string[] | undefined): { passed: Map<string, boolean>; cells: Map<string, RunCell> } {
   const byReplay = new Map(replays.map((x) => [x.id, x]));
-  const passed = new Map<string, boolean>();
   const cells = new Map<string, RunCell>();
+  // Per case: the result of each gating evaluator that gave one.
+  const gating = new Map<string, boolean[]>();
+  let gatingEvaluatorCount = 0;
   for (const agg of aggregates) {
-    // An evaluator of each data type can set the passed flag. An evaluator that sets no flag is a metric, and metrics don't gate here.
-    if (agg.data_type !== "bool" && !agg.replays?.some((rep) => rep.result?.passed != null)) continue;
+    let gaveResult = false;
     for (const rep of agg.replays ?? []) {
+      const ok = rep.result?.passed;
+      if (ok == null) continue;
+      gaveResult = true;
       const replay = byReplay.get(rep.replay_id);
       const key = replay?.baseline_session_id ?? rep.replay_id;
       const cell = cells.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
-      cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: !!rep.result?.passed });
+      cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: ok });
       cells.set(key, cell);
-      if (!isGating(gatingEvaluators, agg.evaluator_name)) continue;
-      passed.set(key, (passed.get(key) ?? true) && !!rep.result?.passed);
+      if (isGating(gatingEvaluators, agg.evaluator_name)) gating.set(key, [...(gating.get(key) ?? []), ok]);
     }
+    if (gaveResult && isGating(gatingEvaluators, agg.evaluator_name)) gatingEvaluatorCount += 1;
+  }
+  const passed = new Map<string, boolean>();
+  for (const [key, list] of gating) {
+    if (list.includes(false)) passed.set(key, false);
+    else if (list.length === gatingEvaluatorCount) passed.set(key, true);
   }
   return { passed, cells };
 }
