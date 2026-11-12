@@ -41,7 +41,7 @@ export function LoopPage() {
   const [lapLimit, setLapLimit] = useState(LAP_PAGE);
   const preview = useEmptyPreview().on;
   const real = useLoop(agentId, slug, { lapLimit });
-  const loop = preview ? { ...real, laps: [], totalLaps: 0, running: false, winnerLap: null, outcome: { kind: "stopped" as const, why: "" }, isLoading: false } : real;
+  const loop = preview ? { ...real, laps: [], totalLaps: 0, running: false, winnerLap: null, isLoading: false } : real;
   const [selected, setSelected] = useState<number[]>([]);
 
   const c = loop.settings?.criteria ?? null;
@@ -73,7 +73,7 @@ export function LoopPage() {
           <div className="detail-title-block">
             <div className="title-with-status">
               <h2 className="detail-title">{slug}</h2>
-              {loop.isLoading ? null : <LoopStatus outcome={loop.outcome} />}
+              {loop.totalLaps > 0 && (!loop.isLoading || loop.outcome.kind !== "running") ? <LoopStatus outcome={loop.outcome} /> : null}
             </div>
             {loop.hypothesis ? <p className="detail-description">{loop.hypothesis}</p> : null}
           </div>
@@ -92,7 +92,7 @@ export function LoopPage() {
         ) : null}
       </div>
 
-      {!loop.isLoading && loop.outcome.kind === "completed" ? (
+      {loop.totalLaps > 0 && loop.outcome.kind === "completed" ? (
         <Alert variant={loop.outcome.passed ? "success" : "neutral"} title={loop.outcome.title}>
           {loop.outcome.detail}
         </Alert>
@@ -104,9 +104,9 @@ export function LoopPage() {
         </Alert>
       ) : null}
 
-      {!loop.isLoading && loop.totalLaps > 0 && !c ? (
+      {!loop.isLoading && loop.totalLaps > 0 && !c && !loop.isEvalveLoop && loop.outcome.kind !== "completed" ? (
         <Alert variant="warning" title="This loop's rules aren't on the server">
-          The baseline lap has no "Loop settings" line, so pass^k, the gate and the status can't be worked out here. The rules are in the project's kitaru-loop.json.
+          The dashboard needs the baseline lap's "Loop settings" line to calculate pass^k and apply the stop rules. The project's kitaru-loop.json has the rules.
         </Alert>
       ) : null}
 

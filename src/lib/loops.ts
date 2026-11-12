@@ -9,7 +9,7 @@
 //   them into round 0's description as one line, `Loop settings: {json}`, so
 //   the dashboard can apply the same gate.
 // The UI calls a round a "lap".
-import type { Experiment } from "../api/client";
+import type { Experiment, ExperimentRun } from "../api/client";
 
 export type ChangeField = "system_prompt" | "model" | "model_params";
 
@@ -101,6 +101,144 @@ export function parseSettings(description: string | null | undefined): LoopSetti
   } catch {
     return null;
   }
+}
+
+export type LoopOutcome =
+  | { kind: "running" }
+  | { kind: "completed"; passed: boolean; winnerLap: number | null; title: string; detail: string }
+  | { kind: "canceled" };
+
+type CompletedLoop = Extract<LoopOutcome, { kind: "completed" }>;
+type KnownLoop = { baselineExperimentId?: string; settings?: LoopSettings; outcome: CompletedLoop };
+
+// The archived reports record the outcome of demo loops that predate server metadata.
+const KNOWN_LOOPS: Record<string, KnownLoop> = {
+  "day-30-refunds": {
+    settings: {
+      name: "Day-30 refunds",
+      criteria: { trials_per_round: 5, k: 3, screen_first: true, per_case_floor: "allow_one_miss", cohort_target_mean_pass_k: 0.9, no_regression: true, confirmation_round: true, max_rounds: 4, budget_usd: 1.0, plateau_patience: 2 },
+      allowed_changes: ["system_prompt", "model"],
+      allowed_models: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini"],
+      gate_evaluators: ["support-desk-action-correct"],
+    },
+    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
+  },
+  "support-desk-demo": {
+    baselineExperimentId: "01a1c733-f326-70af-af44-7e9bc55cb10a",
+    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "All 20 cases passed in two consecutive replays." },
+  },
+};
+
+export function knownLegacyLoop(slug: string, baselineExperimentId: string | undefined): KnownLoop | undefined {
+  const known = KNOWN_LOOPS[slug];
+  return known?.baselineExperimentId && known.baselineExperimentId !== baselineExperimentId ? undefined : known;
+}
+
+type EvalveResult =
+  | { status: "running" }
+  | { status: "stop_success"; winnerLap: number }
+  | { status: "stop_attempt_cap" | "stop_budget"; reason: string | null };
+
+type PublishedRun = { experimentId: string; runId: string };
+type EvalveLoop = { requiredGreens: number; result: EvalveResult | null; publishedRuns: PublishedRun[] };
+
+function parsePublishedRuns(laps: unknown): PublishedRun[] {
+  if (!Array.isArray(laps)) return [];
+  return laps.flatMap((lap: unknown) => {
+    if (!lap || typeof lap !== "object" || !("experiment_id" in lap) || !("runs" in lap)) return [];
+    const experimentId = lap.experiment_id;
+    if (typeof experimentId !== "string" || !Array.isArray(lap.runs)) return [];
+    return lap.runs.flatMap((run: unknown) => {
+      if (!run || typeof run !== "object" || !("run_id" in run) || typeof run.run_id !== "string") return [];
+      return [{ experimentId, runId: run.run_id }];
+    });
+  });
+}
+
+function descriptionRecord(description: string, prefix: string): Record<string, unknown> | null {
+  const line = description.split("\n").find((line) => line.startsWith(prefix));
+  if (!line) return null;
+  try {
+    const value: unknown = JSON.parse(line.slice(prefix.length));
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The MVP runner publishes its decision on the baseline experiment.
+export function parseEvalveLoop(description: string | null | undefined): EvalveLoop | null {
+  if (!description) return null;
+  const settings = descriptionRecord(description, "Evalve loop: ");
+  if (settings?.schema_version !== 1 || settings.lap !== 0 || typeof settings.loop_id !== "string") return null;
+  const requiredGreens = settings.required_consecutive_greens;
+  if (typeof requiredGreens !== "number" || !Number.isInteger(requiredGreens) || requiredGreens < 1) return null;
+
+  const saved = descriptionRecord(description, "Evalve result: ");
+  let result: EvalveResult | null = null;
+  if (saved?.schema_version === 1 && saved.loop_id === settings.loop_id) {
+    const status = saved.status;
+    if (status === "stop_success") {
+      const winnerLap = saved.winner_lap;
+      if (typeof winnerLap === "number" && Number.isInteger(winnerLap) && winnerLap >= 0) {
+        result = { status, winnerLap };
+      }
+    } else if (status === "stop_attempt_cap" || status === "stop_budget") {
+      result = { status, reason: typeof saved.reason === "string" ? saved.reason : null };
+    } else if (status === "running") {
+      result = { status };
+    }
+  }
+  return {
+    requiredGreens,
+    result,
+    publishedRuns: result && result.status !== "running" ? parsePublishedRuns(saved?.laps) : [],
+  };
+}
+
+export function isActiveRun(run: Pick<ExperimentRun, "status">): boolean {
+  return run.status === "running" || run.status === "canceling";
+}
+
+export function shouldPollLoopRuns(
+  evalve: EvalveLoop | null,
+  experimentIds: string[],
+  cachedRuns: Pick<ExperimentRun, "id" | "status">[],
+): boolean {
+  if (cachedRuns.some(isActiveRun)) return true;
+  if (!evalve) return false;
+  if (!evalve.result || evalve.result.status === "running") return true;
+
+  // The experiment description and run list update independently. A terminal
+  // description can arrive before the query has seen the final replay.
+  const cachedIds = new Set(cachedRuns.map((run) => run.id));
+  return evalve.publishedRuns.some(({ experimentId, runId }) => experimentIds.includes(experimentId) && !cachedIds.has(runId));
+}
+
+export function resolveLoopOutcome(
+  evalve: EvalveLoop | null,
+  legacyCompletion: CompletedLoop | null,
+  active: boolean,
+  latestStatus: ExperimentRun["status"] | undefined,
+): LoopOutcome {
+  const result = evalve?.result;
+  if (evalve && result?.status === "stop_success") {
+    const greens = evalve.requiredGreens;
+    return {
+      kind: "completed", passed: true, winnerLap: result.winnerLap,
+      title: `Lap ${result.winnerLap} passed`,
+      detail: `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}.`,
+    };
+  }
+  if (result?.status === "stop_attempt_cap" || result?.status === "stop_budget") {
+    return {
+      kind: "completed", passed: false, winnerLap: null, title: "No lap passed",
+      detail: result.reason ?? (result.status === "stop_budget" ? "The loop reached its replay budget." : "The loop reached its replay attempt cap."),
+    };
+  }
+  if (active) return { kind: "running" };
+  if (legacyCompletion) return legacyCompletion;
+  return latestStatus === "canceled" ? { kind: "canceled" } : { kind: "running" };
 }
 
 // The one-line change a lap made: the skill writes "Round N: <change> Hypothesis: …".

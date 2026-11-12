@@ -12,7 +12,7 @@ import {
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
 import { decide, gate, meanPassK, type CaseStat, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, isGating, lapSummary, loopHypothesis, parseSettings, type LoopSettings } from "../../../lib/loops";
+import { groupLoops, isActiveRun, isGating, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type CaseInfo = { id: string; name: string; order: number };
 
@@ -36,36 +36,10 @@ export type Lap = {
   confirmationGate: Gate | null;
 };
 
-// A loop has three statuses. "completed" means one of the skill's stop rules fired.
-export type LoopOutcome =
-  | { kind: "running" } // a run is in progress, or the loop was active in the last 30 minutes
-  | { kind: "completed"; passed: boolean; title: string; detail: string } // shown on the loop page
-  | { kind: "stopped"; why: string }; // went quiet with no stop rule, or its rules aren't on the server
-
-// The coding agent pauses between runs to read results and pick a change.
-// Longer than this with nothing new and no stop rule means it stopped early.
-const ACTIVE_WINDOW_MS = 30 * 60 * 1000;
-
-// Loops run before the skill wrote a "Loop settings" line on round 0. Their
-// rules are copied here from the project's kitaru-loop.json, and the status is
-// the one the skill reported in results.md. Remove an entry once its round 0
-// carries the line.
-const KNOWN_LOOPS: Record<string, { settings: LoopSettings; outcome: LoopOutcome }> = {
-  "day-30-refunds": {
-    settings: {
-      name: "Day-30 refunds",
-      criteria: { trials_per_round: 5, k: 3, screen_first: true, per_case_floor: "allow_one_miss", cohort_target_mean_pass_k: 0.9, no_regression: true, confirmation_round: true, max_rounds: 4, budget_usd: 1.0, plateau_patience: 2 },
-      allowed_changes: ["system_prompt", "model"],
-      allowed_models: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini"],
-      gate_evaluators: ["support-desk-action-correct"],
-    },
-    outcome: { kind: "completed", passed: true, title: "Lap 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
-  },
-};
-
 export type LoopData = {
   slug: string;
   settings: LoopSettings | null;
+  isEvalveLoop: boolean;
   hypothesis: string;
   laps: Lap[];
   totalLaps: number;
@@ -82,9 +56,20 @@ export type LoopData = {
 // `<slug>-round-N` (or `<slug>-iteration-N`, counted from 1). `lapLimit` caps how many of the newest laps are loaded,
 // since every run costs two requests.
 export function useLoop(agentId: string, slug: string, opts: { lapLimit: number }): LoopData {
-  const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
+  const experiments = useQuery({
+    queryKey: ["experiments", agentId],
+    queryFn: () => listExperiments(agentId),
+    refetchInterval: (q) => {
+      // The runner publishes the result after it collects the settled replay.
+      const baseline = q.state.data?.find((e) => e.name === `${slug}-round-0`);
+      const evalve = parseEvalveLoop(baseline?.description);
+      return evalve && (!evalve.result || evalve.result.status === "running") ? 4000 : false;
+    },
+  });
 
   const ordered = useMemo(() => groupLoops(experiments.data ?? []).get(slug) ?? [], [experiments.data, slug]);
+  const round0 = ordered.find((l) => l.lap === 0)?.experiment;
+  const evalve = useMemo(() => parseEvalveLoop(round0?.description), [round0?.description]);
   const shown = ordered.slice(-opts.lapLimit);
   const ids = shown.map((l) => l.experiment.id);
 
@@ -92,7 +77,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     queryKey: ["experiment-runs", ids],
     queryFn: () => listExperimentRuns(ids),
     enabled: ids.length > 0,
-    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "running") ? 4000 : false),
+    refetchInterval: (q) => (shouldPollLoopRuns(evalve, ids, q.state.data ?? []) ? 4000 : false),
   });
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);
@@ -110,9 +95,9 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
   const resultsKey = aggs.map((a) => a.dataUpdatedAt).join(",") + "|" + reps.map((r) => r.dataUpdatedAt).join(",");
 
   return useMemo<LoopData>(() => {
-    const round0 = ordered.find((l) => l.lap === 0)?.experiment;
-    const known = KNOWN_LOOPS[slug];
-    const settings = parseSettings(round0?.description) ?? known?.settings ?? null;
+    const legacySettings = parseSettings(round0?.description);
+    const known = evalve || legacySettings ? undefined : knownLegacyLoop(slug, round0?.id);
+    const settings = legacySettings ?? known?.settings ?? null;
     const c = settings?.criteria ?? null;
     const gateNames = settings?.gate_evaluators;
 
@@ -179,7 +164,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         summary: lapSummary(experiment.description, lap),
         runs: lapRuns,
         phases,
-        running: lapRuns.some((r) => r.status === "running"),
+        running: lapRuns.some(isActiveRun),
         screenGreen: lap > 0 && c?.screen_first && first ? firstRunPasses === first.size : null,
         firstRunPasses,
         selectionTrials: sel.length,
@@ -226,41 +211,38 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       confirmationGate: l.confirmationGate,
     }));
     const loading = experiments.isPending || (ids.length > 0 && runs.isPending) || runCases.size < scored.length;
-    const decision = c && !loading && laps.length ? decide(c, facts) : null;
+    const decision = !evalve && c && !loading && laps.length ? decide(c, facts) : null;
 
-    const lastActivity = Math.max(0, ...laps.flatMap((l) => [Date.parse(l.experiment.created), ...l.runs.map((r) => Date.parse(r.ended_at ?? r.created))]).filter(Number.isFinite));
-    const active = Date.now() - lastActivity < ACTIVE_WINDOW_MS;
-    let outcome: LoopOutcome;
-    if (running) outcome = { kind: "running" };
-    else if (known && !parseSettings(round0?.description)) outcome = known.outcome;
-    else if (!c || !decision) outcome = { kind: "stopped", why: "The baseline lap has no Loop settings line, so the stop rules can't be applied" };
-    else if (decision.action === "stop_success")
-      outcome = {
+    let legacyCompletion = known?.outcome ?? null;
+    if (!legacyCompletion && c && decision?.action === "stop_success")
+      legacyCompletion = {
         kind: "completed",
         passed: true,
+        winnerLap: decision.lap,
         title: `Lap ${decision.lap} passed`,
         detail: `It met every check across ${c.trials_per_round} runs${decision.confirmed ? `, then met them again on ${c.trials_per_round} fresh runs` : ""}.`,
       };
-    else if (decision.action === "stop_plateau")
-      outcome = { kind: "completed", passed: false, title: "No lap passed", detail: `The loop stopped because ${decision.patience} laps in a row did no better than lap ${decision.bestLap}.` };
-    else if (decision.action === "stop_cap") outcome = { kind: "completed", passed: false, title: "No lap passed", detail: `The loop ran all ${c.max_rounds} laps it was allowed.` };
-    else if (active) outcome = { kind: "running" };
-    else outcome = { kind: "stopped", why: decision.action === "start" ? `No stop rule fired; lap ${decision.lap} was next` : `No stop rule fired; lap ${decision.lap} needed more ${decision.phase} runs` };
+    else if (!legacyCompletion && decision?.action === "stop_plateau")
+      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: `The loop stopped because ${decision.patience} laps in a row did no better than lap ${decision.bestLap}.` };
+    else if (!legacyCompletion && c && decision?.action === "stop_cap")
+      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: `The loop ran all ${c.max_rounds} laps it was allowed.` };
+    const outcome = resolveLoopOutcome(evalve, legacyCompletion, running, runs.data?.[0]?.status);
 
     return {
       slug,
       settings,
+      isEvalveLoop: !!evalve,
       hypothesis: loopHypothesis(round0?.description),
       laps,
       totalLaps: ordered.length,
       cases,
       running,
-      winnerLap: decision?.action === "stop_success" ? decision.lap : null,
+      winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
       decision,
       outcome,
       isLoading: loading,
       error: (experiments.error ?? runs.error ?? null) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, baseline.data, scored, resultsKey, slug]);
+  }, [experiments.data, runs.data, baseline.data, scored, resultsKey, slug, evalve]);
 }

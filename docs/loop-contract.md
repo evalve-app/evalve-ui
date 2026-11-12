@@ -5,7 +5,7 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 ## What the skill writes
 
 1. **One experiment per round**, named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The dashboard groups experiments into loops by that prefix. The UI calls a round a lap.
-   The dashboard also reads experiments named `<prefix>-iteration-1`, `<prefix>-iteration-2`, and so on. Iterations count from 1, so iteration n is lap n − 1 and iteration 1 is the baseline lap. The `support-desk-demo` agent has a loop with these names. It is not known which tool wrote them.
+   The dashboard also reads experiments named `<prefix>-iteration-1`, `<prefix>-iteration-2`, and so on. Iterations count from 1, so iteration n is lap n − 1 and iteration 1 is the baseline lap. The older `support-desk-demo` loop used these names.
 2. **Round 0 is the baseline audit**: no override, n trials per case.
 3. **Every later round makes one change**, stored as the experiment's override. Its description starts `Round <n>: <the change>`, then `Hypothesis: …`.
 4. **Round 0's description ends with one line, `Loop settings: {json}`.** It carries the rules from `kitaru-loop.json`: `name`, `criteria`, `allowed_changes`, `allowed_models` and `gate_evaluators`. `settings_line` in the skill's `loop.py` writes it.
@@ -15,17 +15,19 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 - **Run phases**, from run order, the same way the skill does: round 0 runs are all trials. In later rounds run 1 is the screen (when `screen_first` is on), runs up to n are trials, and the next n are confirmation.
 - **pass^k per case**, `C(c,k)/C(n,k)`, and the mean across the cohort on the selection trials.
 - **The gate**: per-case floor, cohort target, no regression against round 0.
-- **The status**, one of three: **Running** (a run is in progress, or there was activity in the last 30 minutes), **Completed** (a stop rule fired: a lap passed and confirmed, the plateau rule, or the lap cap), or **Stopped early** (it went quiet and no stop rule fired).
+- **The status** is **Completed** when a stop rule fires, **Canceled** when the latest run was canceled and there is no active run or completed result, or **Running** while the loop is awaiting a terminal result.
 
 This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from the skill's `loop.py`, in `src/lib/loopRules.ts`. If one changes, change the other.
 
 ## What the dashboard can't see
 
-- **Metric gates and the budget stop.** They need costs the dashboard doesn't load, so a loop the skill stopped on budget shows as "Stopped early".
-- **A loop with no settings line** (run before the skill wrote one). The page lists its laps and results but can't score them. The one exception is `day-30-refunds`: its rules and final status are hard-coded in `KNOWN_LOOPS` in `src/pages/agent/loop/useLoop.ts`. Remove that entry once its round 0 carries the line.
+- **Legacy metric gates and budget stops.** They need costs the dashboard doesn't load. Legacy runs with these limits need a published result to report completion.
+- **A loop with no settings line.** The page lists its laps and results. It uses the archived outcomes for `day-30-refunds` and the original `support-desk-demo` loop in `KNOWN_LOOPS` in `src/lib/loops.ts`. Published metadata takes precedence when available.
 - **Evidence files** (`sessions/kitaru-loop/`, `results.md`). They stay on the machine that ran the loop.
 
 ## MVP and Post-MVP views
+
+The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the baseline experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning lap.
 
 The Loop tab has a switch, kept per browser (`src/lib/loopMode.tsx`). It changes how a loop is shown and what the New loop form asks for. It does not change the data.
 
