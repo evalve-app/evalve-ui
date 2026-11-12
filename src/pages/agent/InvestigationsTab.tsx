@@ -1,16 +1,21 @@
-import { useParams } from "react-router";
+import { useState } from "react";
+import { useOutletContext, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { SearchCheck } from "lucide-react";
-import { listInvestigations } from "../../api/client";
-import { Alert, StatusLabel } from "../../design-system/components";
+import { Plus, SearchCheck } from "lucide-react";
+import { listInvestigations, type Agent } from "../../api/client";
+import { Alert, Button, StatusLabel } from "../../design-system/components";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
+import { newInvestigationPrompt } from "../../lib/handoffPrompts";
 import { investigationRows } from "../../lib/investigations";
+import { HandoffPromptDialog } from "../HandoffPromptDialog";
 
 // Investigations for one agent, the one that changed last first. Read-only: a
 // row opens nothing.
 export function InvestigationsTab() {
   const { agentId = "" } = useParams();
+  const agent = useOutletContext<Agent | undefined>();
+  const [newOpen, setNewOpen] = useState(false);
   const investigations = useQuery({ queryKey: ["investigations", agentId], queryFn: () => listInvestigations(agentId) });
   const preview = useEmptyPreview().on;
 
@@ -18,6 +23,18 @@ export function InvestigationsTab() {
 
   return (
     <div className="tab-page">
+      <div className="toolbar">
+        <div className="toolbar-left">
+          <p className="toolbar-intro">Review a set of sessions to understand where your agent went right or wrong.</p>
+        </div>
+        <div className="toolbar-right">
+          <Button icon={Plus} onClick={() => setNewOpen(true)} disabled={!agent}>
+            New investigation
+          </Button>
+        </div>
+      </div>
+      {agent ? <HandoffPromptDialog open={newOpen} onClose={() => setNewOpen(false)} {...newInvestigationPrompt(agent)} /> : null}
+
       {investigations.isError ? (
         <Alert variant="destructive" title="Could not load investigations">
           {investigations.error.message}
@@ -28,7 +45,7 @@ export function InvestigationsTab() {
         <div className="empty-state">
           <SearchCheck size={24} aria-hidden />
           <p className="empty-title">No investigations yet</p>
-          <p className="empty-text">An investigation is a named set of sessions that a person reviews one at a time. Create one with the Kitaru CLI or the kitaru-investigation skill.</p>
+          <p className="empty-text">An investigation is a named set of sessions that a person reviews one at a time. Select New investigation to get a prompt for your coding agent.</p>
         </div>
       ) : null}
 

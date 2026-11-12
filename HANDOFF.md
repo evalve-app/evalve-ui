@@ -35,11 +35,11 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | --- | --- | --- |
 | Sign in | `/login` | |
 | Approve a device | `/devices/verify` | The page that `kitaru login` opens. A signed-in person approves the device, and then the CLI signs in. Not tested yet with a real `kitaru login` |
-| Agents | `/agents` | Card grid and search. "New agent" gives a prompt for a coding agent; it does not create anything |
-| Sessions | `/agents/:id/sessions` | Server search, version filter, evaluator columns, load more |
+| Agents | `/agents` | Card grid and search. "New agent" gives a handoff prompt for a coding agent; it does not create anything |
+| Sessions | `/agents/:id/sessions` | Server search, version filter, evaluator columns, load more. "New cohort" gives a handoff prompt; it does not create anything |
 | Session detail | `/sessions/:id` | Steps on the left, detail on the right. A replay links back to its recorded session, experiment and loop |
-| Investigations | `/agents/:id/investigations` | Read-only list: status, how many sessions have a verdict, last change. A row opens nothing |
-| Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version |
+| Investigations | `/agents/:id/investigations` | Read-only list: status, how many sessions have a verdict, last change. A row opens nothing. "New investigation" gives a handoff prompt; it does not create anything |
+| Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version. "New cohort" gives a handoff prompt; it does not create anything |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
 | Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare laps. See below |
 | Evaluators | `/evaluators` | Read-only list of all evaluators: scope (one agent or all agents), provider, latest version. A row opens nothing |
