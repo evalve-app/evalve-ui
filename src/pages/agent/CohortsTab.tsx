@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Layers } from "lucide-react";
 import { Alert } from "../../design-system/components";
 import { cohortRows } from "../../lib/cohorts";
@@ -58,13 +58,14 @@ export function CohortsTab() {
                     <tr
                       key={r.id}
                       className="clickable-row"
-                      tabIndex={0}
                       onClick={() => open(r.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") open(r.id);
-                      }}
                     >
-                      <td className="mono">{r.name}</td>
+                      <td className="mono">
+                        {/* A real link, so it opens in a new tab and a screen reader names it. The row click is an extra. */}
+                        <Link to={`/agents/${agentId}/cohorts/${r.id}`} className="inline-link" onClick={(e) => e.stopPropagation()}>
+                          {r.name}
+                        </Link>
+                      </td>
                       <td className="shrink">
                         <span className="cohort-desc muted" title={r.description ?? undefined}>
                           {r.description || "—"}

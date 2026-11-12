@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ListChecks } from "lucide-react";
-import { listCohortSessions } from "../../api/client";
+import { getCohort, listCohortSessions } from "../../api/client";
 import { Alert } from "../../design-system/components";
 import { pickCohortVersion, versionLabel } from "../../lib/cohorts";
 import { formatDateTime } from "../../lib/format";
-import { cohortVersionsQuery, useCohorts } from "../../lib/useCohorts";
+import { cohortVersionsQuery } from "../../lib/useCohorts";
 import { SessionTable } from "./SessionTable";
 
 // One cohort: the sessions in one cohort version at a time, lowest session
@@ -18,9 +18,10 @@ export function CohortPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
-  const { cohorts } = useCohorts(agentId);
-  const cohort = cohorts.data?.find((c) => c.id === cohortId);
-  // useCohorts loads the same query. This reads its cache and adds the error state.
+  // Loaded by id, not from the list of the Cohorts tab, which stops at 50
+  // cohorts. A cohort of a different agent counts as not found.
+  const cohortQuery = useQuery({ queryKey: ["cohort", cohortId], queryFn: () => getCohort(cohortId) });
+  const cohort = cohortQuery.data?.agent_id === agentId ? cohortQuery.data : undefined;
   const versions = useQuery({ ...cohortVersionsQuery(cohortId), enabled: !!cohort });
 
   const sorted = useMemo(() => [...(versions.data ?? [])].sort((a, b) => b.version - a.version), [versions.data]);
@@ -37,12 +38,12 @@ export function CohortPage() {
     </button>
   );
 
-  if (!cohort && (cohorts.isError || cohorts.isSuccess)) {
+  if (!cohort && (cohortQuery.isError || cohortQuery.isSuccess)) {
     return (
       <div className="tab-page">
         <div className="detail-header">{back}</div>
-        <Alert variant="destructive" title={cohorts.isError ? "Could not load this cohort" : "Cohort not found"}>
-          {cohorts.isError ? cohorts.error.message : "This agent has no cohort with this id."}
+        <Alert variant="destructive" title={cohortQuery.isError ? "Could not load this cohort" : "Cohort not found"}>
+          {cohortQuery.isError ? cohortQuery.error.message : "This agent has no cohort with this id."}
         </Alert>
       </div>
     );
