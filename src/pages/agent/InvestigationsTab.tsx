@@ -1,21 +1,18 @@
-import { useState } from "react";
-import { useOutletContext, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, SearchCheck } from "lucide-react";
-import { listInvestigations, type Agent } from "../../api/client";
-import { Alert, Button, StatusLabel } from "../../design-system/components";
+import { SearchCheck } from "lucide-react";
+import { listInvestigations } from "../../api/client";
+import { Alert, StatusLabel } from "../../design-system/components";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
 import { newInvestigationPrompt } from "../../lib/handoffPrompts";
 import { investigationRows } from "../../lib/investigations";
-import { HandoffPromptDialog } from "../HandoffPromptDialog";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 
 // Investigations for one agent, the one that changed last first. Read-only: a
 // row opens nothing.
 export function InvestigationsTab() {
   const { agentId = "" } = useParams();
-  const agent = useOutletContext<Agent | undefined>();
-  const [newOpen, setNewOpen] = useState(false);
   const investigations = useQuery({ queryKey: ["investigations", agentId], queryFn: () => listInvestigations(agentId) });
   const preview = useEmptyPreview().on;
 
@@ -28,12 +25,9 @@ export function InvestigationsTab() {
           <p className="toolbar-intro">Review a set of sessions to understand where your agent went right or wrong.</p>
         </div>
         <div className="toolbar-right">
-          <Button icon={Plus} onClick={() => setNewOpen(true)} disabled={!agent}>
-            New investigation
-          </Button>
+          <HandoffPromptButton label="New investigation" handoff={newInvestigationPrompt} />
         </div>
       </div>
-      {agent ? <HandoffPromptDialog open={newOpen} onClose={() => setNewOpen(false)} {...newInvestigationPrompt(agent)} /> : null}
 
       {investigations.isError ? (
         <Alert variant="destructive" title="Could not load investigations">

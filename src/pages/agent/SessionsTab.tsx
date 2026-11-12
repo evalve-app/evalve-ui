@@ -1,21 +1,19 @@
 import { useMemo, useState } from "react";
-import { useOutletContext, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ListChecks, Plus, RefreshCw, Search } from "lucide-react";
-import { listAgentVersions, listSessionsPage, type Agent, type Filter } from "../../api/client";
+import { ListChecks, RefreshCw, Search } from "lucide-react";
+import { listAgentVersions, listSessionsPage, type Filter } from "../../api/client";
 import { Alert, Button } from "../../design-system/components";
 import { useDebounced } from "../../lib/useDebounced";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { newCohortPrompt } from "../../lib/handoffPrompts";
-import { HandoffPromptDialog } from "../HandoffPromptDialog";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 import { SessionTable } from "./SessionTable";
 
 // Sessions for one agent, newest first, with one column per evaluator.
 // API: GET /api/v1/ui/sessions?filter=...&size=50, paged with next_cursor.
 export function SessionsTab() {
   const { agentId = "" } = useParams();
-  const agent = useOutletContext<Agent | undefined>();
-  const [newOpen, setNewOpen] = useState(false);
   const [versionId, setVersionId] = useState("");
   const [search, setSearch] = useState("");
   const term = useDebounced(search.trim(), 250);
@@ -82,12 +80,9 @@ export function SessionsTab() {
           <Button variant="outline" icon={RefreshCw} onClick={() => sessions.refetch()} disabled={sessions.isFetching}>
             Refresh
           </Button>
-          <Button icon={Plus} onClick={() => setNewOpen(true)} disabled={!agent}>
-            New cohort
-          </Button>
+          <HandoffPromptButton label="New cohort" handoff={newCohortPrompt} />
         </div>
       </div>
-      {agent ? <HandoffPromptDialog open={newOpen} onClose={() => setNewOpen(false)} {...newCohortPrompt(agent)} /> : null}
 
       {sessions.isError ? (
         <Alert variant="destructive" title="Could not load sessions">

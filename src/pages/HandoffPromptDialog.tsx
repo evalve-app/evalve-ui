@@ -21,7 +21,8 @@ export function HandoffPromptDialog({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // A native <dialog> gives focus trapping and Escape-to-close for free.
   useEffect(() => {
@@ -29,17 +30,23 @@ export function HandoffPromptDialog({
     if (!d) return;
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
+    // A closed dialog forgets the copy result, so that it opens with "Copy prompt" again.
+    if (!open) {
+      clearTimeout(resetTimer.current);
+      setCopyState("idle");
+    }
   }, [open]);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(prompt);
-      setState("done");
+      setCopyState("done");
     } catch {
       // The browser can refuse the clipboard (no permission, or no HTTPS).
-      setState("failed");
+      setCopyState("failed");
     }
-    setTimeout(() => setState("idle"), 2000);
+    clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setCopyState("idle"), 2000);
   }
 
   return (
@@ -60,8 +67,8 @@ export function HandoffPromptDialog({
       </div>
       {hint ? <p className="dialog-hint">{hint}</p> : null}
       <div className="dialog-footer">
-        <Button icon={state === "done" ? Check : Copy} onClick={copy}>
-          <span aria-live="polite">{state === "done" ? "Copied" : state === "failed" ? "Could not copy" : "Copy prompt"}</span>
+        <Button icon={copyState === "done" ? Check : Copy} onClick={copy}>
+          <span aria-live="polite">{copyState === "done" ? "Copied" : copyState === "failed" ? "Could not copy" : "Copy prompt"}</span>
         </Button>
       </div>
     </dialog>

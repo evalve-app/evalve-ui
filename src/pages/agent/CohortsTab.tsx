@@ -1,21 +1,17 @@
-import { useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router";
-import { Layers, Plus } from "lucide-react";
-import type { Agent } from "../../api/client";
-import { Alert, Button } from "../../design-system/components";
+import { Link, useNavigate, useParams } from "react-router";
+import { Layers } from "lucide-react";
+import { Alert } from "../../design-system/components";
 import { cohortRows } from "../../lib/cohorts";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
 import { newCohortPrompt } from "../../lib/handoffPrompts";
 import { useCohorts } from "../../lib/useCohorts";
-import { HandoffPromptDialog } from "../HandoffPromptDialog";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 
 // Cohorts for one agent, the one that changed last first. A row opens the
 // cohort page at the newest cohort version.
 export function CohortsTab() {
   const { agentId = "" } = useParams();
-  const agent = useOutletContext<Agent | undefined>();
-  const [newOpen, setNewOpen] = useState(false);
   const navigate = useNavigate();
   const open = (cohortId: string) => navigate(`/agents/${agentId}/cohorts/${cohortId}`);
   const { cohorts, versionsByCohort } = useCohorts(agentId);
@@ -30,12 +26,9 @@ export function CohortsTab() {
           <p className="toolbar-intro">Group sessions with similar failure modes, behaviors, or outcomes to evaluate them together.</p>
         </div>
         <div className="toolbar-right">
-          <Button icon={Plus} onClick={() => setNewOpen(true)} disabled={!agent}>
-            New cohort
-          </Button>
+          <HandoffPromptButton label="New cohort" handoff={newCohortPrompt} />
         </div>
       </div>
-      {agent ? <HandoffPromptDialog open={newOpen} onClose={() => setNewOpen(false)} {...newCohortPrompt(agent)} /> : null}
 
       {cohorts.isError ? (
         <Alert variant="destructive" title="Could not load cohorts">

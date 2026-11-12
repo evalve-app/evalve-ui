@@ -80,7 +80,7 @@ _Avoid_: Regression, regressed
 
 **Handoff prompt**:
 Text that the app writes for a person to paste into a coding agent. The app creates nothing; the coding agent does the work.
-_Avoid_: "Prompt" alone for this meaning. "Prompt" alone is the system prompt of the agent, which a loop changes.
+_Avoid_: "prompt" alone for this meaning. "Prompt" alone is the system prompt of the agent, which a loop changes.
 
 ### Sign-in
 
