@@ -12,6 +12,7 @@ import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SessionPage } from "./pages/SessionPage";
 import { AgentLayout } from "./pages/agent/AgentLayout";
 import { SessionsTab } from "./pages/agent/SessionsTab";
+import { CohortPage } from "./pages/agent/CohortPage";
 import { CohortsTab } from "./pages/agent/CohortsTab";
 import { ExperimentsTab } from "./pages/agent/ExperimentsTab";
 import { ExperimentPage } from "./pages/agent/ExperimentPage";
@@ -38,6 +39,7 @@ export function App() {
           <Route path="sessions" element={<SessionsTab />} />
           <Route path="investigations" element={<PlaceholderPage title="Investigations" embedded />} />
           <Route path="cohorts" element={<CohortsTab />} />
+          <Route path="cohorts/:cohortId" element={<CohortPage />} />
           <Route path="experiments" element={<ExperimentsTab />} />
           <Route path="experiments/:experimentId" element={<ExperimentPage />} />
           <Route path="loop" element={<LoopListTab />} />

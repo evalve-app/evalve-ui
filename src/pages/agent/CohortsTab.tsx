@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Layers } from "lucide-react";
 import { Alert } from "../../design-system/components";
 import { cohortRows } from "../../lib/cohorts";
@@ -6,10 +6,12 @@ import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
 import { useCohorts } from "../../lib/useCohorts";
 
-// Cohorts for one agent, the one that changed last first. Read-only: a row
-// opens nothing until the cohort page exists.
+// Cohorts for one agent, the one that changed last first. A row opens the
+// cohort page at the newest cohort version.
 export function CohortsTab() {
   const { agentId = "" } = useParams();
+  const navigate = useNavigate();
+  const open = (cohortId: string) => navigate(`/agents/${agentId}/cohorts/${cohortId}`);
   const { cohorts, versionsByCohort } = useCohorts(agentId);
   const preview = useEmptyPreview().on;
 
@@ -53,8 +55,17 @@ export function CohortsTab() {
                     </tr>
                   ))
                 : rows.map((r) => (
-                    <tr key={r.id}>
-                      <td className="mono">{r.name}</td>
+                    <tr
+                      key={r.id}
+                      className="clickable-row"
+                      onClick={() => open(r.id)}
+                    >
+                      <td className="mono">
+                        {/* A real link, so it opens in a new tab and a screen reader names it. The row click is an extra. */}
+                        <Link to={`/agents/${agentId}/cohorts/${r.id}`} className="inline-link" onClick={(e) => e.stopPropagation()}>
+                          {r.name}
+                        </Link>
+                      </td>
                       <td className="shrink">
                         <span className="cohort-desc muted" title={r.description ?? undefined}>
                           {r.description || "—"}

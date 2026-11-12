@@ -141,6 +141,7 @@ export type ExperimentRun = components["schemas"]["ExperimentRunResponse"];
 export type EvalAggregate = components["schemas"]["EvaluationAggregateResponse"];
 export type Replay = components["schemas"]["ReplayResponse"];
 export type Cohort = components["schemas"]["CohortResponse"];
+export type CohortVersion = components["schemas"]["CohortVersionResponse"];
 
 async function unwrap<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>, what: string): Promise<T> {
   const { data, error, response } = await p;
@@ -194,12 +195,30 @@ export async function listCohorts(agentId: string) {
   return page.items;
 }
 
+// One cohort, or null when the server has no cohort with this id.
+export async function getCohort(cohortId: string) {
+  const { data, error, response } = await api.GET("/api/v1/cohorts/{cohort_id}", { params: { path: { cohort_id: cohortId } } });
+  if (response.status === 401) throw new UnauthorizedError("Not signed in.");
+  // 422 is an id that is not a valid id, which no cohort can have.
+  if (response.status === 404 || response.status === 422) return null;
+  if (!data) throw new Error(errorDetail(error) ?? `Could not load the cohort (${response.status}).`);
+  return data;
+}
+
+// Every version of a cohort. The server sends 50 for each call, so this
+// follows next_cursor to the end.
 export async function listCohortVersions(cohortId: string) {
-  const page = await unwrap(
-    api.GET("/api/v1/cohorts/{cohort_id}/versions", { params: { path: { cohort_id: cohortId }, query: { size: 50 } } }),
-    "cohort versions",
-  );
-  return page.items;
+  const versions: CohortVersion[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await unwrap(
+      api.GET("/api/v1/cohorts/{cohort_id}/versions", { params: { path: { cohort_id: cohortId }, query: { size: 50, cursor } } }),
+      "cohort versions",
+    );
+    versions.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return versions;
 }
 
 // Sessions in a cohort version (the baseline sessions an experiment replays).

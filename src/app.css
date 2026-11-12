@@ -151,10 +151,14 @@ h1, h2, p { margin: 0; }
 .verdict-pass { background: var(--tint-success-15); color: var(--text-success-text); }
 .verdict-fail { background: var(--tint-destructive-15); color: var(--text-destructive-text); }
 
+/* Cohorts */
+.inline-field { display: inline-flex; align-items: center; gap: var(--spacing-2); }
+.cohort-version-bar { gap: var(--spacing-4); }
+.cohort-desc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Experiments list */
 .data-table td.wrap { white-space: normal; }
 .data-table td.shrink { max-width: 0; width: 100%; }
-.cohort-desc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
 .exp-name { font: 500 13px/18px var(--font-mono); color: var(--text-foreground); }
 .exp-desc { color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

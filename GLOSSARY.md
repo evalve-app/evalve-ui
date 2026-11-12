@@ -11,7 +11,7 @@ A session that the agent produced from real use, not from a replay. A cohort hol
 _Avoid_: Baseline session, original session
 
 **Case**:
-One recorded session in a cohort, used as a test input. Grids show one column for each case.
+One recorded session in a cohort, used as a test input. Grids show one column for each case. Say "case" where an experiment or a loop replays the session. Say "session" where a page lists what a cohort holds.
 _Avoid_: Test, example
 
 **Replay**:
