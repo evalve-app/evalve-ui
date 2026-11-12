@@ -47,3 +47,146 @@ describe("evaluatorReplays", () => {
     expect(evaluatorReplays(undefined, cases, ["action-correct"])).toEqual([]);
   });
 });
+
+// ---- Agent diff section (#20): start ----------------------------------------
+import { agentDiff, type AgentDiffInput, type AgentDiffLap } from "./loopResults";
+
+describe("agentDiff", () => {
+  // One lap: its override, and one gating evaluator with one replay for each case.
+  const lap = (n: number, summary: string, override: AgentDiffLap["override"], passes: boolean[]): AgentDiffLap => ({
+    lap: n,
+    summary,
+    override,
+    evaluatorReplays: passes.length ? [{ evaluator: "action-correct", replays: passes.map((passed, i) => ({ caseId: `s${i + 1}`, caseName: `refund-0${i + 1}`, sessionId: null, passed })) }] : [],
+  });
+  const BEFORE = "You are a support agent.\nBe polite.\nRefund when asked.";
+  const AFTER = "You are a support agent.\nBe polite and brief.\nRefund when asked.\nRefuse refunds after day 30.";
+  const input = (over: Partial<AgentDiffInput> = {}): AgentDiffInput => ({
+    winnerLap: 1,
+    laps: [lap(0, "Baseline lap, no changes", null, [false, false, false]), lap(1, "Add the day-30 rule.", { system_prompt: AFTER }, [true, true, true])],
+    firstCase: { id: "s1", name: "refund-01" },
+    before: { loading: false, prompt: BEFORE, model: "gpt-4.1-mini", modelParams: null },
+    ...over,
+  });
+
+  it("gives no section for a loop with no winning lap", () => {
+    expect(agentDiff(input({ winnerLap: null }))).toBeNull();
+  });
+
+  it("gives the full prompt with old and new line numbers and a sign for each line", () => {
+    const d = agentDiff(input())!;
+    expect(d.prompt).toMatchObject({
+      kind: "diff",
+      lines: [
+        { kind: "same", oldNumber: 1, newNumber: 1, sign: " ", text: "You are a support agent." },
+        { kind: "del", oldNumber: 2, newNumber: null, sign: "−", text: "Be polite." },
+        { kind: "add", oldNumber: null, newNumber: 2, sign: "+", text: "Be polite and brief." },
+        { kind: "same", oldNumber: 3, newNumber: 3, sign: " ", text: "Refund when asked." },
+        { kind: "add", oldNumber: null, newNumber: 4, sign: "+", text: "Refuse refunds after day 30." },
+      ],
+    });
+  });
+
+  it("counts the added, removed and unchanged lines", () => {
+    expect(agentDiff(input())!.prompt).toMatchObject({ counts: { added: 2, removed: 1, unchanged: 2 } });
+  });
+
+  it("gives a unified diff of the system prompt to copy", () => {
+    expect(agentDiff(input())!.prompt).toMatchObject({
+      copy: {
+        label: "Copy diff",
+        text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,3 +1,4 @@", " You are a support agent.", "-Be polite.", "+Be polite and brief.", " Refund when asked.", "+Refuse refunds after day 30.", ""].join("\n"),
+      },
+    });
+  });
+
+  it("keeps three unchanged lines around each change in the unified diff, with one hunk for each group of changes", () => {
+    const before = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
+    const after = [...before];
+    after[1] = "LINE 2";
+    after.push("line 21");
+    const d = agentDiff(input({ before: { loading: false, prompt: before.join("\n"), model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after.join("\n") }, [])] }))!;
+    expect(d.prompt).toMatchObject({
+      copy: {
+        text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,5 +1,5 @@", " line 1", "-line 2", "+LINE 2", " line 3", " line 4", " line 5", "@@ -18,3 +18,4 @@", " line 18", " line 19", " line 20", "+line 21", ""].join("\n"),
+      },
+    });
+  });
+
+  it("names the recorded session that gave the before prompt", () => {
+    expect(agentDiff(input())!.prompt).toMatchObject({ source: { sessionId: "s1", name: "refund-01" } });
+  });
+
+  it("shows a load state for the prompt while the before prompt loads, and the rest of the section", () => {
+    const d = agentDiff(input({ before: { loading: true, prompt: null, model: null, modelParams: null } }))!;
+    expect(d.prompt).toEqual({ kind: "loading" });
+    expect(d.lapRows).toHaveLength(1);
+  });
+
+  it("falls back to the prompt of the winning lap in full when no before prompt is available", () => {
+    const d = agentDiff(input({ before: { loading: false, prompt: null, model: null, modelParams: null } }))!;
+    expect(d.prompt).toEqual({
+      kind: "after-only",
+      note: "The recorded sessions use the agent's own setting, which Kitaru doesn't store, so there's no line-by-line diff. Lap 1, the winning lap, sets the system prompt to:",
+      text: AFTER,
+      copy: { label: "Copy prompt", text: AFTER },
+    });
+  });
+
+  it("says that the prompt did not change when the winning lap has no system prompt override", () => {
+    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Use gpt-4.1.", { model: "gpt-4.1" }, [])] }))!;
+    expect(d.prompt).toEqual({ kind: "unchanged", text: "The winning lap did not change the system prompt." });
+  });
+
+  it("gives an 'unchanged' chip for each field that the winning lap did not override", () => {
+    const d = agentDiff(input())!;
+    expect(d.chips).toEqual(["model unchanged", "parameters unchanged"]);
+    expect(d.changedFields).toEqual([]);
+  });
+
+  it("gives a before and after line for a changed model, and no chip for it", () => {
+    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Use gpt-4.1.", { system_prompt: AFTER, model: "gpt-4.1" }, [])] }))!;
+    expect(d.changedFields).toEqual([{ label: "Model", before: "gpt-4.1-mini", after: "gpt-4.1" }]);
+    expect(d.chips).toEqual(["parameters unchanged"]);
+  });
+
+  it("gives a before and after line for changed parameters, with the agent's own setting when the session does not give them", () => {
+    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Lower the temperature.", { model_params: { temperature: 0 } }, [])] }))!;
+    expect(d.changedFields).toEqual([{ label: "Parameters", before: "the agent's own setting", after: '{"temperature":0}' }]);
+    expect(d.chips).toEqual(["model unchanged"]);
+  });
+
+  it("lists each lap after the baseline lap with its pass count change, and includes a lap that did not help", () => {
+    const d = agentDiff(
+      input({
+        winnerLap: 3,
+        laps: [
+          lap(0, "Baseline lap, no changes", null, [false, false, false]),
+          lap(1, "Add the day-30 rule.", { system_prompt: "x" }, [true, true, false]),
+          lap(2, "Use gpt-4.1.", { model: "gpt-4.1" }, [true, false, false]),
+          lap(3, "Name the late fee.", { system_prompt: AFTER }, [true, true, true]),
+          lap(4, "Not run yet.", null, []),
+        ],
+      }),
+    )!;
+    expect(d.lapRows).toEqual([
+      { lap: 1, summary: "Add the day-30 rule.", change: "0 → 2 / 3", trend: "better", winning: false },
+      { lap: 2, summary: "Use gpt-4.1.", change: "2 → 1 / 3", trend: "worse", winning: false },
+      { lap: 3, summary: "Name the late fee.", change: "1 → 3 / 3", trend: "better", winning: true },
+      { lap: 4, summary: "Not run yet.", change: "No results yet", trend: null, winning: false },
+    ]);
+  });
+
+  it("marks a lap with the same pass count as the lap before as no change", () => {
+    const d = agentDiff(input({ winnerLap: 2, laps: [lap(0, "", null, [true, false]), lap(1, "Reword.", { system_prompt: "x" }, [false, true]), lap(2, "Add a rule.", { system_prompt: AFTER }, [true, true])] }))!;
+    expect(d.lapRows[0]).toMatchObject({ change: "1 → 1 / 2", trend: "same" });
+  });
+
+  it("counts a case as passed only when each gating evaluator passed it", () => {
+    const two = lap(1, "Add a rule.", { system_prompt: AFTER }, [true, true]);
+    two.evaluatorReplays.push({ evaluator: "tone", replays: [{ caseId: "s1", caseName: "refund-01", sessionId: null, passed: false }, { caseId: "s2", caseName: "refund-02", sessionId: null, passed: true }] });
+    const d = agentDiff(input({ laps: [lap(0, "", null, [false, false]), two] }))!;
+    expect(d.lapRows[0].change).toBe("0 → 1 / 2");
+  });
+});
+// ---- Agent diff section (#20): end ------------------------------------------
