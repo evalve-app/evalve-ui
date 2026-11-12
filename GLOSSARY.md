@@ -52,6 +52,12 @@ The role of a run inside a lap: screen, trial, or confirmation.
 An evaluator whose result decides if a case passed in a loop. A case passes a run only when it passes every gating evaluator.
 _Avoid_: Gate evaluator, scoring evaluator
 
+### Sign-in
+
+**Device**:
+A computer on which the Kitaru CLI asks to sign in to the server. A person approves the device in the dashboard, and then the CLI gets a token for that account. Say "approve", not "verify" (the word in the server API).
+_Avoid_: Client, machine
+
 ## Flagged ambiguities
 
 - "Baseline" alone has three meanings in the code: the baseline lap, the recorded session (`baseline_session_id`), and the experiment grid's "Baseline" row, which scores the recorded session. Say "baseline lap" or "recorded session". Use "baseline" alone only where the context makes the meaning clear.

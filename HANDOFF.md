@@ -34,6 +34,7 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Page | Route | Notes |
 | --- | --- | --- |
 | Sign in | `/login` | |
+| Approve a device | `/devices/verify` | The page that `kitaru login` opens. A signed-in person approves the device, and then the CLI signs in. Not tested yet with a real `kitaru login` |
 | Agents | `/agents` | Card grid and search. "New agent" gives a prompt for a coding agent; it does not create anything |
 | Sessions | `/agents/:id/sessions` | Server search, version filter, evaluator columns, load more |
 | Session detail | `/sessions/:id` | Steps on the left, detail on the right. A replay links back to its recorded session, experiment and loop |
@@ -43,9 +44,9 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 
 **Placeholders (say "not built yet"):** Investigations, Evaluators, Workers, Jobs.
 
-**Missing entirely:** the CLI login page (`/devices/verify`). Alyssa needs it before the app can replace the Kitaru UI, so tell her when it lands.
+**CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 
-The app is almost read-only. The only calls that change anything are sign in, sign out, and "Run again" on an experiment.
+The app is almost read-only. The only calls that change anything are sign in, sign out, "Approve device" on the CLI login page, and "Run again" on an experiment.
 
 ## The Loop tab
 

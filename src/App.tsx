@@ -9,6 +9,7 @@ import { useDismiss } from "./lib/useDismiss";
 import { LoginPage } from "./pages/LoginPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { ApproveDevicePage } from "./pages/ApproveDevicePage";
 import { SessionPage } from "./pages/SessionPage";
 import { AgentLayout } from "./pages/agent/AgentLayout";
 import { SessionsTab } from "./pages/agent/SessionsTab";
@@ -48,6 +49,7 @@ export function App() {
           <Route path="loop/:slug/compare" element={<LoopComparePage />} />
         </Route>
         <Route path="/sessions/:sessionId" element={<SessionPage />} />
+        <Route path="/devices/verify" element={<ApproveDevicePage />} />
         <Route path="/evaluators" element={<PlaceholderPage title="Evaluators" />} />
         <Route path="/workers" element={<PlaceholderPage title="Workers" />} />
         <Route path="/jobs" element={<PlaceholderPage title="Jobs" />} />
