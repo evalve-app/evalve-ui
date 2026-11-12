@@ -6,6 +6,8 @@ import { listAgentVersions, listSessionsPage, type Filter } from "../../api/clie
 import { Alert, Button } from "../../design-system/components";
 import { useDebounced } from "../../lib/useDebounced";
 import { useEmptyPreview } from "../../lib/emptyPreview";
+import { newCohortPrompt } from "../../lib/handoffPrompts";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 import { SessionTable } from "./SessionTable";
 
 // Sessions for one agent, newest first, with one column per evaluator.
@@ -78,6 +80,7 @@ export function SessionsTab() {
           <Button variant="outline" icon={RefreshCw} onClick={() => sessions.refetch()} disabled={sessions.isFetching}>
             Refresh
           </Button>
+          <HandoffPromptButton label="New cohort" handoff={newCohortPrompt} />
         </div>
       </div>
 

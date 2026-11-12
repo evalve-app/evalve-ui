@@ -5,7 +5,9 @@ import { listInvestigations } from "../../api/client";
 import { Alert, StatusLabel } from "../../design-system/components";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
+import { newInvestigationPrompt } from "../../lib/handoffPrompts";
 import { investigationRows } from "../../lib/investigations";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 
 // Investigations for one agent, the one that changed last first. Read-only: a
 // row opens nothing.
@@ -18,6 +20,15 @@ export function InvestigationsTab() {
 
   return (
     <div className="tab-page">
+      <div className="toolbar">
+        <div className="toolbar-left">
+          <p className="toolbar-intro">Review a set of sessions to understand where your agent went right or wrong.</p>
+        </div>
+        <div className="toolbar-right">
+          <HandoffPromptButton label="New investigation" handoff={newInvestigationPrompt} />
+        </div>
+      </div>
+
       {investigations.isError ? (
         <Alert variant="destructive" title="Could not load investigations">
           {investigations.error.message}
@@ -28,7 +39,7 @@ export function InvestigationsTab() {
         <div className="empty-state">
           <SearchCheck size={24} aria-hidden />
           <p className="empty-title">No investigations yet</p>
-          <p className="empty-text">An investigation is a named set of sessions that a person reviews one at a time. Create one with the Kitaru CLI or the kitaru-investigation skill.</p>
+          <p className="empty-text">An investigation is a named set of sessions that a person reviews one at a time. Select New investigation to get a prompt for your coding agent.</p>
         </div>
       ) : null}
 

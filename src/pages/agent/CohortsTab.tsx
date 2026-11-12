@@ -4,7 +4,9 @@ import { Alert } from "../../design-system/components";
 import { cohortRows } from "../../lib/cohorts";
 import { useEmptyPreview } from "../../lib/emptyPreview";
 import { formatDateTime, formatRelative } from "../../lib/format";
+import { newCohortPrompt } from "../../lib/handoffPrompts";
 import { useCohorts } from "../../lib/useCohorts";
+import { HandoffPromptButton } from "./HandoffPromptButton";
 
 // Cohorts for one agent, the one that changed last first. A row opens the
 // cohort page at the newest cohort version.
@@ -19,6 +21,15 @@ export function CohortsTab() {
 
   return (
     <div className="tab-page">
+      <div className="toolbar">
+        <div className="toolbar-left">
+          <p className="toolbar-intro">Group sessions with similar failure modes, behaviors, or outcomes to evaluate them together.</p>
+        </div>
+        <div className="toolbar-right">
+          <HandoffPromptButton label="New cohort" handoff={newCohortPrompt} />
+        </div>
+      </div>
+
       {cohorts.isError ? (
         <Alert variant="destructive" title="Could not load cohorts">
           {cohorts.error.message}
@@ -29,7 +40,7 @@ export function CohortsTab() {
         <div className="empty-state">
           <Layers size={24} aria-hidden />
           <p className="empty-title">No cohorts yet</p>
-          <p className="empty-text">A cohort is a named set of recorded sessions. Experiments replay one version of it. Create one with the Kitaru CLI or the kitaru-investigation skill.</p>
+          <p className="empty-text">A cohort is a named set of recorded sessions. Experiments replay one version of it. Select New cohort to get a prompt for your coding agent.</p>
         </div>
       ) : null}
 
