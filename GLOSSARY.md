@@ -69,7 +69,7 @@ The lap that made the loop pass. A loop that did not pass has no winning lap.
 _Avoid_: Winner, best lap (for a loop that passed)
 
 **Best lap**:
-The lap with the highest pass rate in a loop that did not pass.
+The lap after the baseline lap with the highest pass rate, in a loop that did not pass.
 _Avoid_: Winning lap
 
 **Got worse**:

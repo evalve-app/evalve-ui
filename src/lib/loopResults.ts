@@ -424,7 +424,8 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
     return passes.size ? [{ lap, passes, rate: passCount(passes) / passes.size }] : [];
   });
   // The lap in use: the winning lap, or the best lap (the earliest lap with the highest pass rate).
-  const best = scored.reduce<(typeof scored)[number] | null>((m, s) => (m == null || s.rate > m.rate ? s : m), null);
+  // The baseline lap tried no change, so it is not the best lap.
+  const best = scored.filter((s) => s.lap.lap > 0).reduce<(typeof scored)[number] | null>((m, s) => (m == null || s.rate > m.rate ? s : m), null);
   const inUse = outcome.passed ? scored.find((s) => s.lap.lap === outcome.winnerLap) ?? null : best;
   const baselineLap = loop.laps.find((l) => l.lap === 0);
   const baseline = casePasses(baselineLap?.evaluatorReplays ?? []);

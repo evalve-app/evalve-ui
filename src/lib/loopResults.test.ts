@@ -449,6 +449,19 @@ describe("finalResults", () => {
     expect(finalResults(notPassedLoop)!.cards[0]).toEqual({ label: "action-correct", value: "75%", sub: "3 of 4 · was 2 of 4" });
   });
 
+  it("does not use the baseline lap as the best lap, also when no later lap has a higher pass rate", () => {
+    const worse = { ...notPassedLoop, laps: [laps[0], finalLap(1, { "action-correct": [1, 0, 0, 0] })], totalLaps: 2 };
+    const r = finalResults(worse)!;
+    expect(r.line).toContain("Best lap: lap 1");
+    expect(r.cards[0]).toEqual({ label: "action-correct", value: "25%", sub: "1 of 4 · was 2 of 4" });
+  });
+
+  it("names no best lap when only the baseline lap has a score", () => {
+    const r = finalResults({ ...notPassedLoop, laps: [laps[0]], totalLaps: 1 })!;
+    expect(r.line).not.toContain("Best lap");
+    expect(r.cards.map((c) => c.label)).toEqual(["Laps"]);
+  });
+
   it("counts the cases that got worse: passed in the baseline lap and failed in the lap in use", () => {
     expect(finalResults(passedLoop)!.cards[1]).toEqual({ label: "Got worse", value: "0", sub: "of 4 cases, baseline lap to lap 2" });
     expect(finalResults(notPassedLoop)!.cards[1]).toEqual({ label: "Got worse", value: "1", sub: "of 4 cases, baseline lap to lap 1" });
