@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ListChecks } from "lucide-react";
-import { listCohortSessions, listCohortVersions } from "../../api/client";
+import { listCohortSessions } from "../../api/client";
 import { Alert } from "../../design-system/components";
-import { newestVersion, pickCohortVersion, versionLabel } from "../../lib/cohorts";
+import { pickCohortVersion, versionLabel } from "../../lib/cohorts";
 import { formatDateTime } from "../../lib/format";
-import { useCohorts } from "../../lib/useCohorts";
+import { cohortVersionsQuery, useCohorts } from "../../lib/useCohorts";
 import { SessionTable } from "./SessionTable";
 
 // One cohort: the sessions in one cohort version at a time, lowest session
@@ -20,11 +20,11 @@ export function CohortPage() {
 
   const { cohorts } = useCohorts(agentId);
   const cohort = cohorts.data?.find((c) => c.id === cohortId);
-  // The same key as useCohorts, so this reads its cache and adds the error state.
-  const versions = useQuery({ queryKey: ["cohort-versions", cohortId], queryFn: () => listCohortVersions(cohortId), enabled: !!cohort });
+  // useCohorts loads the same query. This reads its cache and adds the error state.
+  const versions = useQuery({ ...cohortVersionsQuery(cohortId), enabled: !!cohort });
 
   const sorted = useMemo(() => [...(versions.data ?? [])].sort((a, b) => b.version - a.version), [versions.data]);
-  const newest = newestVersion(sorted);
+  const newest = sorted[0] ?? null;
   const version = pickCohortVersion(sorted, params.get("version"));
 
   const sessions = useQuery({ queryKey: ["cohort-sessions", version?.id], queryFn: () => listCohortSessions(version!.id), enabled: !!version });
@@ -37,7 +37,7 @@ export function CohortPage() {
     </button>
   );
 
-  if (cohorts.isError || (cohorts.isSuccess && !cohort)) {
+  if (!cohort && (cohorts.isError || cohorts.isSuccess)) {
     return (
       <div className="tab-page">
         <div className="detail-header">{back}</div>
@@ -50,7 +50,7 @@ export function CohortPage() {
 
   // The newest version shows with no parameter. Replace the history entry so
   // the Back button leaves the page.
-  const pick = (n: string) => setParams(n === String(newest?.version) ? {} : { version: n }, { replace: true });
+  const selectVersion = (number: string) => setParams(number === String(newest?.version) ? {} : { version: number }, { replace: true });
 
   return (
     <div className="tab-page">
@@ -74,7 +74,7 @@ export function CohortPage() {
             {sorted.length > 1 ? (
               <label className="inline-field">
                 <span className="field-label">Cohort version</span>
-                <select className="ev-select native-select" value={String(version.version)} onChange={(e) => pick(e.target.value)}>
+                <select className="ev-select native-select" value={String(version.version)} onChange={(e) => selectVersion(e.target.value)}>
                   {sorted.map((v) => (
                     <option key={v.id} value={String(v.version)}>
                       {versionLabel(v)}
@@ -116,7 +116,7 @@ export function CohortPage() {
         <SessionTable agentId={agentId} rows={rows} pending={!sessions.isSuccess} />
       )}
 
-      {version && sessions.isSuccess && version.session_count > rows.length ? (
+      {version && rows.length > 0 && version.session_count > rows.length ? (
         <div className="table-footer">
           <span className="muted">
             Showing the first {rows.length} of {version.session_count} sessions.

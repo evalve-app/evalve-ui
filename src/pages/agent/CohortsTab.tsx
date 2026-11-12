@@ -11,6 +11,7 @@ import { useCohorts } from "../../lib/useCohorts";
 export function CohortsTab() {
   const { agentId = "" } = useParams();
   const navigate = useNavigate();
+  const open = (cohortId: string) => navigate(`/agents/${agentId}/cohorts/${cohortId}`);
   const { cohorts, versionsByCohort } = useCohorts(agentId);
   const preview = useEmptyPreview().on;
 
@@ -58,9 +59,9 @@ export function CohortsTab() {
                       key={r.id}
                       className="clickable-row"
                       tabIndex={0}
-                      onClick={() => navigate(`/agents/${agentId}/cohorts/${r.id}`)}
+                      onClick={() => open(r.id)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") navigate(`/agents/${agentId}/cohorts/${r.id}`);
+                        if (e.key === "Enter") open(r.id);
                       }}
                     >
                       <td className="mono">{r.name}</td>

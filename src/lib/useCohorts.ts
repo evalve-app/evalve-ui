@@ -1,6 +1,10 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { listCohortVersions, listCohorts } from "../api/client";
 
+// The query for the versions of one cohort. Every caller uses it, so they
+// share one cache entry for each cohort.
+export const cohortVersionsQuery = (cohortId: string) => ({ queryKey: ["cohort-versions", cohortId], queryFn: () => listCohortVersions(cohortId) });
+
 // The cohorts of one agent and the versions of each cohort.
 // API: GET /api/v1/cohorts?filter={agent_id eq}&size=50, then
 // GET /api/v1/cohorts/{cohort_id}/versions for each cohort.
@@ -9,7 +13,7 @@ import { listCohortVersions, listCohorts } from "../api/client";
 export function useCohorts(agentId: string) {
   const cohorts = useQuery({ queryKey: ["cohorts", agentId], queryFn: () => listCohorts(agentId) });
   const versionLists = useQueries({
-    queries: (cohorts.data ?? []).map((c) => ({ queryKey: ["cohort-versions", c.id], queryFn: () => listCohortVersions(c.id) })),
+    queries: (cohorts.data ?? []).map((c) => cohortVersionsQuery(c.id)),
   });
   const versionsByCohort = Object.fromEntries((cohorts.data ?? []).map((c, i) => [c.id, versionLists[i]?.data]));
   return { cohorts, versionsByCohort };
