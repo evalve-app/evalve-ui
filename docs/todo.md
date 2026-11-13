@@ -29,17 +29,17 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 
 - Remove the `day-30-refunds` entry from `KNOWN_LOOPS` in `src/pages/agent/loop/useLoop.ts` once round 0 of a loop carries the `Loop settings:` line (needs the `loop.py` change in loop-skills to be committed and used).
 - Port the budget stop and metric gates from the skill's `loop.py` to `src/lib/loopRules.ts`. Until then a loop the skill stopped on budget shows "Stopped early".
-- Mockup ideas the skill has no setting for: a threshold per evaluator, a time limit, replaying passing sessions each lap.
+- Mockup ideas the skill has no setting for: a threshold per evaluator, a time limit, replaying passing sessions each experiment.
 
 ### Loop page: later work (out of scope of #16)
 
 - Start a loop from the dashboard: submit the New loop form, and the Approve, Run, and Cancel buttons from the hi-fi. Today the dashboard only reads a loop.
 - The setup card above the results.
-- Give the Post-MVP view and the compare page the glossary words. They still show "Baseline audit", "regression", and "trials".
+- Give the Post-MVP view and the compare page the glossary words. They still show "regression" and "trials".
 - Cost in Final results. The server gives no cost for an experiment run.
 - Cohorts with more than 50 cases. The server gives results for only the 50 most recent replays of a run, so this needs a server change. Today the count says "first 50 of N".
-- Always load the baseline lap together with the newest laps. The loop page loads only the newest 20 laps, so on a longer loop "was N of M", the "Got worse" card, and the "No case got worse" row do not show until the person shows the older laps. The fix changes the gates of the Post-MVP view and the compare page, because they then compare with the baseline lap.
-- A link from each added prompt line to the lap that added it.
+- Always load the control experiment together with the newest experiments. The loop page loads only the newest 20 experiments, so on a longer loop "was N of M", the "Got worse" card, and the "No case got worse" row do not show until the person shows the older experiments. The fix changes the gates of the Post-MVP view and the compare page, because they then compare with the baseline lap.
+- A link from each added prompt line to the experiment that added it.
 - "Export report" and "Other end states" from the hi-fi.
 - Dark mode.
 
@@ -49,7 +49,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 
 ## Not tested yet
 
-- A real one-run-per-lap (MVP) loop on the Loop pages.
+- A real one-run-per-experiment (MVP) loop on the Loop pages.
 - The loop page in the MVP view (Results, Final results, Agent diff) with the real `day-30-refunds` loop. Issue #21 checked it only with a mock API, because the sign-in of the test account failed.
 - "Run again" on the experiment page. It replays the cohort and calls the model, so it costs money.
 - Session page: a failed session, a running session, and agents on a framework other than openai-agents.

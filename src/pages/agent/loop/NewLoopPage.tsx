@@ -79,7 +79,7 @@ export function NewLoopPage() {
     chosen.length === 0 && "Pick at least one evaluator.",
     changes.length === 0 && "Pick at least one thing that may change.",
     changes.includes("model") && modelList.length === 0 && "List the models the loop may switch to.",
-    c.k > c.trials_per_round && "k can't be more than trials per lap.",
+    c.k > c.trials_per_round && "k can't be more than trials per experiment.",
   ].filter(Boolean) as string[];
 
   // The skill's config file. Tool policy and evaluator params are copied from
@@ -124,16 +124,16 @@ export function NewLoopPage() {
         <dd>{chosen.length ? chosen.join(", ") : "—"}</dd>
         <dt>May change</dt>
         <dd>{changes.length ? changes.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
-        <dt>A lap passes when</dt>
+        <dt>An experiment passes when</dt>
         <dd>
           {mvp
-            ? `At least ${targetPct}% of cases pass every gate evaluator in one run${c.no_regression ? ", and no case does worse than lap 0" : ""}`
-            : `${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than lap 0" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
+            ? `At least ${targetPct}% of cases pass every gate evaluator in one run${c.no_regression ? ", and no case does worse than in the control experiment" : ""}`
+            : `${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than in the control experiment" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
           .
         </dd>
         <dt>Stops otherwise after</dt>
         <dd>
-          {c.max_rounds} laps{c.plateau_patience != null ? `, or ${c.plateau_patience} laps without improvement` : ""}
+          {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
           {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
         </dd>
         <dt>Worst case</dt>
@@ -159,7 +159,7 @@ export function NewLoopPage() {
               <li>Paste it into Claude Code in the agent's project, with the kitaru-loop skill installed.</li>
               <li>Check the tool policy and evaluator params in the config. They were copied from this agent's latest experiment.</li>
               <li>
-                Laps show up under <span className="mono">{slug}</span> in the Loop tab as the skill creates them.
+                Experiments show up under <span className="mono">{slug}</span> in the Loop tab as the skill creates them.
               </li>
             </ol>
             <pre className="code-block prompt-preview">{prompt}</pre>
@@ -190,14 +190,14 @@ export function NewLoopPage() {
         <div className="form-header">
           <h2 className="detail-title sans">New loop</h2>
           <p className="detail-description">
-            {mvp ? "The simple version: one run per lap, and the loop stops at a pass rate you pick." : "These are the kitaru-loop skill's settings."} Nothing runs until you hand the prompt to your coding agent.
+            {mvp ? "The simple version: one run per experiment, and the loop stops at a pass rate you pick." : "These are the kitaru-loop skill's settings."} Nothing runs until you hand the prompt to your coding agent.
           </p>
         </div>
         <LoopModeToggle />
       </div>
 
       <div className="form-card">
-        <Section title="Basics" hint="A hypothesis names the failure and its suspected cause. If you write one, it's stored on every lap.">
+        <Section title="Basics" hint="A hypothesis names the failure and its suspected cause. If you write one, it's stored on every experiment.">
           <Field label="Name">
             <Input className="w-md" value={name} onChange={(e) => setName(e.target.value)} placeholder="Day-30 refunds" invalid={taken} />
           </Field>
@@ -231,7 +231,7 @@ export function NewLoopPage() {
           ) : null}
         </Section>
 
-        <Section title="What may change" hint="Each lap changes exactly one of these, as an override on the same agent version.">
+        <Section title="What may change" hint="Each experiment changes exactly one of these, as an override on the same agent version.">
           <div className="check-list">
             {(Object.keys(CHANGE_FIELD_LABELS) as ChangeField[]).map((f) => (
               <CheckRow key={f} checked={changes.includes(f)} onChange={(v) => setChanges(v ? [...changes, f] : changes.filter((x) => x !== f))} label={CHANGE_FIELD_LABELS[f]} help={CHANGE_HELP[f]} />
@@ -245,18 +245,18 @@ export function NewLoopPage() {
         </Section>
 
         {mvp ? (
-          <Section title="Success" hint="Each lap replays the cohort once. A case passes when every gate evaluator passes.">
+          <Section title="Success" hint="Each experiment replays the cohort once. A case passes when every gate evaluator passes.">
             <div className="field-grid">
               <NumberField label="Pass rate target" suffix="% of cases" value={targetPct} min={1} max={100} onChange={(v) => set("cohort_target_mean_pass_k", v / 100)} />
             </div>
             <div className="toggle-list">
-              <ToggleRow label="No case may get worse" help="A case that passed in lap 0 and fails now fails the lap, even if the pass rate went up." checked={c.no_regression} onChange={(v) => set("no_regression", v)} />
+              <ToggleRow label="No case may get worse" help="A case that passed in the control experiment and fails now fails the experiment, even if the pass rate went up." checked={c.no_regression} onChange={(v) => set("no_regression", v)} />
             </div>
           </Section>
         ) : (
-        <Section title="Passing a lap" hint="One run can't tell a case that passes 95% of the time from one that always passes, so every lap replays each case several times.">
+        <Section title="Passing an experiment" hint="One run can't tell a case that passes 95% of the time from one that always passes, so every experiment replays each case several times.">
           <div className="field-grid">
-            <NumberField label="Trials per lap" suffix="runs" value={c.trials_per_round} min={1} max={20} onChange={(v) => set("trials_per_round", v)} />
+            <NumberField label="Trials per experiment" suffix="runs" value={c.trials_per_round} min={1} max={20} onChange={(v) => set("trials_per_round", v)} />
             <NumberField label="Must work in a row (k)" suffix="times" value={c.k} min={1} max={c.trials_per_round} onChange={(v) => set("k", v)} />
             <NumberField label={`Cohort target, mean pass^${c.k}`} suffix="" value={c.cohort_target_mean_pass_k} min={0} max={1} step={0.05} onChange={(v) => set("cohort_target_mean_pass_k", v)} />
           </div>
@@ -267,17 +267,17 @@ export function NewLoopPage() {
             </select>
           </Field>
           <div className="toggle-list">
-            <ToggleRow label="No regression against lap 0" help="A case that does worse than its baseline fails the lap, even if the average went up." checked={c.no_regression} onChange={(v) => set("no_regression", v)} />
-            <ToggleRow label="Confirm on fresh trials" help="Re-run a passing lap and require the gate again, so a lucky lap can't win." checked={c.confirmation_round} onChange={(v) => set("confirmation_round", v)} />
-            <ToggleRow label="Screen first" help="Run each new lap once. Any failing case ends the lap before spending the other trials." checked={c.screen_first} onChange={(v) => set("screen_first", v)} />
+            <ToggleRow label="No regression against the control" help="A case that does worse than in the control experiment fails the experiment, even if the average went up." checked={c.no_regression} onChange={(v) => set("no_regression", v)} />
+            <ToggleRow label="Confirm on fresh trials" help="Re-run a passing experiment and require the gate again, so a lucky experiment can't win." checked={c.confirmation_round} onChange={(v) => set("confirmation_round", v)} />
+            <ToggleRow label="Screen first" help="Run each new experiment once. Any failing case ends the experiment before spending the other trials." checked={c.screen_first} onChange={(v) => set("screen_first", v)} />
           </div>
         </Section>
         )}
 
-        <Section title="Stopping" hint={mvp ? "The loop also stops as soon as a lap reaches the target." : "The loop also stops as soon as a lap passes and confirms."}>
+        <Section title="Stopping" hint={mvp ? "The loop also stops as soon as an experiment reaches the target." : "The loop also stops as soon as an experiment passes and confirms."}>
           <div className="field-grid">
-            <NumberField label="Max laps" suffix="laps" value={c.max_rounds} min={1} max={50} onChange={(v) => set("max_rounds", v)} />
-            <NumberField label="Laps without improvement (0 = off)" suffix="laps" value={c.plateau_patience ?? 0} min={0} max={20} onChange={(v) => set("plateau_patience", v === 0 ? null : v)} />
+            <NumberField label="Max experiments after the control" suffix="experiments" value={c.max_rounds} min={1} max={50} onChange={(v) => set("max_rounds", v)} />
+            <NumberField label="Experiments without improvement (0 = off)" suffix="experiments" value={c.plateau_patience ?? 0} min={0} max={20} onChange={(v) => set("plateau_patience", v === 0 ? null : v)} />
             <NumberField label="Budget (0 = none)" suffix="USD" value={c.budget_usd ?? 0} min={0} max={10000} step={0.5} onChange={(v) => set("budget_usd", v === 0 ? null : v)} />
           </div>
         </Section>
@@ -289,7 +289,7 @@ export function NewLoopPage() {
             problems[0]
           ) : (
             <>
-              {mvp ? "1 run" : `${c.trials_per_round} trials`} per lap, up to {c.max_rounds} laps. Worst case <span className="mono">{worstCase}</span> runs of the cohort.
+              {mvp ? "1 run" : `${c.trials_per_round} trials`} per experiment, up to {c.max_rounds} experiments after the control. Worst case <span className="mono">{worstCase}</span> runs of the cohort.
             </>
           )}
         </span>

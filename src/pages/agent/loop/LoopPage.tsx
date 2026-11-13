@@ -64,7 +64,7 @@ export function LoopPage() {
         {c ? <CriteriaLine c={c} mvp={mvp} changes={loop.settings!.allowed_changes.map((f) => CHANGE_FIELD_LABELS[f] ?? f)} /> : null}
         {mvp && fullRules && c ? (
           <p className="field-hint">
-            This loop ran with the Post-MVP rules ({c.trials_per_round} runs per lap, pass^{c.k}). The MVP view shows the first completed run of each lap.
+            This loop ran with the Post-MVP rules ({c.trials_per_round} runs per experiment, pass^{c.k}). The MVP view shows the first completed run of each experiment.
           </p>
         ) : null}
       </div>
@@ -83,15 +83,15 @@ export function LoopPage() {
 
       {!loop.isLoading && loop.totalLaps > 0 && !c && !loop.isEvalveLoop && loop.outcome.kind !== "completed" ? (
         <Alert variant="warning" title="This loop's rules aren't on the server">
-          The dashboard needs the baseline lap's "Loop settings" line to calculate pass^k and apply the stop rules. The project's kitaru-loop.json has the rules.
+          The dashboard needs the "Loop settings" line of the control experiment to calculate pass^k and apply the stop rules. The project's kitaru-loop.json has the rules.
         </Alert>
       ) : null}
 
       {!loop.isLoading && loop.totalLaps === 0 ? (
         <div className="empty-state">
-          <p className="empty-title">No laps yet</p>
+          <p className="empty-title">No experiments yet</p>
           <p className="empty-text">
-            Laps appear here once the kitaru-loop skill creates <span className="mono">{slug}-round-0</span>.
+            Experiments appear here once the kitaru-loop skill creates <span className="mono">{slug}-round-0</span>.
           </p>
         </div>
       ) : null}
@@ -116,22 +116,22 @@ export function LoopPage() {
 
 function CriteriaLine({ c, changes, mvp }: { c: Criteria; changes: string[]; mvp: boolean }) {
   const simple = [
-    `${c.trials_per_round} ${c.trials_per_round === 1 ? "run" : "runs"} per lap`,
+    `${c.trials_per_round} ${c.trials_per_round === 1 ? "run" : "runs"} per experiment`,
     c.k === 1 ? `target ${formatPercent(c.cohort_target_mean_pass_k)} pass rate` : null,
     c.no_regression ? "no case may get worse" : null,
-    `max ${c.max_rounds} laps`,
-    c.plateau_patience != null ? `stops after ${c.plateau_patience} laps without improvement` : null,
+    `max ${c.max_rounds} experiments after the control`,
+    c.plateau_patience != null ? `stops after ${c.plateau_patience} experiments without improvement` : null,
     c.budget_usd != null ? `budget $${c.budget_usd}` : null,
     `may change: ${changes.join(", ").toLowerCase()}`,
   ];
   const full = [
-    `${c.trials_per_round} trials per lap`,
+    `${c.trials_per_round} trials per experiment`,
     `pass^${c.k}`,
     c.per_case_floor === "strict" ? "floor: no misses" : "floor: one miss allowed",
     `cohort target ${c.cohort_target_mean_pass_k}`,
-    c.no_regression ? "no regression vs lap 0" : null,
+    c.no_regression ? "no regression vs the control" : null,
     c.confirmation_round ? "confirmed on fresh trials" : null,
-    `max ${c.max_rounds} laps`,
+    `max ${c.max_rounds} experiments after the control`,
     c.plateau_patience != null ? `plateau patience ${c.plateau_patience}` : null,
     c.budget_usd != null ? `budget $${c.budget_usd}` : null,
     `may change: ${changes.join(", ").toLowerCase()}`,

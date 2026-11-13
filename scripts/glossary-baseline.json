@@ -12,7 +12,7 @@
     "trial": 1
   },
   "src/lib/loopResults.test.ts": {
-    "winner": 15,
+    "winner": 16,
     "regression": 3,
     "regressed": 2,
     "baseline audit": 1,
@@ -37,12 +37,12 @@
     "trial": 12
   },
   "src/lib/loops.test.ts": {
-    "winner": 12,
+    "winner": 11,
     "round 0": 3,
     "iteration": 7
   },
   "src/lib/loops.ts": {
-    "winner": 14,
+    "winner": 13,
     "regression": 3,
     "baseline audit": 1,
     "round 0": 4,
@@ -62,7 +62,7 @@
     "baseline session": 1
   },
   "src/pages/agent/loop/AgentDiffSection.tsx": {
-    "winner": 5
+    "winner": 6
   },
   "src/pages/agent/loop/CaseCell.tsx": {
     "trial": 2
@@ -71,7 +71,6 @@
     "winner": 11,
     "regression": 1,
     "regressed": 5,
-    "baseline audit": 1,
     "trial": 8,
     "judge": 1
   },

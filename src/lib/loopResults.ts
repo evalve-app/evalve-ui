@@ -7,7 +7,7 @@ import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
 import type { Gate } from "./loopRules";
-import { isGating, parseEvalveLoop, type Criteria, type LoopOutcome } from "./loops";
+import { experimentName, isGating, parseEvalveLoop, type Criteria, type LoopOutcome } from "./loops";
 
 // One case of the loop's cohort: the id of its recorded session, and its name.
 export type CaseInfo = { id: string; name: string };
@@ -167,17 +167,17 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
   const hasParams = !!o.model_params && Object.keys(o.model_params).length > 0;
 
   let prompt: AgentDiffPrompt;
-  if (after == null) prompt = { kind: "unchanged", text: "The winning lap did not change the system prompt." };
+  if (after == null) prompt = { kind: "unchanged", text: "The winning experiment did not change the system prompt." };
   else if (before.loading) prompt = { kind: "loading" };
   else if (!before.prompt)
     prompt = {
       kind: "after-only",
       // A failed request does not show that Kitaru has no prompt, so it has its own note.
-      note: `${before.failed ? "The page could not load the agent's own prompt" : "The recorded sessions use the agent's own setting, which Kitaru doesn't store"}, so there's no line-by-line diff. Lap ${winning.lap}, the winning lap, sets the system prompt to:`,
+      note: `${before.failed ? "The page could not load the agent's own prompt" : "The recorded sessions use the agent's own setting, which Kitaru doesn't store"}, so there's no line-by-line diff. ${experimentName(winning.lap)}, the winning experiment, sets the system prompt to:`,
       text: after,
       copy: { label: "Copy prompt", text: after, primary: false },
     };
-  else if (before.prompt === after) prompt = { kind: "unchanged", text: "The system prompt of the winning lap is the same as the agent's own prompt." };
+  else if (before.prompt === after) prompt = { kind: "unchanged", text: "The system prompt of the winning experiment is the same as the agent's own prompt." };
   else {
     // A final newline ends the last line. It is not one more empty line.
     const old = withoutFinalNewline(before.prompt);
@@ -395,16 +395,16 @@ function noResultsText(l: ResultsLap): string | null {
 // lap passed, whatever rules the server has.
 function lapResult(l: ResultsLap, c: Criteria | null, winnerLap: number | null, caseName: (id: string) => string): LapResult | null {
   const names = (ids: string[]) => ids.map(caseName).join(", ");
-  if (l.lap === winnerLap) return { label: "Passed", tone: "success", title: "This lap made the loop pass" };
-  if (l.lap === 0) return { label: "Baseline lap", tone: "neutral", title: "Lap 0 is the reference. Nothing was changed." };
+  if (l.lap === winnerLap) return { label: "Passed", tone: "success", title: "This experiment made the loop pass" };
+  if (l.lap === 0) return { label: experimentName(0, "short"), tone: "neutral", title: "The control experiment is the reference. Nothing was changed." };
   if (l.running) return { label: "Running", tone: "neutral", title: "" };
-  if (l.screenGreen === false) return { label: "Failed", tone: "destructive", title: "A case failed on the first run, so the lap ended there" };
+  if (l.screenGreen === false) return { label: "Failed", tone: "destructive", title: "A case failed on the first run, so the experiment ended there" };
   const g = l.selectionGate;
   if (!g || !c) return null;
   if (g.incomplete) return { label: "In progress", tone: "neutral", title: "Not every case has a result yet" };
   if (!g.met) {
     const why = [
-      g.regressed.length ? `got worse than the baseline lap: ${names(g.regressed)}` : "",
+      g.regressed.length ? `got worse than ${experimentName(0, "inline")}: ${names(g.regressed)}` : "",
       g.belowFloor.length ? `failed too often: ${names(g.belowFloor)}` : "",
       g.belowTarget ? (c.k === 1 ? `pass rate ${formatPercent(g.meanPassK ?? 0)} is under the ${formatPercent(c.cohort_target_mean_pass_k)} target` : "the score is under the target") : "",
     ].filter(Boolean);
@@ -415,7 +415,7 @@ function lapResult(l: ResultsLap, c: Criteria | null, winnerLap: number | null, 
     if (!cg || cg.incomplete) return { label: "In progress", tone: "neutral", title: "Being run again to confirm the result" };
     if (!cg.met) return { label: "Failed", tone: "destructive", title: "It passed once but did not hold up when run again" };
   }
-  return { label: "Passed", tone: "success", title: "This lap met the target" };
+  return { label: "Passed", tone: "success", title: "This experiment met the target" };
 }
 
 export type ResultsTable = { evaluators: string[]; rows: ResultsRow[] };
@@ -510,7 +510,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   const gotWorse = inUse && baseline.size ? [...inUse.passes].filter(([id, ok]) => ok === false && baseline.get(id) === true).length : null;
 
   const duration = loopDuration(loop.laps);
-  const line = [outcome.title, !outcome.passed && inUse ? `Best lap: lap ${inUse.lap.lap}` : null, duration].filter(Boolean).join(" · ");
+  const line = [outcome.title, !outcome.passed && inUse ? `Best experiment: ${experimentName(inUse.lap.lap, "inline")}` : null, duration].filter(Boolean).join(" · ");
 
   const cards: FinalResults["cards"] = [];
   for (const e of inUse?.lap.evaluatorReplays ?? []) {
@@ -523,10 +523,11 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
       sub: was && baselineLap !== inUse!.lap ? `${count(e.replays)} · was ${count(was.replays)}` : count(e.replays),
     });
   }
-  if (inUse && gotWorse != null) cards.push({ label: "Got worse", value: String(gotWorse), sub: `of ${inUse.passes.size} cases, baseline lap to lap ${inUse.lap.lap}` });
-  cards.push({ label: "Laps", value: String(Math.max(loop.totalLaps - 1, 0)), sub: loop.settings ? `after the baseline lap · limit ${loop.settings.criteria.max_rounds}` : "after the baseline lap" });
+  // When the control experiment is in use, there is no second experiment to name.
+  if (inUse && gotWorse != null) cards.push({ label: "Got worse", value: String(gotWorse), sub: inUse.lap.lap === 0 ? `of ${inUse.passes.size} cases` : `of ${inUse.passes.size} cases, control experiment to ${experimentName(inUse.lap.lap, "inline")}` });
+  cards.push({ label: "Experiments", value: String(Math.max(loop.totalLaps - 1, 0)), sub: loop.settings ? `after the control experiment · limit ${loop.settings.criteria.max_rounds}` : "after the control experiment" });
 
-  const bars = scored.map((s) => ({ lap: s.lap.lap, label: `Lap ${s.lap.lap}`, rate: s.rate, text: formatPercent(s.rate), inUse: s === inUse }));
+  const bars = scored.map((s) => ({ lap: s.lap.lap, label: experimentName(s.lap.lap, "short"), rate: s.rate, text: formatPercent(s.rate), inUse: s === inUse }));
 
   // A row only for a criterion that the dashboard can measure: no lap limit, no budget, no metric gates.
   // The numbers here come from one run of the lap. The rule of a loop with
@@ -542,7 +543,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
       {
         met: outcome.passed,
         label: `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}`,
-        value: `${passCount(inUse.passes)} of ${inUse.passes.size} cases passed in lap ${inUse.lap.lap}`,
+        value: `${passCount(inUse.passes)} of ${inUse.passes.size} cases passed in ${experimentName(inUse.lap.lap, "inline")}`,
       },
     ];
   } else if (inUse && loop.settings && loop.settings.criteria.trials_per_round === 1 && loop.settings.criteria.k === 1 && !loop.settings.criteria.confirmation_round) {
@@ -560,10 +561,10 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
     line,
     detail: outcome.detail,
     cards,
-    chartLabel: `Pass rate by lap: ${bars.map((b) => `lap ${b.lap}, ${b.text}`).join("; ")}`,
+    chartLabel: `Pass rate by experiment: ${bars.map((b) => `${experimentName(b.lap, "inline")}, ${b.text}`).join("; ")}`,
     bars,
     criteria,
     criteriaSummary: criteria ? (criteria.every((c) => c.met) ? "all met" : `${criteria.filter((c) => c.met).length} of ${criteria.length} met`) : null,
-    note: { title: "Nothing was changed in your agent", text: `The loop changed only its own copy of the agent.${outcome.passed ? " The change of the winning lap is below." : ""}` },
+    note: { title: "Nothing was changed in your agent", text: `The loop changed only its own copy of the agent.${outcome.passed && inUse?.lap.lap !== 0 ? " The change of the winning experiment is below." : ""}` },
   };
 }

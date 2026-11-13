@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import { experimentName, knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -18,15 +18,29 @@ describe("parseRoundName", () => {
   });
 });
 
+describe("experimentName", () => {
+  it("names an experiment after the control experiment by its number", () => {
+    expect(experimentName(2)).toBe("Experiment 2");
+    expect(experimentName(2, "inline")).toBe("experiment 2");
+    expect(experimentName(2, "short")).toBe("2");
+  });
+
+  it("gives number 0 the name of the control experiment, and no number", () => {
+    expect(experimentName(0)).toBe("Control experiment");
+    expect(experimentName(0, "inline")).toBe("the control experiment");
+    expect(experimentName(0, "short")).toBe("Control");
+  });
+});
+
 describe("lapSummary", () => {
   it("drops a leading 'Iteration N:' as it drops 'Round N:'", () => {
     expect(lapSummary("Iteration 2: Tighten the refund policy. Hypothesis: fewer late-fee refunds", 1)).toBe("Tighten the refund policy.");
     expect(lapSummary("Round 2: Use gpt-4.1. Hypothesis: better", 2)).toBe("Use gpt-4.1.");
   });
 
-  it("says that lap 0 is the baseline lap, whatever its description says", () => {
-    expect(lapSummary("Round 0: Unchanged baseline", 0)).toBe("Baseline lap, no changes");
-    expect(lapSummary(null, 0)).toBe("Baseline lap, no changes");
+  it("says that lap 0 is the control experiment, whatever its description says", () => {
+    expect(lapSummary("Round 0: Unchanged baseline", 0)).toBe("Control experiment, no changes");
+    expect(lapSummary(null, 0)).toBe("Control experiment, no changes");
   });
 });
 
@@ -39,14 +53,17 @@ describe("loop status", () => {
   it("uses the published winner even while the run query still shows activity", () => {
     const evalve = read({ status: "stop_success", winner_lap: 1 });
     expect(resolveLoopOutcome(evalve, null, true, "running")).toEqual({
-      kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed",
+      kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed",
       detail: "Every case passed in 2 consecutive replays.",
     });
   });
 
-  it("can complete with lap zero as the winner", () => {
+  it("says that the control passed when lap zero is the winning experiment", () => {
     const evalve = read({ status: "stop_success", winner_lap: 0 });
-    expect(resolveLoopOutcome(evalve, null, false, "completed")).toMatchObject({ kind: "completed", winnerLap: 0 });
+    expect(resolveLoopOutcome(evalve, null, false, "completed")).toEqual({
+      kind: "completed", passed: true, winnerLap: 0, title: "The control passed",
+      detail: "The agent met the target with no change.",
+    });
   });
 
   it("uses the archived completion only for the original support-desk baseline", () => {
@@ -60,7 +77,7 @@ describe("loop status", () => {
   it.each(["stop_attempt_cap", "stop_budget"])("completes without a winner on %s", (status) => {
     const evalve = read({ status, reason: "The configured limit was reached." });
     expect(resolveLoopOutcome(evalve, null, false, "completed")).toMatchObject({
-      kind: "completed", passed: false, winnerLap: null, detail: "The configured limit was reached.",
+      kind: "completed", passed: false, winnerLap: null, title: "No experiment passed", detail: "The configured limit was reached.",
     });
   });
 

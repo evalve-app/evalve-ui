@@ -36,7 +36,7 @@ export function FinalResultsSection({ loop }: { loop: LoopData }) {
         {r.bars.length > 0 ? (
           <div className="final-results-panel">
             <div className="final-results-panel-head">
-              <h4 className="final-results-panel-title">Pass rate by lap</h4>
+              <h4 className="final-results-panel-title">Pass rate by experiment</h4>
               <span className="panel-sub">Cases that passed each gating evaluator</span>
             </div>
             <div className="final-results-bars" role="img" aria-label={r.chartLabel}>

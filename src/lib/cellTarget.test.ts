@@ -18,7 +18,7 @@ describe("cellTarget", () => {
     const t = cellTarget({ caseName: "refund-late-fee", lap: 2, runs });
     expect(t).toEqual({
       kind: "menu",
-      header: "refund-late-fee · lap 2 · 9 of 10 passed",
+      header: "refund-late-fee · Experiment 2 · 9 of 10 passed",
       showPhase: true,
       rows: [
         { run: 1, phase: "trial", passed: true, sessionId: "s1" },
@@ -42,7 +42,7 @@ describe("cellTarget", () => {
 
   it("counts every run in the header, as the cell does, even a run with no result session", () => {
     const t = cellTarget({ caseName: "c", lap: 1, runs: [run(1), run(2, { sessionId: null, results: fail }), run(3)] });
-    expect(t.kind === "menu" && t.header).toBe("c · lap 1 · 2 of 3 passed");
+    expect(t.kind === "menu" && t.header).toBe("c · Experiment 1 · 2 of 3 passed");
   });
 
   it("links straight to the session when only one run has a result session", () => {
@@ -60,12 +60,17 @@ describe("cellTarget", () => {
       ],
     });
     expect(t.kind === "menu" && t.rows.map((r) => r.passed)).toEqual([true, false]);
-    expect(t.kind === "menu" && t.header).toBe("c · lap 1 · 1 of 2 passed");
+    expect(t.kind === "menu" && t.header).toBe("c · Experiment 1 · 1 of 2 passed");
   });
 
   it("hides the phase when every run is a trial", () => {
     const t = cellTarget({ caseName: "c", lap: 0, runs: [run(1), run(2), run(3)] });
     expect(t.kind === "menu" && t.showPhase).toBe(false);
+  });
+
+  it("names lap 0 as the control experiment in the header, with no number", () => {
+    const t = cellTarget({ caseName: "c", lap: 0, runs: [run(1), run(2), run(3)] });
+    expect(t.kind === "menu" && t.header).toBe("c · Control experiment · 3 of 3 passed");
   });
 
   it("has no target, with a reason, when no run has a result session", () => {
