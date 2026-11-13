@@ -10,7 +10,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { EvaluatorsPage } from "./pages/EvaluatorsPage";
 import { WorkersPage } from "./pages/WorkersPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { JobsPage } from "./pages/JobsPage";
 import { ApproveDevicePage } from "./pages/ApproveDevicePage";
 import { SessionPage } from "./pages/SessionPage";
 import { AgentLayout } from "./pages/agent/AgentLayout";
@@ -25,11 +25,11 @@ import { NewLoopPage } from "./pages/agent/loop/NewLoopPage";
 import { LoopPage } from "./pages/agent/loop/LoopPage";
 import { LoopComparePage } from "./pages/agent/loop/LoopComparePage";
 
-// Jobs has a route but no nav link: its page is not built.
 const NAV = [
   { to: "/agents", label: "Agents" },
   { to: "/evaluators", label: "Evaluators" },
   { to: "/workers", label: "Workers" },
+  { to: "/jobs", label: "Jobs" },
 ];
 
 export function App() {
@@ -55,7 +55,7 @@ export function App() {
         <Route path="/devices/verify" element={<ApproveDevicePage />} />
         <Route path="/evaluators" element={<EvaluatorsPage />} />
         <Route path="/workers" element={<WorkersPage />} />
-        <Route path="/jobs" element={<PlaceholderPage title="Jobs" />} />
+        <Route path="/jobs" element={<JobsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/agents" replace />} />
     </Routes>

@@ -347,3 +347,44 @@ export async function listWorkers(): Promise<Worker[]> {
   } while (cursor);
   return workers;
 }
+
+// ---- Jobs -----------------------------------------------------------------
+
+export type Job = components["schemas"]["JobResponse"];
+export type JobStatus = components["schemas"]["JobStatus"];
+export type Task = components["schemas"]["TaskResponse"];
+
+const JOBS_PAGE = 50;
+
+// The 50 newest jobs, of one status or all. Only one page, as on Kitaru's own
+// Jobs page.
+export async function listJobs(status: JobStatus | null): Promise<Job[]> {
+  const filter: Filter | undefined = status ? { field: "status", op: "eq", value: status } : undefined;
+  const page = await unwrap(api.GET("/api/v1/jobs", { params: { query: { size: JOBS_PAGE, sort: "created:desc", filter: filter as never } } }), "jobs");
+  return page.items;
+}
+
+// The 50 newest jobs behind one experiment run's replays, or null when no run
+// has this id. 422 is an id that is not a valid id, which no run can have.
+export async function listExperimentRunJobs(runId: string, status: JobStatus | null): Promise<Job[] | null> {
+  const filter: Filter | undefined = status ? { field: "status", op: "eq", value: status } : undefined;
+  const { data, error, response } = await api.GET("/api/v1/experiment-runs/{experiment_run_id}/jobs", {
+    params: { path: { experiment_run_id: runId }, query: { size: JOBS_PAGE, sort: "created:desc", filter: filter as never } },
+  });
+  if (response.status === 401) throw new UnauthorizedError("Not signed in.");
+  if (response.status === 404 || response.status === 422) return null;
+  if (!data) throw new Error(errorDetail(error) ?? `Could not load jobs (${response.status}).`);
+  return data.items;
+}
+
+// A job's tasks that failed, timed out or were abandoned (the first 50).
+export async function listFailingTasks(jobId: string): Promise<Task[]> {
+  const filter: Filter = {
+    and: [
+      { field: "job_id", op: "eq", value: jobId },
+      { field: "status", op: "in", value: ["failed", "timed_out", "abandoned"] },
+    ],
+  };
+  const page = await unwrap(api.GET("/api/v1/tasks", { params: { query: { size: 50, filter: filter as never } } }), "tasks");
+  return page.items;
+}
