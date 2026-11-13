@@ -1,7 +1,7 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, type SyntheticEvent } from "react";
 import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
-import { Badge, StatusLabel } from "../../../design-system/components";
+import { Badge } from "../../../design-system/components";
 import { experimentName } from "../../../lib/loops";
 import { resultsTable, type ResultsCell, type ResultsReplay, type ResultsRow } from "../../../lib/loopResults";
 import { LAP_PAGE } from "./LapViews";
@@ -12,7 +12,7 @@ import type { LoopData } from "./useLoop";
 // The view model (`resultsTable`) makes the rows. This component only lays them out.
 export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOlder: () => void }) {
   const [open, setOpen] = useState<number[]>([]); // the laps whose rows are open; all closed at first
-  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.settings?.criteria ?? null, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount });
+  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.settings?.criteria ?? null, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount, outcome: loop.outcome });
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
   // With no results in any lap, one column holds the text of each lap.
   const resultColumns = table.evaluators.length || 1;
@@ -24,15 +24,16 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
           <div className="panel-title">Results</div>
           <div className="panel-sub">One row for each experiment, and one column for each gating evaluator. A square opens the result session of its replay in a new tab.</div>
         </div>
-        <span className="legend">
-          <span>
-            <span className="rs-square pass" aria-hidden /> Passed replay
-          </span>
-          <span>
-            <span className="rs-square fail" aria-hidden /> Failed replay
-          </span>
-          <span>One square for each case</span>
+        <span className="rs-state">{table.state}</span>
+      </div>
+      <div className="rs-legend">
+        <span>
+          <span className="rs-square pass" aria-hidden /> Passed
         </span>
+        <span>
+          <span className="rs-square fail" aria-hidden /> Failed
+        </span>
+        <span>One square is one case.</span>
       </div>
       {loop.totalLaps > loop.laps.length ? (
         <button type="button" className="text-button older" onClick={onShowOlder}>
@@ -66,16 +67,13 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
               return (
                 <Fragment key={row.lap}>
                   <tr>
-                    <td className="rs-lap">
-                      <span className="rs-lap-num">
-                        {experimentName(row.lap, row.lap === 0 ? "short" : "label")}
-                        {row.winning ? (
-                          <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
-                            ★
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="rs-lap-summary">{row.summary}</span>
+                    <td className="rs-experiment">
+                      <ExperimentName id={`results-lap-${row.lap}-summary`} name={row.name} summary={row.summary} />
+                      {row.winning ? (
+                        <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
+                          ★
+                        </span>
+                      ) : null}
                     </td>
                     {hasResults ? (
                       row.cells.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>)
@@ -85,7 +83,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                       </td>
                     )}
                     <td>
-                      <StatusLabel status={row.status} />
+                      <Badge variant="neutral">{row.status}</Badge>
                     </td>
                     <td>{row.result ? <LapResultBadge result={row.result} /> : hasResults ? <span className="muted">—</span> : null}</td>
                     <td>
@@ -110,7 +108,29 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
           </tbody>
         </table>
       </div>
+      <p className="rs-footer">{table.statusNote}</p>
     </section>
+  );
+}
+
+// The name of the experiment, with its summary in a tooltip. The name takes
+// focus, so the tooltip opens on hover, on keyboard focus and on a tap. The
+// tooltip has a fixed position, so the scroll area of the table does not cut it.
+function ExperimentName({ id, name, summary }: { id: string; name: string; summary: string }) {
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  if (!summary) return <span>{name}</span>;
+  const show = (e: SyntheticEvent<HTMLElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    setAt({ left: box.left, top: box.bottom + 4 });
+  };
+  const hide = () => setAt(null);
+  return (
+    <span className="rs-experiment-name" tabIndex={0} aria-describedby={id} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onKeyDown={(e) => (e.key === "Escape" ? hide() : undefined)}>
+      {name}
+      <span id={id} role="tooltip" className="ev-tooltip rs-tip" hidden={!at} style={at ?? undefined}>
+        {summary}
+      </span>
+    </span>
   );
 }
 
@@ -136,7 +156,9 @@ function EvaluatorCell({ cell }: { cell: ResultsCell }) {
 function LapResultBadge({ result }: { result: NonNullable<ResultsRow["result"]> }) {
   return (
     <span title={result.title || undefined}>
-      <Badge variant={result.tone}>{result.label}</Badge>
+      <Badge variant={result.tone} dot={result.tone !== "neutral"}>
+        {result.label}
+      </Badge>
     </span>
   );
 }
@@ -176,7 +198,7 @@ function ReplayList({ lap, replays }: { lap: number; replays: ResultsReplay[] })
                 </span>
               </td>
               <td>
-                <StatusLabel status={r.status} />
+                <Badge variant="neutral">{r.status}</Badge>
               </td>
               <td>
                 <Badge variant={r.result === "Passed" ? "success" : r.result === "Failed" ? "destructive" : "neutral"}>{r.result}</Badge>

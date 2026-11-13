@@ -306,7 +306,7 @@ export type ResultsSquare = { caseId: string; passed: boolean; sessionId: string
 export type ResultsCell = {
   evaluator: string;
   squares: ResultsSquare[]; // in case order
-  count: string; // "18 of 23 passed"
+  count: string; // "18 / 23 passed"
   tone: "success" | "destructive";
 };
 
@@ -324,7 +324,7 @@ function resultsCell(list: EvaluatorReplays, cohortCaseCount: number | null): Re
       const label = `${r.caseName}: ${r.passed ? "passed" : "failed"}`;
       return { caseId: r.caseId, passed: r.passed, sessionId: r.sessionId, label, name: `${label}. ${r.sessionId ? "Open the result session in a new tab" : "No result session"}` };
     }),
-    count: `${passed} of ${n} passed${cut ? ` · first ${n} of ${cohortCaseCount}` : ""}`,
+    count: `${passed} / ${n} passed${cut ? ` · first ${n} of ${cohortCaseCount}` : ""}`,
     tone: passed === n ? "success" : "destructive",
   };
 }
@@ -334,6 +334,7 @@ export type LapResult = { label: string; tone: "success" | "destructive" | "neut
 
 export type ResultsRow = {
   lap: number;
+  name: string; // "Control", or the number of a later experiment
   summary: string;
   winning: boolean; // the winning lap gets a ★
   status: string; // the run status from the server, as a word
@@ -418,11 +419,26 @@ function lapResult(l: ResultsLap, c: Criteria | null, winnerLap: number | null, 
   return { label: "Passed", tone: "success", title: "This experiment met the target" };
 }
 
-export type ResultsTable = { evaluators: string[]; rows: ResultsRow[] };
+// `state` is the state of the loop, for the head of the panel. `statusNote`
+// names the words that the Status column can show, for the footer.
+export type ResultsTable = { evaluators: string[]; rows: ResultsRow[]; state: string; statusNote: string };
+
+// The words of an experiment row, then the words that only a replay in an open row shows.
+const STATUS_NOTE = `Status is one of: ${[...new Set(["Not started", ...Object.values(RUN_STATUS), ...Object.values(REPLAY_STATUS), "No status"])].join(", ")}.`;
+
+// The outcome of the loop decides first: an experiment of a loop that finished
+// can still show as running until its run data loads again.
+function loopState(laps: ResultsLap[], outcome: LoopOutcome): string {
+  if (outcome.kind === "completed") return "loop finished";
+  if (outcome.kind === "canceled") return "loop stopped";
+  const running = [...laps].reverse().find((l) => l.running);
+  if (!running) return "loop running…";
+  return `${running.lap === 0 ? "control experiment" : experimentName(running.lap, "inline")} running…`;
+}
 
 // The Results table: one row for each lap, from the baseline lap to the last
 // lap, and one column for each gating evaluator.
-export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null }): ResultsTable {
+export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null; outcome: LoopOutcome }): ResultsTable {
   const laps = [...loop.laps].sort((a, b) => a.lap - b.lap);
   // Each lap's lists are in the column order already (see evaluatorReplays).
   const evaluators: string[] = [];
@@ -432,6 +448,7 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
     const noResults = noResultsText(l);
     return {
       lap: l.lap,
+      name: experimentName(l.lap, "short"),
       summary: l.summary,
       winning: l.lap === loop.winnerLap,
       status: lapStatus(l),
@@ -444,7 +461,7 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
       replays: lapReplays(l, evaluators, loop.cases),
     };
   });
-  return { evaluators, rows };
+  return { evaluators, rows, state: loopState(laps, loop.outcome), statusNote: STATUS_NOTE };
 }
 
 // Final results section

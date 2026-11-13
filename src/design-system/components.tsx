@@ -66,14 +66,15 @@ export function Alert({ variant = "default", title, children }: { variant?: Aler
   );
 }
 
-/* Badge: status or metadata pill. */
+/* Badge: status or metadata pill. `dot` puts a dot in the text color before the label. */
 type BadgeVariant = "default" | "destructive" | "success" | "warning" | "info" | "teal" | "neutral" | "archived" | "secondary" | "outline";
-export function Badge({ variant = "default", emphasis = "light", radius, mono, children }: { variant?: BadgeVariant; emphasis?: "bold" | "light" | "neutral" | "ghost"; radius?: "full" | "sm"; mono?: boolean; children?: ReactNode }) {
+export function Badge({ variant = "default", emphasis = "light", radius, mono, dot, children }: { variant?: BadgeVariant; emphasis?: "bold" | "light" | "neutral" | "ghost"; radius?: "full" | "sm"; mono?: boolean; dot?: boolean; children?: ReactNode }) {
   return (
     <span
       className={cx("ev-badge", `ev-badge-v-${variant}`, `ev-badge-e-${emphasis}`, radius === "sm" && "ev-badge-r-sm")}
       style={mono ? { fontFamily: "var(--font-mono)" } : undefined}
     >
+      {dot ? <span className="ev-badge-dot" aria-hidden /> : null}
       {children}
     </span>
   );
