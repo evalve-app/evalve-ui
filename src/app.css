@@ -629,3 +629,13 @@ a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
   .session-layout { grid-template-columns: 1fr; }
   .detail-panel { position: static; max-height: none; }
 }
+
+/* Sortable table headers: the whole header label is the button */
+.sort-button { display: inline-flex; align-items: center; gap: var(--spacing-1); margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.sort-button:hover, .sort-button[data-active] { color: var(--text-foreground); }
+.sort-button:focus-visible { outline: 0; border-radius: var(--radius-sm); box-shadow: var(--focus-ring); }
+.sort-icon { opacity: .4; }
+.sort-button[data-active] .sort-icon { opacity: 1; }
+
+/* A CLI command shown in an empty state */
+.command-chip { padding: var(--spacing-1) var(--spacing-2-5); border: 1px solid var(--border-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-foreground); font: 500 13px/20px var(--font-mono); }
