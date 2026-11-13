@@ -33,3 +33,17 @@ export function newInvestigationPrompt(agent: AgentRef): HandoffPrompt {
       "If an existing investigation already covers the same work, direct me to it instead. Otherwise create the investigation, then hand me back to Kitaru to review it.",
   };
 }
+
+// Kitaru's own Evaluators page has no such dialog. This text comes from the
+// Kitaru-UI prototype (capstone-prototypes/Kitaru-UI).
+export function newEvaluatorPrompt(): HandoffPrompt {
+  return {
+    title: "Draft an evaluator from your recorded sessions",
+    description: "Kitaru writes the prompt. Your coding agent runs the interview in the terminal.",
+    prompt:
+      "Use the `kitaru-investigation` skill to help me define one new Kitaru evaluator from evidence I have already recorded. " +
+      "Start by looking at my agents, finished investigations, cohorts and the evaluators already registered. " +
+      "Recommend the single most useful evaluator, say which evidence it comes from and what behavior it would check. " +
+      "If two options are about equally good, show both and let me pick. Confirm with me once before registering anything.",
+  };
+}

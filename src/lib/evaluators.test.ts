@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { evaluatorRows, type EvaluatorInput } from "./evaluators";
+import { evaluatorRows, firstEvaluatorSortDir, sortEvaluatorRows, type EvaluatorInput } from "./evaluators";
 
-const evaluator = (name: string, over: Partial<EvaluatorInput> = {}): EvaluatorInput => ({ id: name, name, description: null, provider: null, latest_version: 1, agent_id: null, updated: "2026-11-01T10:00:00Z", ...over });
+const evaluator = (name: string, over: Partial<EvaluatorInput> = {}): EvaluatorInput => ({ id: name, name, description: null, latest_version: 1, agent_id: null, updated: "2026-11-01T10:00:00Z", ...over });
 
 describe("evaluatorRows", () => {
   it("sorts the evaluators by name, A to Z", () => {
@@ -30,5 +30,35 @@ describe("evaluatorRows", () => {
     const [row] = evaluatorRows([evaluator("tone", { agent_id: "a2" })], { a1: "support-desk" });
     expect(row.agentId).toBe("a2");
     expect(row.agentName).toBeNull();
+  });
+});
+
+describe("sortEvaluatorRows", () => {
+  const rows = evaluatorRows(
+    [
+      evaluator("tone", { latest_version: 2, updated: "2026-11-10T10:00:00Z", agent_id: "a1" }),
+      evaluator("action", { latest_version: 5, updated: "2026-11-12T10:00:00Z" }),
+      evaluator("refund", { latest_version: 1, updated: "2026-11-11T10:00:00Z", agent_id: "a2" }),
+    ],
+    { a1: "support-desk", a2: "billing" },
+  );
+  const names = (r: typeof rows) => r.map((x) => x.name);
+
+  it("sorts by last change, newest first", () => {
+    expect(names(sortEvaluatorRows(rows, { key: "updated", dir: "desc" }))).toEqual(["action", "refund", "tone"]);
+  });
+
+  it("sorts by version as a number", () => {
+    expect(names(sortEvaluatorRows(rows, { key: "version", dir: "desc" }))).toEqual(["action", "tone", "refund"]);
+  });
+
+  it("sorts by agent name, with global evaluators last", () => {
+    expect(names(sortEvaluatorRows(rows, { key: "scope", dir: "asc" }))).toEqual(["refund", "tone", "action"]);
+  });
+
+  it("starts Updated and Version highest first, the rest A to Z", () => {
+    expect(firstEvaluatorSortDir("updated")).toBe("desc");
+    expect(firstEvaluatorSortDir("version")).toBe("desc");
+    expect(firstEvaluatorSortDir("name")).toBe("asc");
   });
 });

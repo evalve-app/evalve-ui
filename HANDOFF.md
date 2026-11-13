@@ -42,7 +42,7 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version. "New cohort" gives a handoff prompt; it does not create anything |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
 | Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare experiments. See below |
-| Evaluators | `/evaluators` | Read-only list of all evaluators: scope (one agent or all agents), provider, latest version. A row opens nothing |
+| Evaluators | `/evaluators` | Read-only list of all evaluators: name, description, scope (one agent or all agents), latest version. Click a column header to sort. A row opens nothing. "New evaluator" gives a handoff prompt; it does not create anything |
 | Workers | `/workers` | Read-only list of the live workers (the server leaves out workers that stopped sending heartbeats): status, claims, platform, last seen. Reloads every 15 s. Click a column header to sort. A row opens nothing |
 
 **Placeholders (say "not built yet"):** Jobs. It is hidden from the nav. The route `/jobs` still exists.
