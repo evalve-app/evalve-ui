@@ -13,7 +13,7 @@ import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../
 import { caseName } from "../../../lib/experiments";
 import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -45,6 +45,8 @@ export type LoopData = {
   slug: string;
   settings: LoopSettings | null;
   isEvalveLoop: boolean;
+  evalveSetup: EvalveSetup | null; // the setup in the loop settings line of the runner; null for a loop that the old skill made
+  cohortVersionId: string | null; // the cohort version of the setup, or of the newest run; null until one of them loads
   hypothesis: string;
   laps: Lap[];
   totalLaps: number;
@@ -235,6 +237,8 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       slug,
       settings,
       isEvalveLoop: !!evalve,
+      evalveSetup: evalve?.setup ?? null,
+      cohortVersionId: evalve?.setup.cohortVersionId ?? cohortVersionId ?? null,
       hypothesis: loopHypothesis(round0?.description),
       laps,
       totalLaps: ordered.length,

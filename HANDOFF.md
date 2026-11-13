@@ -70,16 +70,17 @@ The switch sits at the top right of the Loop pages. It is saved per browser and 
 | Score | Plain pass rate | Mean pass^k |
 | Runs per experiment | 1 | Several trials, plus a confirmation round |
 | New loop form | One number: the pass rate target | Trials, k, floor, confirmation, screen first |
-| Loop page | Three sections: Results, Final results, Agent diff | Grid of experiments with compare checkboxes, four stat tiles, trend line |
+| Loop page | The read-only setup card, then three sections: Results, Final results, Agent diff | Grid of experiments with compare checkboxes, four stat tiles, trend line |
 
 MVP uses the same skill with one trial per experiment and k = 1, so no second runner is needed.
 
 ### The loop page in the MVP view
 
-The page shows the header, then three sections in one column. Each section is one component in `src/pages/agent/loop/`. The text and the numbers come from `src/lib/loopResults.ts`.
+The page shows the header, then the setup card, then three sections in one column. Each of these is one component in `src/pages/agent/loop/`. The text and the numbers of the three sections come from `src/lib/loopResults.ts`. The fields of the setup card come from `src/lib/loopSetup.ts`.
 
 | Section | Shows | When |
 | --- | --- | --- |
+| Setup card (`SetupCard.tsx`) | The setup of the loop, read-only, in two columns. Left: "Basics" (name, hypothesis, cohort version with its number of cases) and "Gating evaluators". Right: "What may change", "Success" ("Consecutive green runs") and "Stopping" ("Maximum total runs", "Loop budget"). The fields come from the `Evalve loop:` line of the control experiment. A loop that the old skill made shows the fields that its `Loop settings:` line carries. A field that the loop does not carry shows "—", never a default value. The Post-MVP view shows the row of rule chips instead of the card | Always, when the loop has experiments |
 | Results (`ResultsSection.tsx`) | One row for each experiment, one column for each gating evaluator, and a "Pass rate" column. The head shows the state of the loop, and a legend row is below it. A cell has one square for each case, across the completed runs of the experiment: passed every run, mixed, or failed every run. "Show runs" opens one row for each completed run, in the same columns. A square in a run row opens the result session of its replay. A square in an experiment row opens it only when the experiment has one completed run. A footer says what "Show runs" lists and names the status words | Always, when the loop has experiments |
 | Final results (`FinalResultsSection.tsx`) | The title with a "Passed" or "Not passed" badge, one line with the outcome and the duration, one card for each gating evaluator, "Got worse", "Experiments", and the note "Nothing was changed in your agent" | A completed loop. A loop that did not pass shows its best experiment |
 | Agent diff (`AgentDiffSection.tsx`) | The title "Agent diff · Control → Experiment N" with a "system prompt" badge, the full system prompt as a diff from the agent's own prompt to the prompt of the winning experiment, one line with the numbers of added, removed and unchanged lines, chips for what did not change, "Copy diff" (the one primary button of the page), and the note "Apply it yourself". When the control experiment is the winning experiment, the title names only "Control", and the note says that there is nothing to apply | A loop with a winning experiment |
@@ -121,6 +122,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | `src/pages/` | One file per page; `agent/loop/` is the Loop tab |
 | `src/pages/agent/loop/useLoop.ts` | Loads one loop and works out the experiments of the loop (`laps`), scores and status |
 | `src/lib/loopResults.ts` | What the three sections of the loop page show in the MVP view |
+| `src/lib/loopSetup.ts` | The fields of the setup card of a loop |
 | `src/lib/loopRules.ts` | The skill's pass and stop rules, ported |
 | `src/lib/sessionNodes.ts` | Turns a session's raw steps into readable ones |
 | `docs/kitaru-ui-route-map.md` | Which API calls each Kitaru page makes. Use it when building a new page |
@@ -130,6 +132,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 
 - A real one-run-per-experiment (MVP) loop. None exists on the server yet.
 - The three sections of the loop page with real data. They were checked in a browser only with a mock API.
+- The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the runner source (release 0.1.0). The card was checked in a browser only with a mock API.
 - "Run again" on an experiment.
 - Session page: a failed session, a running session, and agents not built on openai-agents. Anything it can't read as text falls back to raw JSON.
 - The budget stop and metric gates are not ported, so a loop stopped on budget shows "Stopped early".

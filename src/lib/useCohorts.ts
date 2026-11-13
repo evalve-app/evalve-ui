@@ -6,7 +6,7 @@ import { listCohortVersions, listCohorts } from "../api/client";
 export const cohortVersionsQuery = (cohortId: string) => ({ queryKey: ["cohort-versions", cohortId], queryFn: () => listCohortVersions(cohortId) });
 
 // The cohorts of one agent and the versions of each cohort.
-// API: GET /api/v1/cohorts?filter={agent_id eq}&size=50, then
+// API: GET /api/v1/cohorts?filter={agent_id eq}&size=50, with next_cursor to the end, then
 // GET /api/v1/cohorts/{cohort_id}/versions for each cohort.
 // `versionsByCohort` maps a cohort id to its versions. It has no value for a
 // cohort while its versions call runs, and after that call fails.

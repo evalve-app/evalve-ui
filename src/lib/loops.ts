@@ -141,7 +141,24 @@ type EvalveResult =
   | { status: "stop_attempt_cap" | "stop_budget"; reason: string | null };
 
 type PublishedRun = { experimentId: string; runId: string };
-type EvalveLoop = { requiredGreens: number; result: EvalveResult | null; publishedRuns: PublishedRun[] };
+// The setup of a loop, as the runner writes it in the loop settings line of
+// the control experiment (`description` in its loop.py). A field is null when
+// the line does not carry it in the shape that the runner writes.
+export type EvalveSetup = {
+  name: string | null;
+  cohortVersionId: string | null;
+  agentVersionId: string | null;
+  evaluators: string[] | null; // each one is "<name>@<version>"
+  allowedChanges: string[] | null;
+  allowedModels: string[] | null;
+  requiredGreens: number;
+  maxAttempts: number | null; // the cap on the total number of runs
+  budgetUsd: string | null; // a decimal string, such as "5.00"
+};
+type EvalveLoop = { requiredGreens: number; setup: EvalveSetup; result: EvalveResult | null; publishedRuns: PublishedRun[] };
+
+const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
+const textList = (value: unknown): string[] | null => (Array.isArray(value) && value.every((x) => typeof x === "string") ? value : null);
 
 function parsePublishedRuns(laps: unknown): PublishedRun[] {
   if (!Array.isArray(laps)) return [];
@@ -190,8 +207,20 @@ export function parseEvalveLoop(description: string | null | undefined): EvalveL
       result = { status };
     }
   }
+  const maxAttempts = settings.max_attempts;
   return {
     requiredGreens,
+    setup: {
+      name: text(settings.name),
+      cohortVersionId: text(settings.cohort_version_id),
+      agentVersionId: text(settings.agent_version_id),
+      evaluators: textList(settings.evaluators),
+      allowedChanges: textList(settings.allowed_changes),
+      allowedModels: textList(settings.allowed_models),
+      requiredGreens,
+      maxAttempts: typeof maxAttempts === "number" && Number.isInteger(maxAttempts) ? maxAttempts : null,
+      budgetUsd: text(settings.budget_usd),
+    },
     result,
     publishedRuns: result && result.status !== "running" ? parsePublishedRuns(saved?.laps) : [],
   };

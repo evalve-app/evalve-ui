@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { experimentName, knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import { experimentName, knownLegacyLoop, lapSummary, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -121,5 +121,51 @@ describe("loop status", () => {
     expect(read({ status: "stop_success", winner_lap: 1, loop_id: "other" })?.result).toBeNull();
     expect(read({ status: "stop_success", winner_lap: null })?.result).toBeNull();
     expect(parseEvalveLoop(`${baseline}\nEvalve result: {bad json}`)?.result).toBeNull();
+  });
+});
+
+describe("the setup of a loop in the loop settings line", () => {
+  // The line as `description` in the runner's loop.py writes it on the control experiment.
+  const line = {
+    schema_version: 1, loop_id: "loop-id", lap: 0,
+    name: "Day-30 refunds", cohort_version_id: "cohort-version-id", required_consecutive_greens: 2, max_attempts: 10,
+    budget_usd: "5.00", allowed_changes: ["system_prompt", "model"], allowed_models: ["gpt-4.1"],
+    agent_version_id: "agent-version-id", evaluators: ["refund-policy@3", "kitaru/tool-error@1"],
+  };
+  const read = (settings: Record<string, unknown>) => parseEvalveLoop(`Round 0: Unchanged baseline\nEvalve loop: ${JSON.stringify(settings)}`);
+
+  it("returns each setup field that the runner writes for a new loop", () => {
+    expect(read(line)?.setup).toEqual({
+      name: "Day-30 refunds",
+      cohortVersionId: "cohort-version-id",
+      agentVersionId: "agent-version-id",
+      evaluators: ["refund-policy@3", "kitaru/tool-error@1"],
+      allowedChanges: ["system_prompt", "model"],
+      allowedModels: ["gpt-4.1"],
+      requiredGreens: 2,
+      maxAttempts: 10,
+      budgetUsd: "5.00",
+    });
+  });
+
+  it("gives null for a field that the line does not carry, or carries in a different shape", () => {
+    const { name: _name, budget_usd: _budget, ...rest } = line;
+    expect(read({ ...rest, evaluators: [{ evaluator: "refund-policy", version: 3 }], max_attempts: "10" })?.setup).toEqual({
+      name: null,
+      cohortVersionId: "cohort-version-id",
+      agentVersionId: "agent-version-id",
+      evaluators: null,
+      allowedChanges: ["system_prompt", "model"],
+      allowedModels: ["gpt-4.1"],
+      requiredGreens: 2,
+      maxAttempts: null,
+      budgetUsd: null,
+    });
+  });
+
+  it("reads no setup from a loop that the old skill made", () => {
+    const old = 'Round 0: Unchanged baseline Hypothesis: the window is read as exclusive\nLoop settings: {"name":"Day-30 refunds","criteria":{"trials_per_round":5,"k":3,"max_rounds":4,"budget_usd":1},"allowed_changes":["system_prompt"],"allowed_models":[],"gate_evaluators":["support-desk-action-correct"]}';
+    expect(parseEvalveLoop(old)).toBeNull();
+    expect(parseSettings(old)).toMatchObject({ name: "Day-30 refunds", allowed_changes: ["system_prompt"], gate_evaluators: ["support-desk-action-correct"], criteria: { budget_usd: 1, max_rounds: 4 } });
   });
 });

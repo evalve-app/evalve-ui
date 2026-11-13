@@ -4,20 +4,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Alert, Button } from "../../../design-system/components";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
-import { formatPercent } from "../../../lib/format";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
+import { findSetupCohort, setupFields } from "../../../lib/loopSetup";
 import { CHANGE_FIELD_LABELS, type Criteria } from "../../../lib/loops";
+import { useCohorts } from "../../../lib/useCohorts";
 import { AgentDiffSection } from "./AgentDiffSection";
 import { FinalResultsSection } from "./FinalResultsSection";
 import { LAP_PAGE, LapPanel, LoopStats } from "./LapViews";
 import { LoopStatus } from "./LoopListTab";
 import { ResultsSection } from "./ResultsSection";
-import { useLoop } from "./useLoop";
+import { SetupCard } from "./SetupCard";
+import { useLoop, type LoopData } from "./useLoop";
 
 // One loop. Post-MVP reads it the way the kitaru-loop skill scores it: mean
 // pass^k per lap, the gate on each lap's selection trials, and confirmation on
-// fresh trials. MVP shows the same laps in three sections: Results, Final
-// results, and Agent diff.
+// fresh trials. MVP shows the setup card of the loop, then the same laps in
+// three sections: Results, Final results, and Agent diff.
 export function LoopPage() {
   const { agentId = "", slug = "" } = useParams();
   const navigate = useNavigate();
@@ -52,7 +54,8 @@ export function LoopPage() {
               <h2 className="detail-title">{slug}</h2>
               {loop.totalLaps > 0 && (!loop.isLoading || loop.outcome.kind !== "running") ? <LoopStatus outcome={loop.outcome} /> : null}
             </div>
-            {loop.hypothesis ? <p className="detail-description">{loop.hypothesis}</p> : null}
+            {/* In the MVP view, the setup card shows the hypothesis. */}
+            {loop.hypothesis && !mvp ? <p className="detail-description">{loop.hypothesis}</p> : null}
           </div>
           <div className="toolbar-right">
             <LoopModeToggle />
@@ -61,7 +64,7 @@ export function LoopPage() {
             </Button>
           </div>
         </div>
-        {c ? <CriteriaLine c={c} mvp={mvp} changes={loop.settings!.allowed_changes.map((f) => CHANGE_FIELD_LABELS[f] ?? f)} /> : null}
+        {c && !mvp ? <CriteriaLine c={c} changes={loop.settings!.allowed_changes.map((f) => CHANGE_FIELD_LABELS[f] ?? f)} /> : null}
         {mvp && fullRules && c ? (
           <p className="field-hint">
             This loop ran with the Post-MVP rules ({c.trials_per_round} runs per experiment, pass^{c.k}). The Results table shows each completed run. Final results uses the first completed run of each experiment.
@@ -96,6 +99,8 @@ export function LoopPage() {
         </div>
       ) : null}
 
+      {mvp && loop.totalLaps > 0 ? <LoopSetupCard agentId={agentId} loop={loop} /> : null}
+
       {loop.laps.length > 0 && mvp ? (
         <>
           <ResultsSection loop={loop} onShowOlder={lapPanel.onShowOlder} />
@@ -114,17 +119,17 @@ export function LoopPage() {
   );
 }
 
-function CriteriaLine({ c, changes, mvp }: { c: Criteria; changes: string[]; mvp: boolean }) {
-  const simple = [
-    `${c.trials_per_round} ${c.trials_per_round === 1 ? "run" : "runs"} per experiment`,
-    c.k === 1 ? `target ${formatPercent(c.cohort_target_mean_pass_k)} pass rate` : null,
-    c.no_regression ? "no case may get worse" : null,
-    `max ${c.max_rounds} experiments after the control`,
-    c.plateau_patience != null ? `stops after ${c.plateau_patience} experiments without improvement` : null,
-    c.budget_usd != null ? `budget $${c.budget_usd}` : null,
-    `may change: ${changes.join(", ").toLowerCase()}`,
-  ];
-  const full = [
+// The read-only setup card of the loop. It gets the name and the version of
+// the cohort from the cohorts of the agent.
+function LoopSetupCard({ agentId, loop }: { agentId: string; loop: LoopData }) {
+  const { cohorts, versionsByCohort } = useCohorts(agentId);
+  const cohort = findSetupCohort(cohorts.data ?? [], versionsByCohort, loop.cohortVersionId);
+  return <SetupCard fields={setupFields({ slug: loop.slug, hypothesis: loop.hypothesis, evalve: loop.evalveSetup, settings: loop.settings, cohort })} />;
+}
+
+// The rules of the loop as a row of chips, in the Post-MVP view.
+function CriteriaLine({ c, changes }: { c: Criteria; changes: string[] }) {
+  const items = [
     `${c.trials_per_round} trials per experiment`,
     `pass^${c.k}`,
     c.per_case_floor === "strict" ? "floor: no misses" : "floor: one miss allowed",
@@ -135,8 +140,7 @@ function CriteriaLine({ c, changes, mvp }: { c: Criteria; changes: string[]; mvp
     c.plateau_patience != null ? `plateau patience ${c.plateau_patience}` : null,
     c.budget_usd != null ? `budget $${c.budget_usd}` : null,
     `may change: ${changes.join(", ").toLowerCase()}`,
-  ];
-  const items = (mvp ? simple : full).filter(Boolean);
+  ].filter(Boolean);
   return (
     <div className="criteria-line" aria-label="Loop rules">
       {items.map((t) => (

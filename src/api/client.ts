@@ -190,10 +190,18 @@ export async function listRunReplays(runId: string) {
   return page.items;
 }
 
+// Every cohort of an agent. The server sends 50 for each call, so this
+// follows next_cursor to the end.
 export async function listCohorts(agentId: string) {
   const filter: Filter = { field: "agent_id", op: "eq", value: agentId };
-  const page = await unwrap(api.GET("/api/v1/cohorts", { params: { query: { filter: filter as never, size: 50 } } }), "cohorts");
-  return page.items;
+  const cohorts: Cohort[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await unwrap(api.GET("/api/v1/cohorts", { params: { query: { filter: filter as never, size: 50, cursor } } }), "cohorts");
+    cohorts.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return cohorts;
 }
 
 // One cohort, or null when the server has no cohort with this id.
