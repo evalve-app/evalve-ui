@@ -362,6 +362,10 @@ h1, h2, p { margin: 0; }
 .rs-legend { display: flex; flex-wrap: wrap; gap: var(--spacing-1) var(--spacing-4); margin-top: var(--spacing-3); color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 .rs-legend > span { display: inline-flex; align-items: center; gap: var(--spacing-1-5); }
 .rs-experiment { font: 500 13px/18px var(--font-sans); white-space: nowrap; }
+.rs-experiment-name { border-radius: var(--radius-sm); text-decoration: underline dotted; text-underline-offset: 3px; cursor: default; }
+.rs-experiment-name:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.rs-tip { position: fixed; z-index: 30; white-space: normal; }
+.rs-tip[hidden] { display: none; }
 .rs-squares { display: flex; flex-wrap: wrap; gap: var(--spacing-0-5); max-width: 340px; }
 .rs-square { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: calc(var(--radius-sm) / 2); background: var(--surface-muted); }
 .rs-square.pass { background: var(--tint-success-30); }

@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, type SyntheticEvent } from "react";
 import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "../../../design-system/components";
@@ -68,7 +68,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                 <Fragment key={row.lap}>
                   <tr>
                     <td className="rs-experiment">
-                      <span title={row.summary || undefined}>{row.name}</span>
+                      <ExperimentName id={`results-lap-${row.lap}-summary`} name={row.name} summary={row.summary} />
                       {row.winning ? (
                         <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
                           ★
@@ -110,6 +110,27 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
       </div>
       <p className="rs-footer">{table.statusNote}</p>
     </section>
+  );
+}
+
+// The name of the experiment, with its summary in a tooltip. The name takes
+// focus, so the tooltip opens on hover, on keyboard focus and on a tap. The
+// tooltip has a fixed position, so the scroll area of the table does not cut it.
+function ExperimentName({ id, name, summary }: { id: string; name: string; summary: string }) {
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  if (!summary) return <span>{name}</span>;
+  const show = (e: SyntheticEvent<HTMLElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    setAt({ left: box.left, top: box.bottom + 4 });
+  };
+  const hide = () => setAt(null);
+  return (
+    <span className="rs-experiment-name" tabIndex={0} aria-describedby={id} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onKeyDown={(e) => (e.key === "Escape" ? hide() : undefined)}>
+      {name}
+      <span id={id} role="tooltip" className="ev-tooltip rs-tip" hidden={!at} style={at ?? undefined}>
+        {summary}
+      </span>
+    </span>
   );
 }
 
