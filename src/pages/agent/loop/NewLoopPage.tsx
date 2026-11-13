@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy } from "lucide-react";
@@ -56,7 +56,13 @@ export function NewLoopPage() {
   const cohortOptions = (cohorts.data ?? []).flatMap((c) =>
     (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count, text: cohortVersionText({ name: c.name, version: versionLabel(v), caseCount: v.session_count }) })),
   );
-  const agentEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
+  const liveEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
+  // The evaluators at the time of Approve (MVP view). The locked card and the handoff prompt use them until Cancel,
+  // so that a later request cannot put a version in the handoff prompt that the person did not approve.
+  const [approvedEvaluators, setApprovedEvaluators] = useState<typeof liveEvaluators | null>(null);
+  const agentEvaluators = approvedEvaluators ?? liveEvaluators;
+  // The number of the current approval. Cancel starts a new number, and a clipboard write of an older number changes nothing.
+  const approvalNumber = useRef(0);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);
 
   const [name, setName] = useState("");
@@ -175,19 +181,32 @@ export function NewLoopPage() {
   const hasProblem = problems.length > 0 || !agent.data;
   const buttons = approveButtons(approval, { hasProblem });
   const act = (action: ApproveAction) => setApproval((state) => nextApproveState(state, action, { hasProblem }));
+  function approve() {
+    if (!buttons.approve) return;
+    setApprovedEvaluators(liveEvaluators);
+    act("approve");
+  }
   function cancelApproval() {
+    if (!buttons.cancel) return;
+    approvalNumber.current += 1;
+    setApprovedEvaluators(null);
     setCopyFailed(false);
     act("cancel");
   }
   async function copyHandoffPrompt() {
+    const mine = approvalNumber.current;
+    let failed = false;
     try {
       await navigator.clipboard.writeText(prompt);
     } catch {
       // The browser can refuse the clipboard (no permission, or no HTTPS).
-      setCopyFailed(true);
-      return;
+      failed = true;
     }
-    setCopyFailed(false);
+    // The person canceled this approval while the clipboard write was not complete. The clipboard can hold the
+    // handoff prompt of the old setup, so the page does not show a copy of the new setup.
+    if (mine !== approvalNumber.current) return;
+    setCopyFailed(failed);
+    if (failed) return;
     act("copyPrompt");
   }
 
@@ -305,7 +324,7 @@ export function NewLoopPage() {
               <Button variant="outline" disabled={!buttons.cancel} onClick={cancelApproval}>
                 Cancel
               </Button>
-              <Button variant="outline" disabled={!buttons.approve} onClick={() => act("approve")}>
+              <Button variant="outline" disabled={!buttons.approve} onClick={approve}>
                 Approve
               </Button>
               <Button disabled={!buttons.getPrompt} onClick={() => act("getPrompt")}>
@@ -329,7 +348,19 @@ export function NewLoopPage() {
             </div>
             <div className="handoff-actions">
               <p className="handoff-status" aria-live="polite">
-                {approval === "copied" ? "Waiting for your coding agent to create the control experiment." : copyFailed ? "Could not copy. Select the handoff prompt and copy it." : null}
+                {approval !== "copied" ? (
+                  copyFailed ? "Could not copy. Select the handoff prompt and copy it." : null
+                ) : experiments.error ? (
+                  // The page cannot see the control experiment while this request fails. The interval continues.
+                  <>
+                    <span className="setup-problem">Could not read the experiments of the agent ({experiments.error.message}).</span> The page tries again every {POLL_MS / 1000} seconds. If the error stays, sign in again.{" "}
+                    <button type="button" className="text-button small-link" onClick={() => experiments.refetch()}>
+                      Try again now
+                    </button>
+                  </>
+                ) : (
+                  "Waiting for your coding agent to create the control experiment."
+                )}
               </p>
               <div className="form-bar-actions">
                 <Button variant="outline" onClick={() => navigate(`/agents/${agentId}/loop`)}>
