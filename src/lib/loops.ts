@@ -126,7 +126,7 @@ const KNOWN_LOOPS: Record<string, KnownLoop> = {
   },
   "support-desk-demo": {
     baselineExperimentId: "01a1c733-f326-70af-af44-7e9bc55cb10a",
-    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "All 20 cases passed in two consecutive replays." },
+    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "All 20 cases passed in two consecutive runs." },
   },
 };
 
@@ -246,7 +246,7 @@ export function resolveLoopOutcome(
     return {
       kind: "completed", passed: true, winnerLap: lap,
       title: passedTitle(lap),
-      detail: lap === 0 ? CONTROL_PASSED_DETAIL : `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}.`,
+      detail: lap === 0 ? CONTROL_PASSED_DETAIL : `Every case passed in ${greens} consecutive ${greens === 1 ? "run" : "runs"}.`,
     };
   }
   if (result?.status === "stop_attempt_cap" || result?.status === "stop_budget") {

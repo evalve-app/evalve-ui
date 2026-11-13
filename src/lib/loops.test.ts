@@ -54,7 +54,7 @@ describe("loop status", () => {
     const evalve = read({ status: "stop_success", winner_lap: 1 });
     expect(resolveLoopOutcome(evalve, null, true, "running")).toEqual({
       kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed",
-      detail: "Every case passed in 2 consecutive replays.",
+      detail: "Every case passed in 2 consecutive runs.",
     });
   });
 

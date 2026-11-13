@@ -39,7 +39,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 - Give the Post-MVP view and the compare page the glossary words. They still show "regression" and "trials".
 - Cost in Final results. The server gives no cost for an experiment run.
 - Cohorts with more than 50 cases. The server gives results for only the 50 most recent replays of a run, so this needs a server change. Today the count says "first 50 of N".
-- Always load the control experiment together with the newest experiments. The loop page loads only the newest 20 experiments, so on a longer loop "was N of M", the "Got worse" card, and the "No case got worse" row do not show until the person shows the older experiments. The fix changes the gates of the Post-MVP view and the compare page, because they then compare with the baseline lap.
+- Always load the control experiment together with the newest experiments. The loop page loads only the newest 20 experiments, so on a longer loop "was N of M" and the "Got worse" card do not show until the person shows the older experiments. The fix changes the gates of the Post-MVP view and the compare page, because they then compare with the baseline lap.
 - A link from each added prompt line to the experiment that added it.
 - "Export report" and "Other end states" from the hi-fi.
 - Dark mode.
