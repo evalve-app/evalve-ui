@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy } from "lucide-react";
 import { Alert, Button } from "../../../design-system/components";
+import { experimentName } from "../../../lib/loops";
 import { agentDiff, type AgentDiffCopy } from "../../../lib/loopResults";
 import { agentOwnSettingsQuery } from "../../../lib/queries";
 import type { LoopData } from "./useLoop";
@@ -34,7 +35,7 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
         <h3 id="agent-diff-title" className="section-title">
           Agent diff
         </h3>
-        <p className="agent-diff-sub">The change that lap {diff.winnerLap}, the winning lap, made to the agent.</p>
+        <p className="agent-diff-sub">{diff.winnerLap === 0 ? "The control experiment is the winning experiment. It made no change to the agent." : `The change that ${experimentName(diff.winnerLap, "inline")}, the winning experiment, made to the agent.`}</p>
       </div>
 
       <div className="agent-diff-card">
@@ -118,16 +119,16 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
         {diff.lapRows.length ? (
           <div className="agent-diff-card">
             <div className="agent-diff-card-head">
-              <span className="agent-diff-card-title">What each lap changed</span>
-              <span className="panel-sub">Cases that passed, from the lap before to this lap</span>
+              <span className="agent-diff-card-title">What each experiment changed</span>
+              <span className="panel-sub">Cases that passed, from the experiment before to this experiment</span>
             </div>
             <ul className="agent-diff-laps">
               {diff.lapRows.map((r) => (
                 <li key={r.lap}>
                   <span className="agent-diff-lap mono">
-                    Lap {r.lap}
+                    {experimentName(r.lap)}
                     {r.winning ? (
-                      <span className="winner-mark" title="The winning lap" aria-label="the winning lap">
+                      <span className="winner-mark" title="The winning experiment" aria-label="the winning experiment">
                         ★
                       </span>
                     ) : null}
@@ -141,7 +142,7 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
         ) : null}
 
         <Alert variant="neutral" title="Apply it yourself">
-          The dashboard does not change your agent. To use the change of the winning lap, apply it in the code of your agent.
+          The dashboard does not change your agent. To use the change of the winning experiment, apply it in the code of your agent.
         </Alert>
       </div>
     </section>

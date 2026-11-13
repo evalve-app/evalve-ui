@@ -8,7 +8,8 @@
 // - The loop's rules live in the skill's kitaru-loop.json. The skill copies
 //   them into round 0's description as one line, `Loop settings: {json}`, so
 //   the dashboard can apply the same gate.
-// The UI calls a round a "lap".
+// The UI calls a round an "experiment", and the first round the "control experiment".
+// The code calls a round a `lap`.
 import type { Experiment, ExperimentRun } from "../api/client";
 
 export type ChangeField = "system_prompt" | "model" | "model_params";
@@ -121,11 +122,11 @@ const KNOWN_LOOPS: Record<string, KnownLoop> = {
       allowed_models: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini"],
       gate_evaluators: ["support-desk-action-correct"],
     },
-    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
+    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
   },
   "support-desk-demo": {
     baselineExperimentId: "01a1c733-f326-70af-af44-7e9bc55cb10a",
-    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Lap 1 passed", detail: "All 20 cases passed in two consecutive replays." },
+    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "All 20 cases passed in two consecutive replays." },
   },
 };
 
@@ -215,6 +216,23 @@ export function shouldPollLoopRuns(
   return evalve.publishedRuns.some(({ experimentId, runId }) => experimentIds.includes(experimentId) && !cachedIds.has(runId));
 }
 
+// The name that the UI shows for lap `lap`. Lap 0 is the control experiment,
+// and the UI shows no number for it. This is the one place that maps 0 to that name.
+// "label" starts a sentence or stands alone, "inline" goes inside a sentence,
+// and "short" is for a place with no room for the word "experiment".
+export function experimentName(lap: number, form: "label" | "inline" | "short" = "label"): string {
+  if (lap === 0) return form === "short" ? "Control" : form === "inline" ? "the control experiment" : "Control experiment";
+  return form === "short" ? String(lap) : form === "inline" ? `experiment ${lap}` : `Experiment ${lap}`;
+}
+
+// The outcome title of a loop that lap `lap` made pass.
+export function passedTitle(lap: number): string {
+  return lap === 0 ? "The control passed" : `${experimentName(lap)} passed`;
+}
+
+const CONTROL_PASSED_DETAIL = "The agent met the target with no change.";
+export const NO_EXPERIMENT_PASSED = "No experiment passed";
+
 export function resolveLoopOutcome(
   evalve: EvalveLoop | null,
   legacyCompletion: CompletedLoop | null,
@@ -224,15 +242,16 @@ export function resolveLoopOutcome(
   const result = evalve?.result;
   if (evalve && result?.status === "stop_success") {
     const greens = evalve.requiredGreens;
+    const lap = result.winnerLap;
     return {
-      kind: "completed", passed: true, winnerLap: result.winnerLap,
-      title: `Lap ${result.winnerLap} passed`,
-      detail: `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}.`,
+      kind: "completed", passed: true, winnerLap: lap,
+      title: passedTitle(lap),
+      detail: lap === 0 ? CONTROL_PASSED_DETAIL : `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}.`,
     };
   }
   if (result?.status === "stop_attempt_cap" || result?.status === "stop_budget") {
     return {
-      kind: "completed", passed: false, winnerLap: null, title: "No lap passed",
+      kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED,
       detail: result.reason ?? (result.status === "stop_budget" ? "The loop reached its replay budget." : "The loop reached its replay attempt cap."),
     };
   }
@@ -243,7 +262,7 @@ export function resolveLoopOutcome(
 
 // The one-line change a lap made: the skill writes "Round N: <change> Hypothesis: …".
 export function lapSummary(description: string | null | undefined, lap: number) {
-  if (lap === 0) return "Baseline lap, no changes";
+  if (lap === 0) return "Replay with no changes";
   const first = (description ?? "").split("\n")[0] ?? "";
   return first
     .replace(/^\s*(lap|round|iteration)\s*\d+\s*:\s*/i, "")

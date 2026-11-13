@@ -13,7 +13,7 @@ import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../
 import { caseName } from "../../../lib/experiments";
 import { evaluatorReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -216,13 +216,13 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         kind: "completed",
         passed: true,
         winnerLap: decision.lap,
-        title: `Lap ${decision.lap} passed`,
+        title: passedTitle(decision.lap),
         detail: `It met every check across ${c.trials_per_round} runs${decision.confirmed ? `, then met them again on ${c.trials_per_round} fresh runs` : ""}.`,
       };
     else if (!legacyCompletion && decision?.action === "stop_plateau")
-      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: `The loop stopped because ${decision.patience} laps in a row did no better than lap ${decision.bestLap}.` };
+      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop stopped because ${decision.patience} experiments in a row did no better than ${experimentName(decision.bestLap, "inline")}.` };
     else if (!legacyCompletion && c && decision?.action === "stop_cap")
-      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: "No lap passed", detail: `The loop ran all ${c.max_rounds} laps it was allowed.` };
+      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop ran all ${c.max_rounds} experiments it was allowed after the control.` };
     const outcome = resolveLoopOutcome(evalve, legacyCompletion, running, runs.data?.[0]?.status);
 
     return {

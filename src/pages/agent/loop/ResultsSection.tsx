@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { Badge, StatusLabel } from "../../../design-system/components";
+import { experimentName } from "../../../lib/loops";
 import { resultsTable, type ResultsCell, type ResultsReplay, type ResultsRow } from "../../../lib/loopResults";
 import { LAP_PAGE } from "./LapViews";
 import type { LoopData } from "./useLoop";
@@ -21,7 +22,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
       <div className="panel-head">
         <div>
           <div className="panel-title">Results</div>
-          <div className="panel-sub">One row for each lap, and one column for each gating evaluator. A square opens the result session of its replay in a new tab.</div>
+          <div className="panel-sub">One row for each experiment, and one column for each gating evaluator. A square opens the result session of its replay in a new tab.</div>
         </div>
         <span className="legend">
           <span>
@@ -35,14 +36,14 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
       </div>
       {loop.totalLaps > loop.laps.length ? (
         <button type="button" className="text-button older" onClick={onShowOlder}>
-          Show {Math.min(LAP_PAGE, loop.totalLaps - loop.laps.length)} older laps
+          Show {Math.min(LAP_PAGE, loop.totalLaps - loop.laps.length)} older experiments
         </button>
       ) : null}
       <div className="results-wrap">
         <table className="results-table">
           <thead>
             <tr>
-              <th>Lap</th>
+              <th>Experiment</th>
               {table.evaluators.length ? (
                 table.evaluators.map((name) => (
                   <th key={name} className="mono" title="Gating evaluator">
@@ -53,8 +54,8 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                 <th>Replays</th>
               )}
               <th>Status</th>
-              <th>Lap result</th>
-              <th aria-label="Replays of the lap" />
+              <th>Experiment result</th>
+              <th aria-label="Replays of the experiment" />
             </tr>
           </thead>
           <tbody>
@@ -67,9 +68,9 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                   <tr>
                     <td className="rs-lap">
                       <span className="rs-lap-num">
-                        Lap {row.lap}
+                        {experimentName(row.lap, row.lap === 0 ? "short" : "label")}
                         {row.winning ? (
-                          <span className="winner-mark" role="img" aria-label="Winning lap" title="Winning lap">
+                          <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
                             ★
                           </span>
                         ) : null}
@@ -89,7 +90,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                     <td>{row.result ? <LapResultBadge result={row.result} /> : hasResults ? <span className="muted">—</span> : null}</td>
                     <td>
                       {hasResults ? (
-                        <button type="button" className="text-button rs-toggle" aria-expanded={isOpen} aria-controls={detailId} aria-label={`${isOpen ? "Hide" : "Show"} replays of lap ${row.lap}`} onClick={() => toggle(row.lap)}>
+                        <button type="button" className="text-button rs-toggle" aria-expanded={isOpen} aria-controls={detailId} aria-label={`${isOpen ? "Hide" : "Show"} replays of ${experimentName(row.lap, "inline")}`} onClick={() => toggle(row.lap)}>
                           {isOpen ? "Hide replays" : "Show replays"}
                           <ChevronDown size={14} aria-hidden className={isOpen ? "chev open" : "chev"} />
                         </button>
@@ -144,7 +145,7 @@ function LapResultBadge({ result }: { result: NonNullable<ResultsRow["result"]> 
 function ReplayList({ lap, replays }: { lap: number; replays: ResultsReplay[] }) {
   return (
     <div className="rs-replays-wrap">
-      <table className="rs-replays" aria-label={`Replays of lap ${lap}`}>
+      <table className="rs-replays" aria-label={`Replays of ${experimentName(lap, "inline")}`}>
         <thead>
           <tr>
             <th>Case</th>

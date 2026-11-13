@@ -40,40 +40,42 @@ _Avoid_: Snapshot, revision
 A named check that scores one session and gives a result for it. Evaluators are kept as numbered versions. An experiment names the evaluators that score its replays.
 _Avoid_: Judge, grader, metric
 
-### Loops
+### Experiments
 
-**Loop**:
-A set of experiments that the `kitaru-loop` skill runs to improve an agent, one change at a time.
-
-**Lap**:
-One experiment in a loop. Lap 0 is the baseline lap, and each later lap makes one change.
-_Avoid_: Round, iteration (words in server experiment names; use them only when you name a server experiment)
-
-**Baseline lap**:
-Lap 0 of a loop. It replays the cohort with no change, and later laps are scored against it.
-_Avoid_: Baseline (alone), baseline audit, round 0
+**Experiment**:
+One replay of a cohort version with a named set of evaluators, with or without a change to the agent. An experiment has one or more runs. A loop is a set of experiments.
+_Avoid_: Lap, round, iteration (use "round" and "iteration" only when you name a server experiment)
 
 **Run**:
-One pass of an experiment over every case in the cohort. A lap can have several runs.
+One pass of an experiment over every session in its cohort version. Each of these sessions is a case. The run makes one replay for each session, and the evaluators of the experiment score each replay. An experiment can have several runs.
 _Avoid_: Trial (a trial is a phase of a run, not the run itself)
 
 **Phase**:
-The role of a run inside a lap: screen, trial, or confirmation.
+The role of a run inside an experiment: screen, trial, or confirmation.
+
+### Loops
+
+**Loop**:
+A set of experiments, run one after the other to improve an agent, one change at a time.
+
+**Control experiment**:
+The experiment of a loop that replays the cohort with no change. Later experiments are scored against it. It has no number.
+_Avoid_: Baseline lap, baseline (alone), baseline audit, round 0, control group, experiment 0
 
 **Gating evaluator**:
 An evaluator whose result decides if a case passed in a loop. A case passes a run only when it passes every gating evaluator.
 _Avoid_: Gate evaluator, scoring evaluator
 
-**Winning lap**:
-The lap that made the loop pass. A loop that did not pass has no winning lap.
-_Avoid_: Winner, best lap (for a loop that passed)
+**Winning experiment**:
+The experiment that made the loop pass. A loop that did not pass has no winning experiment. The control experiment can be the winning experiment.
+_Avoid_: Winner, best experiment (for a loop that passed)
 
-**Best lap**:
-The lap after the baseline lap with the highest pass rate, in a loop that did not pass.
-_Avoid_: Winning lap
+**Best experiment**:
+The experiment after the control experiment with the highest pass rate, in a loop that did not pass.
+_Avoid_: Winning experiment
 
 **Got worse**:
-A case got worse when it passed in the baseline lap and failed in a later lap.
+A case got worse when it passed in the control experiment and failed in a later experiment.
 _Avoid_: Regression, regressed
 
 ### Coding agents
@@ -90,4 +92,4 @@ _Avoid_: Client, machine
 
 ## Flagged ambiguities
 
-- "Baseline" alone has three meanings in the code: the baseline lap, the recorded session (`baseline_session_id`), and the experiment grid's "Baseline" row, which scores the recorded session. Say "baseline lap" or "recorded session". Use "baseline" alone only where the context makes the meaning clear.
+- In the UI, "baseline" has one meaning: the "Baseline" row of the experiment grid, which scores the recorded session. Say "control experiment" for the experiment of a loop with no change, and "recorded session" for the session itself.

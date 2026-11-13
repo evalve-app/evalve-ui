@@ -18,7 +18,7 @@ import {
 import { Alert, StatusLabel } from "../design-system/components";
 import { caseName } from "../lib/experiments";
 import { formatCost, formatDateTime, formatDuration } from "../lib/format";
-import { parseRoundName } from "../lib/loops";
+import { experimentName, parseRoundName } from "../lib/loops";
 import { buildSteps, isPlainObject, oneLine, pretty, replyText, stepSummary, stepTitle, systemPrompt, turnsOf, type Step } from "../lib/sessionNodes";
 
 // One session: what the agent was asked, each step it took, what it returned,
@@ -105,7 +105,7 @@ export function SessionPage() {
                 {round ? (
                   <>
                     {" "}
-                    (lap {round.lap} of loop{" "}
+                    ({experimentName(round.lap, "inline")} of loop{" "}
                     <Link to={`/agents/${agentId}/loop/${round.slug}`} className="inline-link mono">
                       {round.slug}
                     </Link>

@@ -4,9 +4,10 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 
 ## What the skill writes
 
-1. **One experiment per round**, named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The dashboard groups experiments into loops by that prefix. The UI calls a round a lap.
-   The dashboard also reads experiments named `<prefix>-iteration-1`, `<prefix>-iteration-2`, and so on. Iterations count from 1, so iteration n is lap n − 1 and iteration 1 is the baseline lap. The older `support-desk-demo` loop used these names.
-2. **Round 0 is the baseline audit**: no override, n trials per case.
+1. **One experiment per round**, named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The dashboard groups experiments into loops by that prefix. The UI calls a round an experiment. Round 0 is the control experiment.
+   The code names an experiment in a loop `lap`. The runner fields `lap`, `winner_lap`, and `laps` keep that name.
+   The dashboard also reads experiments named `<prefix>-iteration-1`, `<prefix>-iteration-2`, and so on. Iterations count from 1, so iteration n is experiment n − 1 and iteration 1 is the control experiment. The older `support-desk-demo` loop used these names.
+2. **Round 0 is the control experiment** (the skill calls it the baseline audit): no override, n trials per case.
 3. **Every later round makes one change**, stored as the experiment's override. Its description starts `Round <n>: <the change>`, then `Hypothesis: …`.
 4. **Round 0's description ends with one line, `Loop settings: {json}`.** It carries the rules from `kitaru-loop.json`: `name`, `criteria`, `allowed_changes`, `allowed_models` and `gate_evaluators`. `settings_line` in the skill's `loop.py` writes it.
 
@@ -22,17 +23,17 @@ This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from
 ## What the dashboard can't see
 
 - **Legacy metric gates and budget stops.** They need costs the dashboard doesn't load. Legacy runs with these limits need a published result to report completion.
-- **A loop with no settings line.** The page lists its laps and results. It uses the archived outcomes for `day-30-refunds` and the original `support-desk-demo` loop in `KNOWN_LOOPS` in `src/lib/loops.ts`. Published metadata takes precedence when available.
+- **A loop with no settings line.** The page lists its experiments and results. It uses the archived outcomes for `day-30-refunds` and the original `support-desk-demo` loop in `KNOWN_LOOPS` in `src/lib/loops.ts`. Published metadata takes precedence when available.
 - **Evidence files** (`sessions/kitaru-loop/`, `results.md`). They stay on the machine that ran the loop.
 
 ## MVP and Post-MVP views
 
-The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the baseline experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning lap.
+The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the control experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning experiment.
 
 The Loop tab remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The New loop form starts in MVP and has its own version switch.
 
-- **Post-MVP** shows the skill's full rules: several trials per lap, mean pass^k, the gate, and confirmation.
-- **MVP** shows a plain pass rate and one Passed / Not passed result per lap. On the loop page, the pass rate of a lap is the share of cases that passed each gating evaluator in the first completed run of the lap. The compare page uses the share of case runs that passed over every run of the lap.
+- **Post-MVP** shows the skill's full rules: several trials per experiment, mean pass^k, the gate, and confirmation.
+- **MVP** shows a plain pass rate and one Passed / Not passed result per experiment. On the loop page, the pass rate of an experiment is the share of cases that passed each gating evaluator in the first completed run of the experiment. The compare page uses the share of case runs that passed over every run of the experiment.
 
 The MVP New loop form asks for consecutive green runs, a total run-attempt cap, and a replay budget. The handoff prompt pins the Kitaru server, cohort, evaluator versions, and an Evalve Loop release hosted by the dashboard. The coding agent verifies the release files and saves them with the per-loop config in the agent project. It resolves the replay tool policy, evaluator parameters, and models the replay worker can access before launching the loop.
 

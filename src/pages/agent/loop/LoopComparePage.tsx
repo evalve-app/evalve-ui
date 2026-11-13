@@ -2,6 +2,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { Alert } from "../../../design-system/components";
 import { useLoopMode } from "../../../lib/loopMode";
+import { experimentName } from "../../../lib/loops";
 import { CompareCard, LapGrid, Legend } from "./LapViews";
 import { useLoop } from "./useLoop";
 
@@ -24,7 +25,7 @@ export function LoopComparePage() {
           <ArrowLeft size={14} aria-hidden />
           {slug}
         </button>
-        <h2 className="detail-title sans">Compare laps {laps.map((l) => l.lap).join(", ")}</h2>
+        <h2 className="detail-title sans">Compare experiments: {laps.map((l) => experimentName(l.lap, "short")).join(", ")}</h2>
       </div>
 
       {loop.error ? (
@@ -35,8 +36,8 @@ export function LoopComparePage() {
 
       {!loop.isLoading && laps.length < 2 ? (
         <div className="empty-state">
-          <p className="empty-title">Pick at least two laps</p>
-          <p className="empty-text">Go back to the loop, tick the laps you want, and choose Compare.</p>
+          <p className="empty-title">Pick at least two experiments</p>
+          <p className="empty-text">Go back to the loop, tick the experiments you want, and choose Compare.</p>
         </div>
       ) : null}
 
@@ -45,8 +46,8 @@ export function LoopComparePage() {
           <div className="panel lap-panel">
             <div className="panel-head">
               <div>
-                <div className="panel-title">Selected laps</div>
-                <div className="panel-sub">{single ? "Each cell is one case in that lap's run." : "Each cell is one case across all of that lap's runs."}</div>
+                <div className="panel-title">Selected experiments</div>
+                <div className="panel-sub">{single ? "Each cell is one case in that experiment's run." : "Each cell is one case across all of that experiment's runs."}</div>
               </div>
               <Legend single={single} />
             </div>

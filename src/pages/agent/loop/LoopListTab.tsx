@@ -30,7 +30,7 @@ export function LoopListTab() {
       <div className="toolbar">
         <div className="toolbar-left">
           <p className="toolbar-intro">
-            {mvp ? "Change one thing per lap and replay the cohort until every case passes the required number of times in a row." : "Change one thing per lap, replay the cohort several times, and stop only when the result holds up on fresh trials."}
+            {mvp ? "Change one thing per experiment and replay the cohort until every case passes the required number of times in a row." : "Change one thing per experiment, replay the cohort several times, and stop only when the result holds up on fresh trials."}
           </p>
         </div>
         <div className="toolbar-right">
@@ -54,7 +54,7 @@ export function LoopListTab() {
         <div className="empty-state">
           <Repeat2 size={24} aria-hidden />
           <p className="empty-title">No loops yet</p>
-          <p className="empty-text">Set the cohort, what may change and when to stop. Your coding agent runs the laps and the results show up here.</p>
+          <p className="empty-text">Set the cohort, what may change and when to stop. Your coding agent runs the experiments and the results show up here.</p>
           <Button variant="outline" icon={Plus} onClick={() => navigate("new")}>
             New loop
           </Button>
@@ -68,8 +68,8 @@ export function LoopListTab() {
               <tr>
                 <th className="fill">Loop</th>
                 <th>Status</th>
-                <th className="num">Laps</th>
-                <th>{mvp ? "Pass rate, baseline → best" : "Mean pass^k, baseline → best"}</th>
+                <th className="num">Changes tried</th>
+                <th>{mvp ? "Pass rate, control → highest" : "Mean pass^k, control → highest"}</th>
                 <th>May change</th>
                 <th>Last run</th>
               </tr>
