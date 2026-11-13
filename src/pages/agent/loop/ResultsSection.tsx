@@ -84,7 +84,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                         {row.noResults}
                       </td>
                     )}
-                    <td className="rs-rate">{row.passRate ?? <span className="muted">—</span>}</td>
+                    <td className="rs-rate">{row.passRate ?? <span className="muted" title={row.incomplete ? `The pass rate needs each completed run: ${row.incomplete}` : undefined}>—</span>}</td>
                     <td>
                       <Badge variant="neutral">{row.status}</Badge>
                     </td>

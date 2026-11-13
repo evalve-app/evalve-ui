@@ -100,7 +100,9 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
   });
 
   // A stable key that changes whenever any per-run result arrives.
-  const resultsKey = aggs.map((a) => a.dataUpdatedAt).join(",") + "|" + reps.map((r) => r.dataUpdatedAt).join(",");
+  const resultsKey = [...aggs, ...reps].map((q) => `${q.dataUpdatedAt}:${q.errorUpdatedAt}`).join(",");
+  // A failed request for the results of a run. The totals of its experiment are not complete then.
+  const resultsError = [...aggs, ...reps].find((q) => q.error)?.error ?? null;
 
   return useMemo<LoopData>(() => {
     const legacySettings = parseSettings(round0?.description);
@@ -183,7 +185,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     // The first case of the whole cohort, also when it has no result in the laps that are loaded.
     const firstCohortCase = inCaseOrder([...byId.keys()])[0] ?? null;
 
-    const runData = new Map([...runSessions].map(([id, cells]) => [id, { cells, evaluators: runEvaluators.get(id) ?? [] }]));
+    const runData = new Map([...runSessions].map(([id, cells]) => [id, { cells, evaluators: runEvaluators.get(id) ?? [], passed: runCases.get(id) ?? new Map<string, boolean | null>() }]));
     for (const l of laps) {
       for (const cs of cases) {
         const runsForCase: CellRun[] = l.runs.flatMap((r) => {
@@ -245,7 +247,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       decision,
       outcome,
       isLoading: loading,
-      error: (experiments.error ?? runs.error ?? null) as Error | null,
+      error: (experiments.error ?? runs.error ?? resultsError) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve]);
