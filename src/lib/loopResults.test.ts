@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { EvalAggregate, Replay } from "../api/client";
-import { agentDiff, evaluatorReplays, finalResults, resultsTable, runResults, type AgentDiffInput, type AgentDiffLap, type FinalResultsLoop, type ResultsLap, type RunCell } from "./loopResults";
+import { agentDiff, evaluatorReplays, finalResults, resultsTable, runReplays, runResults, type AgentDiffInput, type AgentDiffLap, type EvaluatorReplays, type FinalResultsLoop, type ResultsLap, type RunCell, type RunReplays } from "./loopResults";
 import { DEFAULT_CRITERIA, lapSummary } from "./loops";
 
 const cases = [
@@ -52,13 +52,41 @@ describe("evaluatorReplays", () => {
   it("gives no lists for a lap with no completed run", () => {
     expect(evaluatorReplays(undefined, cases, ["action-correct"])).toEqual([]);
   });
+});
 
-  it("gives each replay the status that the server gives for it", () => {
-    const withStatus = new Map<string, RunCell>([
-      ["s1", { sessionId: "r1", status: "completed", results: [{ evaluator: "action-correct", passed: true }] }],
-      ["s2", { sessionId: null, status: "failed", results: [{ evaluator: "action-correct", passed: false }] }],
-    ]);
-    expect(evaluatorReplays(withStatus, cases, ["action-correct"])[0].replays.map((r) => r.status)).toEqual(["completed", "failed"]);
+describe("runReplays", () => {
+  const results = (cells: Map<string, RunCell>, passed = new Map<string, boolean | null>()) => ({ cells, evaluators: ["action-correct"], passed });
+  const second = new Map<string, RunCell>([["s1", { sessionId: "q1", results: [{ evaluator: "action-correct", passed: true }] }]]);
+
+  it("keeps the replays of each completed run, with the run number and the run status, oldest run first", () => {
+    const runs = [
+      { id: "b", number: 2, status: "completed" },
+      { id: "a", number: 1, status: "completed" },
+    ];
+    const list = runReplays(runs, new Map([["a", results(run)], ["b", results(second)]]), cases, ["action-correct"]);
+    expect(list.map((r) => [r.run, r.status])).toEqual([[1, "completed"], [2, "completed"]]);
+    expect(list[0].evaluatorReplays).toEqual(evaluatorReplays(run, cases, ["action-correct"], ["action-correct"]));
+    expect(list[1]).toMatchObject({ unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: [{ caseId: "s1", caseName: "refund-01", sessionId: "q1", passed: true }] }] });
+  });
+
+  it("leaves out a run that has no results: a run that is not completed, or whose results did not load", () => {
+    const runs = [
+      { id: "a", number: 1, status: "failed" },
+      { id: "b", number: 2, status: "completed" },
+      { id: "c", number: 3, status: "running" },
+    ];
+    expect(runReplays(runs, new Map([["b", results(second)]]), cases, ["action-correct"]).map((r) => r.run)).toEqual([2]);
+  });
+
+  it("keeps a case of the run that got no pass or fail result from a gating evaluator, as a case with no score", () => {
+    const passed = new Map<string, boolean | null>([["s1", true], ["s2", null]]);
+    const list = runReplays([{ id: "b", number: 1, status: "completed" }], new Map([["b", results(second, passed)]]), cases, ["action-correct"]);
+    expect(list[0].unscored).toEqual(["s2"]);
+  });
+
+  it("keeps a required evaluator that gave no result in a run, with an empty list", () => {
+    const list = runReplays([{ id: "b", number: 1, status: "completed" }], new Map([["b", { cells: second, evaluators: ["action-correct", "tone"], passed: new Map() }]]), cases, ["action-correct", "tone"]);
+    expect(list[0].evaluatorReplays.map((e) => [e.evaluator, e.replays.length])).toEqual([["action-correct", 1], ["tone", 0]]);
   });
 });
 
@@ -254,13 +282,14 @@ describe("agentDiff", () => {
 });
 
 describe("resultsTable", () => {
-  const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed, status: "completed" });
+  const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed });
+  const oneRun = (lists: EvaluatorReplays[]): RunReplays[] => [{ run: 1, status: "completed", unscored: [], evaluatorReplays: lists }];
   const lap = (n: number, over: Partial<ResultsLap> = {}): ResultsLap => ({
     lap: n,
     summary: n === 0 ? "Replay with no changes" : `Change ${n}`,
     running: false,
     runs: [{ status: "completed" }],
-    evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] }],
+    runReplays: oneRun([{ evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] }]),
     screenGreen: null,
     selectionGate: null,
     confirmationGate: null,
@@ -277,22 +306,22 @@ describe("resultsTable", () => {
 
   it("has no column for an evaluator that does not gate", () => {
     // The run has results for "tone" also, but only "action-correct" gates.
-    const table = resultsTable(loop([lap(0, { evaluatorReplays: evaluatorReplays(run, cases, ["action-correct"]) })]));
+    const table = resultsTable(loop([lap(0, { runReplays: oneRun(evaluatorReplays(run, cases, ["action-correct"])) })]));
     expect(table.evaluators).toEqual(["action-correct"]);
   });
 
   it("shows one square for each replay, in case order, with a name that gives the case and the result", () => {
     const cell = resultsTable(loop([lap(0)])).rows[0].cells[0]!;
     expect(cell.squares).toEqual([
-      { caseId: "s1", passed: false, sessionId: "r-s1", label: "refund-01: failed", name: "refund-01: failed. Open the result session in a new tab" },
-      { caseId: "s2", passed: true, sessionId: "r-s2", label: "refund-02: passed", name: "refund-02: passed. Open the result session in a new tab" },
-      { caseId: "s3", passed: true, sessionId: "r-s3", label: "refund-03: passed", name: "refund-03: passed. Open the result session in a new tab" },
+      { caseId: "s1", state: "fail", sessionId: "r-s1", label: "refund-01: failed", name: "refund-01: failed. Open the result session in a new tab" },
+      { caseId: "s2", state: "pass", sessionId: "r-s2", label: "refund-02: passed", name: "refund-02: passed. Open the result session in a new tab" },
+      { caseId: "s3", state: "pass", sessionId: "r-s3", label: "refund-03: passed", name: "refund-03: passed. Open the result session in a new tab" },
     ]);
   });
 
   it("says that a square has no result session when the replay has none", () => {
     const lists = [{ evaluator: "action-correct", replays: [{ ...replay("s1", false), sessionId: null }] }];
-    expect(resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0].cells[0]!.squares).toEqual([{ caseId: "s1", passed: false, sessionId: null, label: "refund-01: failed", name: "refund-01: failed. No result session" }]);
+    expect(resultsTable(loop([lap(0, { runReplays: oneRun(lists) })])).rows[0].cells[0]!.squares).toEqual([{ caseId: "s1", state: "fail", sessionId: null, label: "refund-01: failed", name: "refund-01: failed. No result session" }]);
   });
 
   it("counts the passed replays, in the failure tone when a replay failed", () => {
@@ -303,14 +332,14 @@ describe("resultsTable", () => {
 
   it("counts in the success tone when all replays passed", () => {
     const all = [{ evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true), replay("s3", true)] }];
-    const cell = resultsTable(loop([lap(1, { evaluatorReplays: all })])).rows[0].cells[0]!;
+    const cell = resultsTable(loop([lap(1, { runReplays: oneRun(all) })])).rows[0].cells[0]!;
     expect(cell.count).toBe("3 / 3 passed");
     expect(cell.tone).toBe("success");
   });
 
   it('says "first 50 of N" when the cohort has more cases than the server gives results for', () => {
     const fifty = Array.from({ length: 50 }, (_, i) => replay(`s${i + 1}`, i >= 5));
-    const cell = resultsTable(loop([lap(0, { evaluatorReplays: [{ evaluator: "action-correct", replays: fifty }] })], { cohortCaseCount: 120 })).rows[0].cells[0]!;
+    const cell = resultsTable(loop([lap(0, { runReplays: oneRun([{ evaluator: "action-correct", replays: fifty }]) })], { cohortCaseCount: 120 })).rows[0].cells[0]!;
     expect(cell.count).toBe("45 / 50 passed · first 50 of 120");
   });
 
@@ -329,7 +358,7 @@ describe("resultsTable", () => {
   });
 
   it("says which experiment runs while the loop runs", () => {
-    const running = { running: true, runs: [{ status: "running" }], evaluatorReplays: [] };
+    const running = { running: true, runs: [{ status: "running" }], runReplays: [] };
     expect(resultsTable(loop([lap(0), lap(1), lap(2, running)])).state).toBe("experiment 2 running…");
     expect(resultsTable(loop([lap(0, running)])).state).toBe("control experiment running…");
   });
@@ -339,14 +368,14 @@ describe("resultsTable", () => {
   });
 
   it("says that the loop finished or stopped, also when an experiment still shows as running", () => {
-    const running = { running: true, runs: [{ status: "running" }], evaluatorReplays: [] };
+    const running = { running: true, runs: [{ status: "running" }], runReplays: [] };
     const completed = { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "" } as const;
     expect(resultsTable(loop([lap(0), lap(1), lap(2, running)], { outcome: completed })).state).toBe("loop finished");
     expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop stopped");
   });
 
-  it("names the status words that an experiment and a replay can show, for the footer", () => {
-    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed, Pending, Evaluating, No status.");
+  it("names the status words that an experiment and a run can show, for the footer", () => {
+    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed.");
   });
 
   it("marks the winning lap, and only that lap", () => {
@@ -357,7 +386,7 @@ describe("resultsTable", () => {
   });
 
   it("gives each lap the status of its run from the server", () => {
-    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], evaluatorReplays: [] }), lap(2, { runs: [{ status: "canceled" }], evaluatorReplays: [] }), lap(3, { runs: [], evaluatorReplays: [] })])).rows;
+    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], runReplays: [] }), lap(2, { runs: [{ status: "canceled" }], runReplays: [] }), lap(3, { runs: [], runReplays: [] })])).rows;
     expect(rows.map((r) => r.status)).toEqual(["Completed", "Failed", "Stopped", "Not started"]);
   });
 
@@ -379,7 +408,7 @@ describe("resultsTable", () => {
   });
 
   it("shows a lap with no completed run with its number, summary and run status, and no squares or result", () => {
-    const row = resultsTable(loop([lap(0), lap(1, { running: true, runs: [{ status: "running" }], evaluatorReplays: [] })], { criteria: DEFAULT_CRITERIA })).rows[1];
+    const row = resultsTable(loop([lap(0), lap(1, { running: true, runs: [{ status: "running" }], runReplays: [] })], { criteria: DEFAULT_CRITERIA })).rows[1];
     expect(row).toMatchObject({ lap: 1, summary: "Change 1", status: "Running", noResults: "No results yet", result: null });
     expect(row.cells).toEqual([null]);
   });
@@ -389,13 +418,13 @@ describe("resultsTable", () => {
   });
 
   it('says "No results yet" for each lap with no completed run, whatever the run status', () => {
-    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], evaluatorReplays: [] }), lap(2, { runs: [{ status: "canceled" }], evaluatorReplays: [] }), lap(3, { runs: [], evaluatorReplays: [] })])).rows;
+    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], runReplays: [] }), lap(2, { runs: [{ status: "canceled" }], runReplays: [] }), lap(3, { runs: [], runReplays: [] })])).rows;
     expect(rows.slice(1).map((r) => r.noResults)).toEqual(["No results yet", "No results yet", "No results yet"]);
   });
 
   it("says that a completed run gave no results, and does not show it as a lap with no run", () => {
-    const row = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "completed" }], evaluatorReplays: [] })], { criteria: DEFAULT_CRITERIA, winnerLap: 1 })).rows[1];
-    expect(row).toMatchObject({ status: "Completed", noResults: "No results from a gating evaluator", result: null, replays: [] });
+    const row = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "completed" }], runReplays: [] })], { criteria: DEFAULT_CRITERIA, winnerLap: 1 })).rows[1];
+    expect(row).toMatchObject({ status: "Completed", noResults: "No results from a gating evaluator", result: null, passRate: null, runs: [] });
     expect(row.cells).toEqual([null]);
   });
 
@@ -404,38 +433,159 @@ describe("resultsTable", () => {
     expect(row.status).toBe("Completed");
   });
 
-  it("lists the replays of a lap in case order, each with one badge for each gating evaluator and a result", () => {
-    const lists = [
-      { evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] },
-      { evaluator: "tone", replays: [replay("s1", true), replay("s3", false)] },
+  // A lap with two completed runs: s1 failed in both, s2 passed in run 1 only, s3 passed in both.
+  const twoRuns: RunReplays[] = [
+    { run: 1, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] }] },
+    { run: 2, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", false), { ...replay("s2", false), sessionId: "q-s2" }, replay("s3", true)] }] },
+  ];
+
+  describe("pass rate", () => {
+    it("gives an experiment with one completed run the share of cases that passed every gating evaluator", () => {
+      const lists = [
+        { evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true), replay("s3", true), replay("s4", true)] },
+        { evaluator: "tone", replays: [replay("s1", true), replay("s2", false), replay("s3", true), replay("s4", true)] },
+      ];
+      expect(resultsTable(loop([lap(0, { runReplays: oneRun(lists) })])).rows[0].passRate).toBe("75%");
+    });
+
+    it("gives an experiment with several runs the share of cases that passed in every completed run", () => {
+      expect(resultsTable(loop([lap(0, { runReplays: twoRuns })])).rows[0].passRate).toBe("33.3%");
+    });
+
+    it("gives each run row the share of cases that passed in that run", () => {
+      expect(resultsTable(loop([lap(0, { runReplays: twoRuns })])).rows[0].runs.map((r) => r.passRate)).toEqual(["66.7%", "33.3%"]);
+    });
+
+    it("does not count a case as passed when a gating evaluator gave it no result", () => {
+      const lists = [
+        { evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true)] },
+        { evaluator: "tone", replays: [replay("s1", true)] },
+      ];
+      expect(resultsTable(loop([lap(0, { runReplays: oneRun(lists) })])).rows[0].passRate).toBe("50%");
+    });
+
+    it("counts a case with no result from any gating evaluator as not passed, and the run gets no result", () => {
+      const runs: RunReplays[] = [{ run: 1, status: "completed", unscored: ["s2"], evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", true)] }] }];
+      const row = resultsTable(loop([lap(0, { runReplays: runs })])).rows[0];
+      expect(row.passRate).toBe("50%");
+      expect(row.runs[0]).toMatchObject({ passRate: "50%", result: { label: "No result" } });
+    });
+
+    it("gives no pass rate for a lap with no results", () => {
+      expect(resultsTable(loop([lap(0, { runs: [{ status: "running" }], runReplays: [] })])).rows[0].passRate).toBeNull();
+    });
+  });
+
+  describe("an experiment with more than one completed run", () => {
+    const row = resultsTable(loop([lap(0, { runReplays: twoRuns })])).rows[0];
+
+    it("shows one square for each case: passed every run, mixed, or failed every run", () => {
+      expect(row.cells[0]!.squares.map((sq) => [sq.caseId, sq.state, sq.label])).toEqual([
+        ["s1", "fail", "refund-01: failed every run"],
+        ["s2", "mixed", "refund-02: mixed, passed 1 of 2 runs"],
+        ["s3", "pass", "refund-03: passed every run"],
+      ]);
+    });
+
+    it("gives the squares of the experiment row no link, because a link would go to an arbitrary run", () => {
+      expect(row.cells[0]!.squares.map((sq) => sq.sessionId)).toEqual([null, null, null]);
+      expect(row.cells[0]!.squares[0].name).toBe("refund-01: failed every run. Show the runs to open a result session");
+    });
+
+    it('counts the cases that passed every run, and says "passed every run"', () => {
+      expect(row.cells[0]).toMatchObject({ count: "1 / 3 passed every run", tone: "destructive" });
+    });
+
+    it("does not show a case as passed every run when a run gave it no result, so that the squares agree with the pass rate", () => {
+      const runs: RunReplays[] = [
+        { run: 1, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s2", true), replay("s3", false)] }] },
+        { run: 2, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true)] }] },
+      ];
+      const r = resultsTable(loop([lap(0, { runReplays: runs })])).rows[0];
+      expect(r.cells[0]!.squares.map((sq) => [sq.state, sq.label])).toEqual([
+        ["mixed", "refund-01: mixed, passed 1 of 2 runs, no result in 1"],
+        ["pass", "refund-02: passed every run"],
+        ["fail", "refund-03: failed 1 of 2 runs, no result in 1"],
+      ]);
+      expect(r.cells[0]!.count).toBe("1 / 3 passed every run");
+      expect(r.passRate).toBe("33.3%");
+    });
+
+    it("shows the totals of an experiment as not final while the results of a completed run are not loaded", () => {
+      const r = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "completed" }, { status: "completed" }] })], { winnerLap: 1 }));
+      const row = r.rows[1];
+      expect(row.incomplete).toBe("1 of 2 runs loaded");
+      expect(row.passRate).toBeNull();
+      expect(row.cells[0]).toMatchObject({ count: "2 / 3 passed every run · 1 of 2 runs loaded", tone: "neutral" });
+      expect(row.cells[0]!.squares.map((sq) => sq.sessionId)).toEqual([null, null, null]);
+      expect(row.result?.title).toBe("This experiment made the loop pass");
+      expect(r.rows[0].incomplete).toBeNull();
+      expect(r.legend.map((e) => e.label)).toEqual(["Passed every run", "Mixed", "Failed every run"]);
+    });
+
+    it("lists one row for each completed run, with its name, squares, count, status and result", () => {
+      expect(row.runs.map((r) => [r.run, r.name, r.status, r.cells[0]!.count, r.result.label])).toEqual([
+        [1, "Run #1", "Completed", "2 / 3 passed", "Failed"],
+        [2, "Run #2", "Completed", "1 / 3 passed", "Failed"],
+      ]);
+      expect(row.runs[1].cells[0]!.squares.map((sq) => sq.state)).toEqual(["fail", "fail", "pass"]);
+    });
+
+    it("gives each square of a run row the link to the result session of its replay", () => {
+      expect(row.runs[1].cells[0]!.squares[1]).toEqual({ caseId: "s2", state: "fail", sessionId: "q-s2", label: "refund-02: failed", name: "refund-02: failed. Open the result session in a new tab" });
+    });
+  });
+
+  it("gives an experiment with one completed run one run row, and keeps the links in the experiment row", () => {
+    const row = resultsTable(loop([lap(0)])).rows[0];
+    expect(row.runs.map((r) => r.name)).toEqual(["Run #1"]);
+    expect(row.cells[0]!.squares.map((sq) => sq.sessionId)).toEqual(["r-s1", "r-s2", "r-s3"]);
+  });
+
+  it("gives a run the result Passed only when each case passed every gating evaluator in it", () => {
+    const pass = [replay("s1", true), replay("s2", true)];
+    const runs: RunReplays[] = [
+      { run: 1, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: pass }, { evaluator: "tone", replays: pass }] },
+      { run: 2, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: pass }, { evaluator: "tone", replays: [replay("s1", true)] }] },
+      { run: 3, status: "completed", unscored: [], evaluatorReplays: [{ evaluator: "action-correct", replays: pass }, { evaluator: "tone", replays: [replay("s1", true), replay("s2", false)] }] },
     ];
-    const row = resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0];
-    expect(row.replays).toEqual([
-      { caseId: "s1", caseName: "refund-01", sessionId: "r-s1", badges: [{ evaluator: "action-correct", passed: false, text: "action-correct: failed" }, { evaluator: "tone", passed: true, text: "tone: passed" }], status: "Completed", result: "Failed" },
-      { caseId: "s2", caseName: "refund-02", sessionId: "r-s2", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: null, text: "tone: no result" }], status: "Completed", result: "No result" },
-      { caseId: "s3", caseName: "refund-03", sessionId: "r-s3", badges: [{ evaluator: "action-correct", passed: true, text: "action-correct: passed" }, { evaluator: "tone", passed: false, text: "tone: failed" }], status: "Completed", result: "Failed" },
-    ]);
+    const results = resultsTable(loop([lap(0, { runReplays: runs })])).rows[0].runs.map((r) => r.result);
+    expect(results.map((r) => [r.label, r.tone])).toEqual([["Passed", "success"], ["No result", "neutral"], ["Failed", "destructive"]]);
+    expect(results[2].title).toBe("1 case failed a gating evaluator in this run");
   });
 
-  it("gives a replay the result Passed only when each gating evaluator passed it", () => {
-    const lists = [
-      { evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true)] },
-      { evaluator: "tone", replays: [replay("s1", true)] },
-    ];
-    const row = resultsTable(loop([lap(0, { evaluatorReplays: lists })])).rows[0];
-    expect(row.replays.map((r) => r.result)).toEqual(["Passed", "No result"]);
+  it("lists no runs for a lap with no completed run", () => {
+    expect(resultsTable(loop([lap(0, { runs: [{ status: "running" }], runReplays: [] })])).rows[0].runs).toEqual([]);
   });
 
-  it("gives each replay in the list its status from the server, as a word", () => {
-    const statuses = ["completed", "failed", "canceled", "evaluating", "pending", undefined];
-    const replays = statuses.map((status, i) => ({ ...replay(`s${i + 1}`, true), status }));
-    const sixCases = statuses.map((_, i) => ({ id: `s${i + 1}`, name: `refund-0${i + 1}` }));
-    const row = resultsTable(loop([lap(0, { evaluatorReplays: [{ evaluator: "action-correct", replays }] })], { cases: sixCases })).rows[0];
-    expect(row.replays.map((r) => r.status)).toEqual(["Completed", "Failed", "Stopped", "Evaluating", "Pending", "No status"]);
+  describe("legend", () => {
+    it('says "Passed" and "Failed", with no "Mixed" entry, when no experiment of the loop has more than one completed run', () => {
+      expect(resultsTable(loop([lap(0), lap(1)])).legend).toEqual([{ state: "pass", label: "Passed" }, { state: "fail", label: "Failed" }]);
+    });
+
+    it('says "Passed every run", "Mixed" and "Failed every run" when an experiment has more than one completed run', () => {
+      expect(resultsTable(loop([lap(0), lap(1, { runReplays: twoRuns })])).legend).toEqual([{ state: "pass", label: "Passed every run" }, { state: "mixed", label: "Mixed" }, { state: "fail", label: "Failed every run" }]);
+    });
   });
 
-  it("lists no replays for a lap with no completed run", () => {
-    expect(resultsTable(loop([lap(0, { runs: [{ status: "running" }], evaluatorReplays: [] })])).rows[0].replays).toEqual([]);
+  describe('the tooltip of a "Passed" badge', () => {
+    it("gives the reason when the pass rate of the winning experiment is below 100% over more than one run", () => {
+      const row = resultsTable(loop([lap(0), lap(1, { runReplays: twoRuns })], { winnerLap: 1 })).rows[1];
+      expect(row.result).toMatchObject({ label: "Passed", title: "This experiment made the loop pass. The pass rate is 33.3% because it counts all 2 completed runs, and a case did not pass in one or more of them." });
+    });
+
+    it("gives the reason for an experiment with one completed run also", () => {
+      expect(resultsTable(loop([lap(0), lap(1)], { winnerLap: 1 })).rows[1].result?.title).toBe("This experiment made the loop pass. The pass rate is 66.7% because the rules of the loop let the experiment pass with a case that did not pass.");
+    });
+
+    it("gives no reason when the pass rate is 100%", () => {
+      const all = oneRun([{ evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true)] }]);
+      expect(resultsTable(loop([lap(0), lap(1, { runReplays: all })], { winnerLap: 1 })).rows[1].result?.title).toBe("This experiment made the loop pass");
+    });
+  });
+
+  it('says what "Show runs" lists, for the footer', () => {
+    expect(resultsTable(loop([lap(0)])).runsNote).toBe('"Show runs" lists each completed run of the experiment, with the squares, the pass rate, the status and the result of that run.');
   });
 });
 
@@ -698,7 +848,7 @@ describe("runResults", () => {
     const agg = aggregate({ replays: [{ replay_id: "p1", result: verdict(true) }, { replay_id: "p2", result: verdict(false) }] as EvalAggregate["replays"] });
     const { passed, cells } = runResults([agg], replays, ["action-correct"]);
     expect([...passed]).toEqual([["s1", true], ["s2", false]]);
-    expect(cells.get("s1")).toEqual({ sessionId: "r1", status: "completed", results: [{ evaluator: "action-correct", passed: true }] });
+    expect(cells.get("s1")).toEqual({ sessionId: "r1", results: [{ evaluator: "action-correct", passed: true }] });
   });
 
   // The pedac loop: the evaluator gives the text "pass" or "fail" and sets the passed flag.
@@ -770,10 +920,10 @@ describe("a required evaluator that gave no result", () => {
   });
 
   it("gives the case no result in the Results section, and its column no squares", () => {
-    const lap = { lap: 0, summary: "", running: false, screenGreen: null, selectionGate: null, confirmationGate: null, runs: [{ status: "completed" }], evaluatorReplays: lists } as unknown as ResultsLap;
+    const lap = { lap: 0, summary: "", running: false, screenGreen: null, selectionGate: null, confirmationGate: null, runs: [{ status: "completed" }], runReplays: [{ run: 1, status: "completed", unscored: [], evaluatorReplays: lists }] } as unknown as ResultsLap;
     const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running" } }).rows[0];
     expect(row.noResults).toBeNull();
     expect(row.cells.map((c) => c?.evaluator ?? null)).toEqual(["action-correct", null]);
-    expect(row.replays.map((r) => r.result)).toEqual(["No result"]);
+    expect(row.runs.map((r) => r.result.label)).toEqual(["No result"]);
   });
 });

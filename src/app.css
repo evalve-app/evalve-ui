@@ -369,6 +369,7 @@ h1, h2, p { margin: 0; }
 .rs-squares { display: flex; flex-wrap: wrap; gap: var(--spacing-0-5); max-width: 340px; }
 .rs-square { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: calc(var(--radius-sm) / 2); background: var(--surface-muted); }
 .rs-square.pass { background: var(--tint-success-30); }
+.rs-square.mixed { background: var(--status-warning); }
 .rs-square.fail { background: var(--status-destructive); }
 a.rs-square:hover { box-shadow: 0 0 0 1px var(--border-ring); }
 a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
@@ -377,14 +378,9 @@ a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .rs-count.destructive { color: var(--text-destructive-text); }
 .rs-toggle { display: inline-flex; align-items: center; gap: var(--spacing-1); font-size: 13px; }
 .rs-toggle:focus-visible { outline: 0; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
-.results-table td.rs-detail { padding: 0 0 var(--spacing-3); text-align: left; white-space: normal; }
-.rs-replays-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--border-border); border-radius: var(--radius-md); background: var(--surface-muted); }
-.rs-replays { width: 100%; border-collapse: separate; border-spacing: 0; }
-.results-table .rs-replays th { position: sticky; top: 0; background: var(--surface-muted); }
-.results-table .rs-replays th { padding: var(--spacing-2) var(--spacing-3); border-bottom: 1px solid var(--border-border); text-align: left; }
-.results-table .rs-replays td { padding: var(--spacing-1-5) var(--spacing-3); border-bottom: 1px solid var(--border-border); vertical-align: middle; text-align: left; }
-.results-table .rs-replays tr:last-child td { border-bottom: 0; }
-.rs-badges { display: flex; flex-wrap: wrap; gap: var(--spacing-1); }
+.rs-rate { font: 500 13px/18px var(--font-sans); white-space: nowrap; }
+.results-table tr.rs-run > td { background: var(--surface-muted); }
+.results-table td.rs-run-name { padding-left: var(--spacing-8); color: var(--text-muted-foreground); white-space: nowrap; }
 .rs-footer { margin: var(--spacing-3) 0 0; color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 
 /* Loop page: Final results section (FinalResultsSection.tsx) */
