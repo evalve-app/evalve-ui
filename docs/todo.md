@@ -19,7 +19,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 - Investigation page with its sessions and their verdicts.
 - A count for each verdict (acceptable, problematic, uncertain) in the Investigations list. The list already shows how many sessions have a verdict ("Reviewed"), from `completed_sessions` and `total_sessions`. The split by verdict is not in the list response. It needs `GET /investigations/{id}/sessions` for each investigation.
 - ~~Workers list.~~ Done in #31.
-- Jobs list. The route `/jobs` still shows "Not built yet", but the nav has no link to it.
+- ~~Jobs list.~~ Done in #33.
 - Paging. The Evaluators page and the Investigations tab each load 100 items at most.
 
 ## Cohort page

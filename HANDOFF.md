@@ -44,8 +44,9 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare experiments. See below |
 | Evaluators | `/evaluators` | Read-only list of all evaluators: name, description, scope (one agent or all agents), latest version. Click a column header to sort. A row opens nothing. "New evaluator" gives a handoff prompt; it does not create anything |
 | Workers | `/workers` | Read-only list of the live workers (the server leaves out workers that stopped sending heartbeats): status, claims, platform, last seen. Reloads every 15 s. Click a column header to sort. A row opens nothing |
+| Jobs | `/jobs` | Read-only list of the 50 newest jobs: kind, status, created, duration, first line of the error. Filter by status or by experiment run id. Open a row to see why a job failed: the traceback and the failing task. Reloads every 15 s. Nothing cancels a job |
 
-**Placeholders (say "not built yet"):** Jobs. It is hidden from the nav. The route `/jobs` still exists.
+**Placeholders:** none. Every route in the nav has its page.
 
 **CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 
@@ -122,7 +123,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | `src/lib/loopResults.ts` | What the three sections of the loop page show in the MVP view |
 | `src/lib/loopRules.ts` | The skill's pass and stop rules, ported |
 | `src/lib/sessionNodes.ts` | Turns a session's raw steps into readable ones |
-| `docs/kitaru-ui-route-map.md` | Which API calls each Kitaru page makes. Use it when building a placeholder page |
+| `docs/kitaru-ui-route-map.md` | Which API calls each Kitaru page makes. Use it when building a new page |
 | `scripts/build-tokens.mjs` | Regenerates `tokens.css` from `tokens.json` (`npm run gen:tokens`) |
 
 ## Not tested
