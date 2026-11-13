@@ -91,18 +91,13 @@ describe("runReplays", () => {
 });
 
 describe("agentDiff", () => {
-  // One lap: its override, and one gating evaluator with one replay for each case.
-  const lap = (n: number, summary: string, override: AgentDiffLap["override"], passes: boolean[]): AgentDiffLap => ({
-    lap: n,
-    summary,
-    override,
-    evaluatorReplays: passes.length ? [{ evaluator: "action-correct", replays: passes.map((passed, i) => ({ caseId: `s${i + 1}`, caseName: `refund-0${i + 1}`, sessionId: null, passed })) }] : [],
-  });
+  // One lap: its number and its override.
+  const lap = (n: number, override: AgentDiffLap["override"]): AgentDiffLap => ({ lap: n, override });
   const BEFORE = "You are a support agent.\nBe polite.\nRefund when asked.";
   const AFTER = "You are a support agent.\nBe polite and brief.\nRefund when asked.\nRefuse refunds after day 30.";
   const input = (over: Partial<AgentDiffInput> = {}): AgentDiffInput => ({
     winnerLap: 1,
-    laps: [lap(0, "Replay with no changes", null, [false, false, false]), lap(1, "Add the day-30 rule.", { system_prompt: AFTER }, [true, true, true])],
+    laps: [lap(0, null), lap(1, { system_prompt: AFTER })],
     firstCase: { id: "s1", name: "refund-01" },
     before: { loading: false, prompt: BEFORE, model: "gpt-4.1-mini", modelParams: null },
     ...over,
@@ -126,19 +121,71 @@ describe("agentDiff", () => {
     });
   });
 
-  it("counts the added, removed and unchanged lines", () => {
-    expect(agentDiff(input())!.prompt).toMatchObject({ counts: { added: 2, removed: 1, unchanged: 2 } });
+  it("gives one line with the numbers of added, removed and unchanged lines", () => {
+    expect(agentDiff(input())!.prompt).toMatchObject({ countLine: "2 lines added · 1 removed · 2 unchanged" });
+  });
+
+  it("says \"1 line added\" for one added line", () => {
+    const d = agentDiff(input({ before: { loading: false, prompt: "keep", model: null, modelParams: null }, laps: [lap(0, null), lap(1, { system_prompt: "keep\nnew" })] }))!;
+    expect(d.prompt).toMatchObject({ countLine: "1 line added · 0 removed · 1 unchanged" });
+  });
+
+  it("names the control experiment and the winning experiment in the title, with a badge for the system prompt", () => {
+    expect(agentDiff(input())).toMatchObject({ title: "Agent diff · Control → Experiment 1", badge: "system prompt" });
+    expect(agentDiff(input({ winnerLap: 3, laps: [lap(0, null), lap(3, { system_prompt: AFTER })] }))).toMatchObject({ title: "Agent diff · Control → Experiment 3" });
+  });
+
+  it("says what the diff shows, and that the person applies the change", () => {
+    expect(agentDiff(input())!.sub).toBe("The full system prompt, with the change that made the loop pass. Copy it and apply it to your agent yourself.");
+  });
+
+  it("gives the \"Apply it yourself\" note", () => {
+    expect(agentDiff(input())!.note).toEqual({ title: "Apply it yourself", text: "Apply the diff in your repo and deploy. Then replay the cohort to confirm." });
+  });
+
+  it("says \"the change\" in the text and in the note when the section shows no line diff", () => {
+    const d = agentDiff(input({ laps: [lap(0, null), lap(1, { model: "gpt-4.1" })] }))!;
+    expect(d.sub).toBe("The change that experiment 1, the winning experiment, made to the agent. Apply it to your agent yourself.");
+    expect(d.note).toEqual({ title: "Apply it yourself", text: "Apply the change in your repo and deploy. Then replay the cohort to confirm." });
+  });
+
+  it("gives no badge for the system prompt when the winning experiment did not change it", () => {
+    expect(agentDiff(input({ laps: [lap(0, null), lap(1, { model: "gpt-4.1" })] }))!.badge).toBeNull();
+  });
+
+  it("keeps the text of the diff while the before prompt loads, so that the text does not change when the diff shows", () => {
+    const d = agentDiff(input({ before: { loading: true, prompt: null, model: null, modelParams: null } }))!;
+    expect(d.sub).toBe(agentDiff(input())!.sub);
+    expect(d.note).toEqual(agentDiff(input())!.note);
+  });
+
+  it("says to copy the prompt when the section shows the prompt of the winning experiment in full", () => {
+    const d = agentDiff(input({ before: { loading: false, prompt: null, model: null, modelParams: null } }))!;
+    expect(d.sub).toBe("The change that experiment 1, the winning experiment, made to the agent. Copy it and apply it to your agent yourself.");
+    expect(d.note.text).toBe("Apply the change in your repo and deploy. Then replay the cohort to confirm.");
+  });
+
+  it("names only the control experiment when it is the winning experiment, and says that there is no change to apply", () => {
+    const d = agentDiff(input({ winnerLap: 0 }))!;
+    expect(d).toMatchObject({
+      title: "Agent diff · Control",
+      badge: null,
+      sub: "The control experiment is the winning experiment. It made no change to the agent.",
+      prompt: { kind: "unchanged", text: "The control experiment did not change the system prompt." },
+      chips: ["model unchanged", "parameters unchanged", "tools unchanged"],
+      note: { title: "Nothing to apply", text: "The agent passed with no change." },
+    });
   });
 
   // The copied diff of a change from `before` to `after`.
   const copied = (before: string, after: string) => {
-    const d = agentDiff(input({ before: { loading: false, prompt: before, model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after }, [])] }))!;
+    const d = agentDiff(input({ before: { loading: false, prompt: before, model: null, modelParams: null }, laps: [lap(0, null), lap(1, { system_prompt: after })] }))!;
     if (d.prompt.kind !== "diff") throw new Error(`no diff: ${d.prompt.kind}`);
     return d.prompt.copy.text;
   };
 
   it("gives a unified diff of the system prompt to copy", () => {
-    expect(agentDiff(input({ before: { loading: false, prompt: BEFORE + "\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: AFTER + "\n" }, [])] }))!.prompt).toMatchObject({
+    expect(agentDiff(input({ before: { loading: false, prompt: BEFORE + "\n", model: null, modelParams: null }, laps: [lap(0, null), lap(1, { system_prompt: AFTER + "\n" })] }))!.prompt).toMatchObject({
       copy: {
         label: "Copy diff",
         text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,3 +1,4 @@", " You are a support agent.", "-Be polite.", "+Be polite and brief.", " Refund when asked.", "+Refuse refunds after day 30.", ""].join("\n"),
@@ -151,7 +198,7 @@ describe("agentDiff", () => {
     const after = [...before];
     after[1] = "LINE 2";
     after.push("line 21");
-    const d = agentDiff(input({ before: { loading: false, prompt: before.join("\n") + "\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: after.join("\n") + "\n" }, [])] }))!;
+    const d = agentDiff(input({ before: { loading: false, prompt: before.join("\n") + "\n", model: null, modelParams: null }, laps: [lap(0, null), lap(1, { system_prompt: after.join("\n") + "\n" })] }))!;
     expect(d.prompt).toMatchObject({
       copy: {
         text: ["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,5 +1,5 @@", " line 1", "-line 2", "+LINE 2", " line 3", " line 4", " line 5", "@@ -18,3 +18,4 @@", " line 18", " line 19", " line 20", "+line 21", ""].join("\n"),
@@ -160,8 +207,8 @@ describe("agentDiff", () => {
   });
 
   it("does not count the final newline of a prompt as one more line", () => {
-    const d = agentDiff(input({ before: { loading: false, prompt: "old\n", model: null, modelParams: null }, laps: [lap(0, "", null, []), lap(1, "", { system_prompt: "new\n" }, [])] }))!;
-    expect(d.prompt).toMatchObject({ counts: { added: 1, removed: 1, unchanged: 0 } });
+    const d = agentDiff(input({ before: { loading: false, prompt: "old\n", model: null, modelParams: null }, laps: [lap(0, null), lap(1, { system_prompt: "new\n" })] }))!;
+    expect(d.prompt).toMatchObject({ countLine: "1 line added · 1 removed · 0 unchanged" });
     expect(copied("old\n", "new\n")).toBe(["--- a/system_prompt", "+++ b/system_prompt", "@@ -1,1 +1,1 @@", "-old", "+new", ""].join("\n"));
   });
 
@@ -196,7 +243,7 @@ describe("agentDiff", () => {
   it("shows a load state for the prompt while the before prompt loads, and the rest of the section", () => {
     const d = agentDiff(input({ before: { loading: true, prompt: null, model: null, modelParams: null } }))!;
     expect(d.prompt).toEqual({ kind: "loading" });
-    expect(d.lapRows).toHaveLength(1);
+    expect(d.title).toBe("Agent diff · Control → Experiment 1");
   });
 
   it("falls back to the prompt of the winning lap in full when no before prompt is available", () => {
@@ -225,59 +272,26 @@ describe("agentDiff", () => {
   });
 
   it("says that the prompt did not change when the winning lap has no system prompt override", () => {
-    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Use gpt-4.1.", { model: "gpt-4.1" }, [])] }))!;
+    const d = agentDiff(input({ laps: [lap(0, null), lap(1, { model: "gpt-4.1" })] }))!;
     expect(d.prompt).toEqual({ kind: "unchanged", text: "The winning experiment did not change the system prompt." });
   });
 
-  it("gives an 'unchanged' chip for each field that the winning lap did not override", () => {
+  it("gives an 'unchanged' chip for each field that the winning lap did not override, and always one for the tools", () => {
     const d = agentDiff(input())!;
-    expect(d.chips).toEqual(["model unchanged", "parameters unchanged"]);
+    expect(d.chips).toEqual(["model unchanged", "parameters unchanged", "tools unchanged"]);
     expect(d.changedFields).toEqual([]);
   });
 
   it("gives a before and after line for a changed model, and no chip for it", () => {
-    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Use gpt-4.1.", { system_prompt: AFTER, model: "gpt-4.1" }, [])] }))!;
+    const d = agentDiff(input({ laps: [lap(0, null), lap(1, { system_prompt: AFTER, model: "gpt-4.1" })] }))!;
     expect(d.changedFields).toEqual([{ label: "Model", before: "gpt-4.1-mini", after: "gpt-4.1" }]);
-    expect(d.chips).toEqual(["parameters unchanged"]);
+    expect(d.chips).toEqual(["parameters unchanged", "tools unchanged"]);
   });
 
   it("gives a before and after line for changed parameters, with the agent's own setting when the session does not give them", () => {
-    const d = agentDiff(input({ laps: [lap(0, "", null, []), lap(1, "Lower the temperature.", { model_params: { temperature: 0 } }, [])] }))!;
+    const d = agentDiff(input({ laps: [lap(0, null), lap(1, { model_params: { temperature: 0 } })] }))!;
     expect(d.changedFields).toEqual([{ label: "Parameters", before: "the agent's own setting", after: '{"temperature":0}' }]);
-    expect(d.chips).toEqual(["model unchanged"]);
-  });
-
-  it("lists each lap after the control experiment with its pass count change, and includes a lap that did not help", () => {
-    const d = agentDiff(
-      input({
-        winnerLap: 3,
-        laps: [
-          lap(0, "Replay with no changes", null, [false, false, false]),
-          lap(1, "Add the day-30 rule.", { system_prompt: "x" }, [true, true, false]),
-          lap(2, "Use gpt-4.1.", { model: "gpt-4.1" }, [true, false, false]),
-          lap(3, "Name the late fee.", { system_prompt: AFTER }, [true, true, true]),
-          lap(4, "Not run yet.", null, []),
-        ],
-      }),
-    )!;
-    expect(d.lapRows).toEqual([
-      { lap: 1, summary: "Add the day-30 rule.", change: "0 → 2 / 3", trend: "better", winning: false },
-      { lap: 2, summary: "Use gpt-4.1.", change: "2 → 1 / 3", trend: "worse", winning: false },
-      { lap: 3, summary: "Name the late fee.", change: "1 → 3 / 3", trend: "better", winning: true },
-      { lap: 4, summary: "Not run yet.", change: "No results yet", trend: null, winning: false },
-    ]);
-  });
-
-  it("marks a lap with the same pass count as the lap before as no change", () => {
-    const d = agentDiff(input({ winnerLap: 2, laps: [lap(0, "", null, [true, false]), lap(1, "Reword.", { system_prompt: "x" }, [false, true]), lap(2, "Add a rule.", { system_prompt: AFTER }, [true, true])] }))!;
-    expect(d.lapRows[0]).toMatchObject({ change: "1 → 1 / 2", trend: "same" });
-  });
-
-  it("counts a case as passed only when each gating evaluator passed it", () => {
-    const two = lap(1, "Add a rule.", { system_prompt: AFTER }, [true, true]);
-    two.evaluatorReplays.push({ evaluator: "tone", replays: [{ caseId: "s1", caseName: "refund-01", sessionId: null, passed: false }, { caseId: "s2", caseName: "refund-02", sessionId: null, passed: true }] });
-    const d = agentDiff(input({ laps: [lap(0, "", null, [false, false]), two] }))!;
-    expect(d.lapRows[0].change).toBe("0 → 1 / 2");
+    expect(d.chips).toEqual(["model unchanged", "tools unchanged"]);
   });
 });
 

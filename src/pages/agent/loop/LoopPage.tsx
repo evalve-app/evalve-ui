@@ -64,7 +64,7 @@ export function LoopPage() {
         {c ? <CriteriaLine c={c} mvp={mvp} changes={loop.settings!.allowed_changes.map((f) => CHANGE_FIELD_LABELS[f] ?? f)} /> : null}
         {mvp && fullRules && c ? (
           <p className="field-hint">
-            This loop ran with the Post-MVP rules ({c.trials_per_round} runs per experiment, pass^{c.k}). The Results table shows each completed run. Final results and Agent diff use the first completed run of each experiment.
+            This loop ran with the Post-MVP rules ({c.trials_per_round} runs per experiment, pass^{c.k}). The Results table shows each completed run. Final results uses the first completed run of each experiment.
           </p>
         ) : null}
       </div>
