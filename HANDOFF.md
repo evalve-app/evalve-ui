@@ -79,12 +79,12 @@ The page shows the header, then three sections in one column. Each section is on
 
 | Section | Shows | When |
 | --- | --- | --- |
-| Results (`ResultsSection.tsx`) | One row for each experiment and one column for each gating evaluator. The head shows the state of the loop, and a legend row is below it. A cell has one square for each replay, and a square opens the result session. A row opens to list its replays. A footer names the status words | Always, when the loop has experiments |
+| Results (`ResultsSection.tsx`) | One row for each experiment, one column for each gating evaluator, and a "Pass rate" column. The head shows the state of the loop, and a legend row is below it. A cell has one square for each case, across the completed runs of the experiment: passed every run, mixed, or failed every run. "Show runs" opens one row for each completed run, in the same columns. A square in a run row opens the result session of its replay. A square in an experiment row opens it only when the experiment has one completed run. A footer says what "Show runs" lists and names the status words | Always, when the loop has experiments |
 | Final results (`FinalResultsSection.tsx`) | The outcome and the duration, one card for each gating evaluator, "Got worse", "Experiments", a bar for the pass rate of each experiment, and the criteria with their measured values | A completed loop. A loop that did not pass shows its best experiment |
 | Agent diff (`AgentDiffSection.tsx`) | The full system prompt as a diff from the agent's own prompt to the prompt of the winning experiment, "Copy diff" (the one primary button of the page), and what each experiment changed | A loop with a winning experiment |
 
 - **The "before" prompt** comes from the first LLM step of the recorded session of the first case. If that session gives no prompt, the section shows the prompt of the winning experiment in full, with a "Copy prompt" button.
-- **An experiment with several runs** (a loop that ran with the Post-MVP rules) shows its first completed run in the MVP view.
+- **An experiment with several runs** shows each completed run in the Results table. Final results and Agent diff still use its first completed run.
 - **The server gives results for only the 50 most recent replays of a run.** A cohort with more cases gets 50 squares, and the count says "first 50 of N".
 - **The Post-MVP view and the compare page did not change.** The grid of experiments, the stat tiles, the trend line and the compare card are in `LapViews.tsx`.
 

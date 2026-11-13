@@ -12,15 +12,14 @@ import { experimentName, isGating, parseEvalveLoop, type Criteria, type LoopOutc
 // One case of the loop's cohort: the id of its recorded session, and its name.
 export type CaseInfo = { id: string; name: string };
 
-// One replay of one case, as one gating evaluator scored it. `status` is the
-// replay status from the server, when the loop data has the replay.
-export type ReplayResult = { caseId: string; caseName: string; sessionId: string | null; passed: boolean; status?: string | null };
+// One replay of one case, as one gating evaluator scored it.
+export type ReplayResult = { caseId: string; caseName: string; sessionId: string | null; passed: boolean };
 
 // The replays of one gating evaluator in one lap, in case order.
 export type EvaluatorReplays = { evaluator: string; replays: ReplayResult[] };
 
-// One case in one run: its result session, its pass/fail evaluator results, and the status of its replay.
-export type RunCell = Pick<CellRun, "sessionId" | "results"> & { status?: string | null };
+// One case in one run: its result session and its pass/fail evaluator results.
+export type RunCell = Pick<CellRun, "sessionId" | "results">;
 
 // One run's results.
 // - `cells`: by case id, each pass/fail result of the case, for the grid.
@@ -56,7 +55,7 @@ export function runResults(aggregates: EvalAggregate[], replays: Replay[], gatin
       const ok = rep.result?.passed;
       if (ok == null) continue;
       const replay = byReplay.get(rep.replay_id);
-      const cell = cells.get(key) ?? { sessionId: replay?.result_session_id ?? null, status: replay?.status ?? null, results: [] };
+      const cell = cells.get(key) ?? { sessionId: replay?.result_session_id ?? null, results: [] };
       cell.results.push({ evaluator: agg.evaluator_name ?? null, passed: ok });
       cells.set(key, cell);
       if (isRequired) required.get(key)!.push(ok);
@@ -85,7 +84,7 @@ export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: C
       if (!isGating(gatingEvaluators, r.evaluator)) continue;
       const name = r.evaluator ?? UNNAMED;
       const list = lists.get(name) ?? [];
-      list.push({ caseId: cs.id, caseName: cs.name, sessionId: cell!.sessionId, passed: r.passed, status: cell!.status });
+      list.push({ caseId: cs.id, caseName: cs.name, sessionId: cell!.sessionId, passed: r.passed });
       lists.set(name, list);
     }
   }
@@ -96,6 +95,28 @@ export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: C
   return [...lists]
     .map(([evaluator, replays]) => ({ evaluator, replays }))
     .sort((a, b) => rank(a.evaluator) - rank(b.evaluator) || a.evaluator.localeCompare(b.evaluator));
+}
+
+// One completed run of a lap: the run number, the run status from the server,
+// and the replays of each gating evaluator in case order.
+export type RunReplays = { run: number; status: string; evaluatorReplays: EvaluatorReplays[] };
+
+// The replays of each run of one lap that has results, oldest run first.
+// `results` holds, by run id, the cells and the required evaluators of a run
+// (see runResults). The loop data hook loads results only for a completed run,
+// so a run with no entry is left out.
+export function runReplays(
+  runs: { id: string; number: number; status: string }[],
+  results: Map<string, { cells: Map<string, RunCell>; evaluators: string[] }>,
+  cases: CaseInfo[],
+  gatingEvaluators: string[] | undefined,
+): RunReplays[] {
+  return [...runs]
+    .sort((a, b) => a.number - b.number)
+    .flatMap((r) => {
+      const found = results.get(r.id);
+      return found ? [{ run: r.number, status: r.status, evaluatorReplays: evaluatorReplays(found.cells, cases, gatingEvaluators, found.evaluators) }] : [];
+    });
 }
 
 // The replays that passed.
@@ -293,20 +314,26 @@ export type ResultsLap = {
   summary: string;
   running: boolean;
   runs: { status: string }[]; // oldest first
-  evaluatorReplays: EvaluatorReplays[];
+  runReplays: RunReplays[]; // the completed runs that have results, oldest first
   screenGreen: boolean | null;
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
 };
 
-// One replay as a square. `label` gives the case and the result. `name` is the
+// What a square shows. In a run row: the result of the replay. In an experiment
+// row: the result of the case across the completed runs of the experiment.
+// "mixed": the case passed in some runs and failed in others.
+export type SquareState = "pass" | "mixed" | "fail";
+
+// One case as a square. `label` gives the case and the result. `name` is the
 // accessible name of the square: the label, and what the square opens.
-export type ResultsSquare = { caseId: string; passed: boolean; sessionId: string | null; label: string; name: string };
+// `sessionId` is the result session that the square opens, or null for no link.
+export type ResultsSquare = { caseId: string; state: SquareState; sessionId: string | null; label: string; name: string };
 
 export type ResultsCell = {
   evaluator: string;
   squares: ResultsSquare[]; // in case order
-  count: string; // "18 / 23 passed"
+  count: string; // "18 / 23 passed", or "18 / 23 passed every run"
   tone: "success" | "destructive";
 };
 
@@ -314,23 +341,78 @@ export type ResultsCell = {
 // run. A cohort with more cases gets 50 squares, and the count says so.
 const REPLAY_LIMIT = 50;
 
-function resultsCell(list: EvaluatorReplays, cohortCaseCount: number | null): ResultsCell {
-  const n = list.replays.length;
-  const passed = passedCount(list.replays);
+function countText(squares: ResultsSquare[], passedWord: string, cohortCaseCount: number | null): Pick<ResultsCell, "count" | "tone"> {
+  const n = squares.length;
+  const passed = squares.filter((sq) => sq.state === "pass").length;
   const cut = n >= REPLAY_LIMIT && cohortCaseCount != null && cohortCaseCount > n;
-  return {
-    evaluator: list.evaluator,
-    squares: list.replays.map((r) => {
-      const label = `${r.caseName}: ${r.passed ? "passed" : "failed"}`;
-      return { caseId: r.caseId, passed: r.passed, sessionId: r.sessionId, label, name: `${label}. ${r.sessionId ? "Open the result session in a new tab" : "No result session"}` };
-    }),
-    count: `${passed} / ${n} passed${cut ? ` · first ${n} of ${cohortCaseCount}` : ""}`,
-    tone: passed === n ? "success" : "destructive",
-  };
+  // Several runs can give results for different cases, so their squares can be more than one run gives.
+  const cutText = n === REPLAY_LIMIT ? `first ${n} of ${cohortCaseCount}` : `${n} of ${cohortCaseCount} cases`;
+  return { count: `${passed} / ${n} ${passedWord}${cut ? ` · ${cutText}` : ""}`, tone: passed === n ? "success" : "destructive" };
+}
+
+// A square of one replay. It opens the result session of the replay.
+function replaySquare(r: ReplayResult): ResultsSquare {
+  const label = `${r.caseName}: ${r.passed ? "passed" : "failed"}`;
+  return { caseId: r.caseId, state: r.passed ? "pass" : "fail", sessionId: r.sessionId, label, name: `${label}. ${r.sessionId ? "Open the result session in a new tab" : "No result session"}` };
+}
+
+// One evaluator column of a run row: one square for each replay of the run.
+function runCell(list: EvaluatorReplays, cohortCaseCount: number | null): ResultsCell {
+  const squares = list.replays.map(replaySquare);
+  return { evaluator: list.evaluator, squares, ...countText(squares, "passed", cohortCaseCount) };
+}
+
+// One evaluator column of an experiment row: one square for each case, across
+// the completed runs. With one completed run (`severalRuns` is false), the
+// squares are those of the run. With more, a square has no link, because a
+// link would go to an arbitrary run. A case passed only when it passed in each
+// run, as in the pass rate: a run that gives the case no result is not a pass.
+// `caseOrder` gives the place of each case id in case order.
+function experimentCell(evaluator: string, runs: RunReplays[], severalRuns: boolean, caseOrder: Map<string, number>, cohortCaseCount: number | null): ResultsCell | null {
+  const lists = runs.flatMap((r) => r.evaluatorReplays.filter((e) => e.evaluator === evaluator && e.replays.length > 0));
+  if (lists.length === 0) return null;
+  if (!severalRuns) return runCell(lists[0], cohortCaseCount);
+  const byCase = new Map<string, ReplayResult[]>();
+  for (const list of lists) for (const r of list.replays) byCase.set(r.caseId, [...(byCase.get(r.caseId) ?? []), r]);
+  const place = (id: string) => caseOrder.get(id) ?? Number.MAX_SAFE_INTEGER;
+  const n = runs.length;
+  const squares = [...byCase.values()]
+    .sort((a, b) => place(a[0].caseId) - place(b[0].caseId))
+    .map((replays): ResultsSquare => {
+      const passed = passedCount(replays);
+      const failed = replays.length - passed;
+      const noResult = n - replays.length;
+      const state = passed === n ? "pass" : passed === 0 ? "fail" : "mixed";
+      const result =
+        (state === "pass" ? "passed every run" : state === "mixed" ? `mixed, passed ${passed} of ${n} runs` : failed === n ? "failed every run" : `failed ${failed} of ${n} runs`) + (noResult ? `, no result in ${noResult}` : "");
+      const label = `${replays[0].caseName}: ${result}`;
+      return { caseId: replays[0].caseId, state, sessionId: null, label, name: `${label}. Show the runs to open a result session` };
+    });
+  return { evaluator, squares, ...countText(squares, "passed every run", cohortCaseCount) };
+}
+
+// The pass rate of a set of completed runs (see "Pass rate" in GLOSSARY.md):
+// the share of cases that passed every gating evaluator in each of the runs.
+// One run gives the pass rate of that run. Null with no case.
+function passRate(runs: RunReplays[]): number | null {
+  const perRun = runs.map((r) => casePasses(r.evaluatorReplays));
+  const ids = new Set(perRun.flatMap((passes) => [...passes.keys()]));
+  if (ids.size === 0) return null;
+  return [...ids].filter((id) => perRun.every((passes) => passes.get(id) === true)).length / ids.size;
 }
 
 // If the lap met the rule of the loop. `title` says why, for a tooltip.
 export type LapResult = { label: string; tone: "success" | "destructive" | "neutral"; title: string };
+
+// One completed run in an open row, in the columns of the experiment row.
+export type ResultsRun = {
+  run: number;
+  name: string; // "Run #1"
+  cells: (ResultsCell | null)[]; // one for each column; null when the run has no replays for that evaluator
+  passRate: string | null; // null when the run has no case with a result
+  status: string; // the run status from the server, as a word
+  result: LapResult;
+};
 
 export type ResultsRow = {
   lap: number;
@@ -343,51 +425,50 @@ export type ResultsRow = {
   noResults: string | null;
   result: LapResult | null;
   cells: (ResultsCell | null)[]; // one for each column; null when the lap has no replays for that evaluator
-  replays: ResultsReplay[]; // what the open row lists, in case order
+  passRate: string | null; // over every completed run; null when the lap has no case with a result
+  runs: ResultsRun[]; // what the open row lists, oldest run first
 };
-
-// One replay in an open row. A badge with `passed: null` has no result from that evaluator. `text` is what the badge says.
-export type ResultsReplay = {
-  caseId: string;
-  caseName: string;
-  sessionId: string | null;
-  badges: { evaluator: string; passed: boolean | null; text: string }[]; // one for each column
-  status: string;
-  // Failed: a gating evaluator failed the case. Passed: each gating evaluator passed it.
-  // No result: no evaluator failed it, but one or more gave no result.
-  result: "Passed" | "Failed" | "No result";
-};
-
-// The replay status from the server, as a word. "Stopped" is also the word for a canceled run.
-const REPLAY_STATUS: Record<string, string> = { pending: "Pending", evaluating: "Evaluating", completed: "Completed", failed: "Failed", canceled: "Stopped" };
-const replayStatus = (status: string | null | undefined) => (status ? (REPLAY_STATUS[status] ?? status) : "No status");
-
-function lapReplays(l: ResultsLap, evaluators: string[], cases: CaseInfo[]): ResultsReplay[] {
-  const byEvaluator = new Map(l.evaluatorReplays.map((e) => [e.evaluator, new Map(e.replays.map((r) => [r.caseId, r]))]));
-  return cases.flatMap((cs) => {
-    const found = evaluators.map((name) => byEvaluator.get(name)?.get(cs.id));
-    const any = found.find((r) => r);
-    if (!any) return [];
-    const badges = found.map((r, i) => ({ evaluator: evaluators[i], passed: r ? r.passed : null, text: `${evaluators[i]}: ${r ? (r.passed ? "passed" : "failed") : "no result"}` }));
-    return [{ caseId: cs.id, caseName: any.caseName, sessionId: any.sessionId, badges, status: replayStatus(any.status), result: badges.some((b) => b.passed === false) ? ("Failed" as const) : badges.every((b) => b.passed === true) ? ("Passed" as const) : ("No result" as const) }];
-  });
-}
 
 const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Stopping", canceled: "Stopped", failed: "Failed", completed: "Completed" };
+const runStatus = (status: string) => RUN_STATUS[status] ?? status;
+
+// The result of one run: a run passed when each case passed every gating evaluator in it.
+function runResult(run: RunReplays): LapResult {
+  const passes = [...casePasses(run.evaluatorReplays).values()];
+  const failed = passes.filter((ok) => ok === false).length;
+  if (failed) return { label: "Failed", tone: "destructive", title: `${failed} ${failed === 1 ? "case" : "cases"} failed a gating evaluator in this run` };
+  if (passes.length && passes.every((ok) => ok === true)) return { label: "Passed", tone: "success", title: "Each case passed every gating evaluator in this run" };
+  return { label: "No result", tone: "neutral", title: "No case failed, but a gating evaluator gave no result for one or more cases" };
+}
+
+function resultsRun(run: RunReplays, evaluators: string[], cohortCaseCount: number | null): ResultsRun {
+  const rate = passRate([run]);
+  return {
+    run: run.run,
+    name: `Run #${run.run}`,
+    cells: evaluators.map((name) => {
+      const list = run.evaluatorReplays.find((e) => e.evaluator === name);
+      return list?.replays.length ? runCell(list, cohortCaseCount) : null;
+    }),
+    passRate: rate == null ? null : formatPercent(rate),
+    status: runStatus(run.status),
+    result: runResult(run),
+  };
+}
 
 const completedRun = (l: ResultsLap) => l.runs.find((r) => r.status === "completed");
 
-// The squares come from the first completed run, so that run gives the status.
-// With no completed run, the newest run gives it.
+// A completed run gives the status, because the squares come from the
+// completed runs. With no completed run, the newest run gives it.
 function lapStatus(l: ResultsLap): string {
   const run = completedRun(l) ?? l.runs[l.runs.length - 1];
-  return run ? (RUN_STATUS[run.status] ?? run.status) : "Not started";
+  return run ? runStatus(run.status) : "Not started";
 }
 
 // The run status says if the lap has a completed run. A completed run can have
 // no results from a gating evaluator, which is not the same as no run.
 function noResultsText(l: ResultsLap): string | null {
-  if (l.evaluatorReplays.some((e) => e.replays.length > 0)) return null;
+  if (l.runReplays.some((r) => r.evaluatorReplays.some((e) => e.replays.length > 0))) return null;
   return completedRun(l) ? "No results from a gating evaluator" : "No results yet";
 }
 
@@ -419,12 +500,37 @@ function lapResult(l: ResultsLap, c: Criteria | null, winnerLap: number | null, 
   return { label: "Passed", tone: "success", title: "This experiment met the target" };
 }
 
-// `state` is the state of the loop, for the head of the panel. `statusNote`
-// names the words that the Status column can show, for the footer.
-export type ResultsTable = { evaluators: string[]; rows: ResultsRow[]; state: string; statusNote: string };
+// A "Passed" experiment can have a pass rate below 100%: the pass rate counts
+// every completed run, and the rule of the loop does not. The tooltip of the
+// badge gives the reason, so that the two values do not look like an error.
+function withPassRateReason(result: LapResult | null, rate: number | null, runCount: number): LapResult | null {
+  if (!result || result.label !== "Passed" || rate == null || rate >= 1) return result;
+  const reason =
+    runCount > 1
+      ? `The pass rate is ${formatPercent(rate)} because it counts all ${runCount} completed runs, and a case did not pass in one or more of them.`
+      : `The pass rate is ${formatPercent(rate)} because the rules of the loop let the experiment pass with a case that did not pass.`;
+  return { ...result, title: `${result.title}. ${reason}` };
+}
 
-// The words of an experiment row, then the words that only a replay in an open row shows.
-const STATUS_NOTE = `Status is one of: ${[...new Set(["Not started", ...Object.values(RUN_STATUS), ...Object.values(REPLAY_STATUS), "No status"])].join(", ")}.`;
+// - `legend`: the states that a square can show, with the words of the legend row.
+// - `state`: the state of the loop, for the head of the panel.
+// - `runsNote` says what "Show runs" lists, and `statusNote` names the words
+//   that the Status column can show. The two are for the footer.
+export type ResultsTable = { evaluators: string[]; rows: ResultsRow[]; legend: { state: SquareState; label: string }[]; state: string; runsNote: string; statusNote: string };
+
+const RUNS_NOTE = '"Show runs" lists each completed run of the experiment, with the squares, the pass rate, the status and the result of that run.';
+const STATUS_NOTE = `Status is one of: ${["Not started", ...Object.values(RUN_STATUS)].join(", ")}.`;
+
+// "Mixed" can occur only in an experiment with more than one completed run.
+const LEGEND_ONE_RUN: ResultsTable["legend"] = [
+  { state: "pass", label: "Passed" },
+  { state: "fail", label: "Failed" },
+];
+const LEGEND_SEVERAL_RUNS: ResultsTable["legend"] = [
+  { state: "pass", label: "Passed every run" },
+  { state: "mixed", label: "Mixed" },
+  { state: "fail", label: "Failed every run" },
+];
 
 // The outcome of the loop decides first: an experiment of a loop that finished
 // can still show as running until its run data loads again.
@@ -436,16 +542,21 @@ function loopState(laps: ResultsLap[], outcome: LoopOutcome): string {
   return `${running.lap === 0 ? "control experiment" : experimentName(running.lap, "inline")} running…`;
 }
 
-// The Results table: one row for each lap, from the baseline lap to the last
-// lap, and one column for each gating evaluator.
+// The Results table: one row for each lap, from the control experiment to the
+// last lap, and one column for each gating evaluator. A row shows each case across
+// the completed runs of the lap, and it opens to one row for each of these runs.
 export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null; outcome: LoopOutcome }): ResultsTable {
   const laps = [...loop.laps].sort((a, b) => a.lap - b.lap);
-  // Each lap's lists are in the column order already (see evaluatorReplays).
+  // Each run's lists are in the column order already (see evaluatorReplays).
   const evaluators: string[] = [];
-  for (const l of laps) for (const e of l.evaluatorReplays) if (!evaluators.includes(e.evaluator)) evaluators.push(e.evaluator);
+  for (const l of laps) for (const r of l.runReplays) for (const e of r.evaluatorReplays) if (!evaluators.includes(e.evaluator)) evaluators.push(e.evaluator);
   const caseName = (id: string) => loop.cases.find((c) => c.id === id)?.name ?? id;
-  const rows = laps.map((l) => {
+  const caseOrder = new Map(loop.cases.map((c, i) => [c.id, i]));
+  // More than one completed run, also while the results of a run still load.
+  const severalRuns = (l: ResultsLap) => Math.max(l.runReplays.length, l.runs.filter((r) => r.status === "completed").length) > 1;
+  const rows = laps.map((l): ResultsRow => {
     const noResults = noResultsText(l);
+    const rate = passRate(l.runReplays);
     return {
       lap: l.lap,
       name: experimentName(l.lap, "short"),
@@ -453,15 +564,13 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
       winning: l.lap === loop.winnerLap,
       status: lapStatus(l),
       noResults,
-      result: noResults == null ? lapResult(l, loop.criteria, loop.winnerLap, caseName) : null,
-      cells: evaluators.map((name) => {
-        const list = l.evaluatorReplays.find((e) => e.evaluator === name);
-        return list?.replays.length ? resultsCell(list, loop.cohortCaseCount) : null;
-      }),
-      replays: lapReplays(l, evaluators, loop.cases),
+      result: noResults == null ? withPassRateReason(lapResult(l, loop.criteria, loop.winnerLap, caseName), rate, l.runReplays.length) : null,
+      cells: evaluators.map((name) => experimentCell(name, l.runReplays, severalRuns(l), caseOrder, loop.cohortCaseCount)),
+      passRate: noResults == null && rate != null ? formatPercent(rate) : null,
+      runs: noResults == null ? l.runReplays.map((r) => resultsRun(r, evaluators, loop.cohortCaseCount)) : [],
     };
   });
-  return { evaluators, rows, state: loopState(laps, loop.outcome), statusNote: STATUS_NOTE };
+  return { evaluators, rows, legend: laps.some(severalRuns) ? LEGEND_SEVERAL_RUNS : LEGEND_ONE_RUN, state: loopState(laps, loop.outcome), runsNote: RUNS_NOTE, statusNote: STATUS_NOTE };
 }
 
 // Final results section

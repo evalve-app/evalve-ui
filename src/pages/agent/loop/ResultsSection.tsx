@@ -3,12 +3,13 @@ import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "../../../design-system/components";
 import { experimentName } from "../../../lib/loops";
-import { resultsTable, type ResultsCell, type ResultsReplay, type ResultsRow } from "../../../lib/loopResults";
+import { resultsTable, type ResultsCell, type ResultsRow } from "../../../lib/loopResults";
 import { LAP_PAGE } from "./LapViews";
 import type { LoopData } from "./useLoop";
 
 // The Results section of the loop page (MVP view): what occurred in each lap.
 // A table with one row for each lap and one column for each gating evaluator.
+// An open row shows one row for each completed run of the lap, in the same columns.
 // The view model (`resultsTable`) makes the rows. This component only lays them out.
 export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOlder: () => void }) {
   const [open, setOpen] = useState<number[]>([]); // the laps whose rows are open; all closed at first
@@ -16,23 +17,23 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
   // With no results in any lap, one column holds the text of each lap.
   const resultColumns = table.evaluators.length || 1;
+  const evaluatorCells = (list: (ResultsCell | null)[]) => list.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>);
 
   return (
     <section className="panel" aria-label="Results">
       <div className="panel-head">
         <div>
           <div className="panel-title">Results</div>
-          <div className="panel-sub">One row for each experiment, and one column for each gating evaluator. A square opens the result session of its replay in a new tab.</div>
+          <div className="panel-sub">One row for each experiment, and one column for each gating evaluator. A square in a run row opens the result session of its replay in a new tab.</div>
         </div>
         <span className="rs-state">{table.state}</span>
       </div>
       <div className="rs-legend">
-        <span>
-          <span className="rs-square pass" aria-hidden /> Passed
-        </span>
-        <span>
-          <span className="rs-square fail" aria-hidden /> Failed
-        </span>
+        {table.legend.map((entry) => (
+          <span key={entry.state}>
+            <span className={`rs-square ${entry.state}`} aria-hidden /> {entry.label}
+          </span>
+        ))}
         <span>One square is one case.</span>
       </div>
       {loop.totalLaps > loop.laps.length ? (
@@ -54,16 +55,17 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
               ) : (
                 <th>Replays</th>
               )}
+              <th>Pass rate</th>
               <th>Status</th>
               <th>Experiment result</th>
-              <th aria-label="Replays of the experiment" />
+              <th aria-label="Runs of the experiment" />
             </tr>
           </thead>
           <tbody>
             {table.rows.map((row) => {
               const hasResults = row.noResults == null;
               const isOpen = hasResults && open.includes(row.lap);
-              const detailId = `results-lap-${row.lap}-replays`;
+              const runIds = row.runs.map((r) => `results-lap-${row.lap}-run-${r.run}`);
               return (
                 <Fragment key={row.lap}>
                   <tr>
@@ -76,39 +78,51 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                       ) : null}
                     </td>
                     {hasResults ? (
-                      row.cells.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>)
+                      evaluatorCells(row.cells)
                     ) : (
                       <td colSpan={resultColumns} className="muted">
                         {row.noResults}
                       </td>
                     )}
+                    <td className="rs-rate">{row.passRate ?? <span className="muted">—</span>}</td>
                     <td>
                       <Badge variant="neutral">{row.status}</Badge>
                     </td>
                     <td>{row.result ? <LapResultBadge result={row.result} /> : hasResults ? <span className="muted">—</span> : null}</td>
                     <td>
                       {hasResults ? (
-                        <button type="button" className="text-button rs-toggle" aria-expanded={isOpen} aria-controls={detailId} aria-label={`${isOpen ? "Hide" : "Show"} replays of ${experimentName(row.lap, "inline")}`} onClick={() => toggle(row.lap)}>
-                          {isOpen ? "Hide replays" : "Show replays"}
+                        <button type="button" className="text-button rs-toggle" aria-expanded={isOpen} aria-controls={runIds.join(" ")} aria-label={`${isOpen ? "Hide" : "Show"} runs of ${experimentName(row.lap, "inline")}`} onClick={() => toggle(row.lap)}>
+                          {isOpen ? "Hide runs" : "Show runs"}
                           <ChevronDown size={14} aria-hidden className={isOpen ? "chev open" : "chev"} />
                         </button>
                       ) : null}
                     </td>
                   </tr>
-                  {isOpen ? (
-                    <tr id={detailId}>
-                      <td colSpan={resultColumns + 4} className="rs-detail">
-                        <ReplayList lap={row.lap} replays={row.replays} />
-                      </td>
-                    </tr>
-                  ) : null}
+                  {isOpen
+                    ? row.runs.map((run, i) => (
+                        <tr key={run.run} id={runIds[i]} className="rs-run">
+                          <td className="rs-run-name">{run.name}</td>
+                          {evaluatorCells(run.cells)}
+                          <td className="rs-rate">{run.passRate ?? <span className="muted">—</span>}</td>
+                          <td>
+                            <Badge variant="neutral">{run.status}</Badge>
+                          </td>
+                          <td>
+                            <LapResultBadge result={run.result} />
+                          </td>
+                          <td />
+                        </tr>
+                      ))
+                    : null}
                 </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
-      <p className="rs-footer">{table.statusNote}</p>
+      <p className="rs-footer">
+        {table.runsNote} {table.statusNote}
+      </p>
     </section>
   );
 }
@@ -134,13 +148,13 @@ function ExperimentName({ id, name, summary }: { id: string; name: string; summa
   );
 }
 
-// One square for each replay, then the count.
+// One square for each case, then the count. A square with a result session is a link to it.
 function EvaluatorCell({ cell }: { cell: ResultsCell }) {
   return (
     <>
       <div className="rs-squares">
         {cell.squares.map((sq) => {
-          const cls = `rs-square ${sq.passed ? "pass" : "fail"}`;
+          const cls = `rs-square ${sq.state}`;
           return sq.sessionId ? (
             <Link key={sq.caseId} to={`/sessions/${sq.sessionId}`} target="_blank" rel="noreferrer" className={cls} title={sq.label} aria-label={sq.name} />
           ) : (
@@ -160,53 +174,5 @@ function LapResultBadge({ result }: { result: NonNullable<ResultsRow["result"]> 
         {result.label}
       </Badge>
     </span>
-  );
-}
-
-// The replays of an open row: case name, one badge for each gating evaluator, status, result.
-function ReplayList({ lap, replays }: { lap: number; replays: ResultsReplay[] }) {
-  return (
-    <div className="rs-replays-wrap">
-      <table className="rs-replays" aria-label={`Replays of ${experimentName(lap, "inline")}`}>
-        <thead>
-          <tr>
-            <th>Case</th>
-            <th>Gating evaluators</th>
-            <th>Status</th>
-            <th>Result</th>
-          </tr>
-        </thead>
-        <tbody>
-          {replays.map((r) => (
-            <tr key={r.caseId}>
-              <td className="mono">
-                {r.sessionId ? (
-                  <Link to={`/sessions/${r.sessionId}`} target="_blank" rel="noreferrer" className="inline-link" title="Open the result session in a new tab">
-                    {r.caseName}
-                  </Link>
-                ) : (
-                  r.caseName
-                )}
-              </td>
-              <td>
-                <span className="rs-badges">
-                  {r.badges.map((b) => (
-                    <Badge key={b.evaluator} variant={b.passed == null ? "neutral" : b.passed ? "success" : "destructive"} mono>
-                      {b.text}
-                    </Badge>
-                  ))}
-                </span>
-              </td>
-              <td>
-                <Badge variant="neutral">{r.status}</Badge>
-              </td>
-              <td>
-                <Badge variant={r.result === "Passed" ? "success" : r.result === "Failed" ? "destructive" : "neutral"}>{r.result}</Badge>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }

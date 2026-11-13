@@ -11,7 +11,7 @@ import {
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
-import { evaluatorReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell } from "../../../lib/loopResults";
+import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
 import { NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
@@ -34,6 +34,8 @@ export type Lap = {
   targets: Map<string, CellTarget>; // case id → what its grid cell opens
   // Each gating evaluator's replays in case order, from the first completed run. Empty with no completed run.
   evaluatorReplays: EvaluatorReplays[];
+  // The replays of each completed run, with the run number and the run status, oldest run first.
+  runReplays: RunReplays[];
   meanPassK: number | null; // on the selection trials
   selectionGate: Gate | null;
   confirmationGate: Gate | null;
@@ -158,6 +160,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
         cases: tally(done),
         targets: new Map(), // filled in once case names are known
         evaluatorReplays: [], // filled in once case names are known
+        runReplays: [], // filled in once case names are known
         meanPassK: c ? meanPassK(selection, c.k) : null,
         selectionGate: c && sel.length ? gate(c, selection, base) : null,
         confirmationGate: c && confirmation ? gate(c, confirmation, base) : null,
@@ -180,6 +183,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     // The first case of the whole cohort, also when it has no result in the laps that are loaded.
     const firstCohortCase = inCaseOrder([...byId.keys()])[0] ?? null;
 
+    const runData = new Map([...runSessions].map(([id, cells]) => [id, { cells, evaluators: runEvaluators.get(id) ?? [] }]));
     for (const l of laps) {
       for (const cs of cases) {
         const runsForCase: CellRun[] = l.runs.flatMap((r) => {
@@ -192,8 +196,8 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       // The server gives evaluation values for only the 50 most recent replays
       // of a run, so a cohort of more than 50 cases gets 50 replays in each
       // list. `cohortCaseCount` lets the page say "first 50 of N".
-      const firstDone = l.runs.find((r) => runCases.has(r.id));
-      l.evaluatorReplays = evaluatorReplays(firstDone ? runSessions.get(firstDone.id) : undefined, cases, gateNames, firstDone ? runEvaluators.get(firstDone.id) : undefined);
+      l.runReplays = runReplays(l.runs, runData, cases, gateNames);
+      l.evaluatorReplays = l.runReplays[0]?.evaluatorReplays ?? [];
     }
 
     const running = laps.some((l) => l.running);
