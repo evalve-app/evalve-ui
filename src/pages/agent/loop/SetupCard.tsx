@@ -13,9 +13,11 @@ export function SetupCard({ fields }: { fields: SetupFields }) {
           <Field label="Name">
             <Input className="setup-input" readOnly value={fields.name} />
           </Field>
-          <Field label="Hypothesis">
-            <textarea className="ev-input setup-input setup-textarea" readOnly rows={3} value={fields.hypothesis} />
-          </Field>
+          {/* Text that wraps, not a textarea: a disabled textarea cannot scroll with the keyboard, so the card shows the full hypothesis. */}
+          <div className="setup-field">
+            <span className="setup-label">Hypothesis</span>
+            <p className="ev-input setup-input setup-text">{fields.hypothesis}</p>
+          </div>
           <Field label="Cohort version">
             <Input className="setup-input" readOnly value={fields.cohort} />
           </Field>

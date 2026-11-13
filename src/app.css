@@ -361,7 +361,7 @@ h1, h2, p { margin: 0; }
 .setup-label { color: var(--text-foreground); font: 500 13px/18px var(--font-sans); }
 .setup-input.ev-input { width: 100%; }
 .setup-input.ev-input:disabled { opacity: 1; cursor: default; }
-.setup-textarea.ev-input { height: auto; padding: var(--spacing-2) var(--spacing-3); line-height: 20px; resize: none; }
+.setup-text.ev-input { height: auto; min-height: 76px; margin: 0; padding: var(--spacing-2) var(--spacing-3); line-height: 20px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .setup-checks { display: flex; flex-direction: column; gap: var(--spacing-2); margin: 0; padding: 0; list-style: none; }
 .setup-check { display: flex; align-items: flex-start; gap: var(--spacing-3); min-width: 0; }
 .setup-check .ev-checkbox { flex: none; margin-top: 2px; }
