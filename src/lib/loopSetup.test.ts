@@ -23,7 +23,7 @@ describe("setupFields", () => {
       changes: ["System prompt", "Model"],
       greenRuns: "2",
       maxRuns: "10",
-      budget: "5.00",
+      budget: "$5.00",
     });
   });
 
@@ -39,7 +39,7 @@ describe("setupFields", () => {
       changes: ["System prompt"],
       greenRuns: "—",
       maxRuns: "—",
-      budget: "1.5",
+      budget: "$1.50",
     });
   });
 

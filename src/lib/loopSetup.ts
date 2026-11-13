@@ -19,7 +19,7 @@ export type SetupFields = {
   changes: string[]; // one dash when the loop names none
   greenRuns: string;
   maxRuns: string;
-  budget: string; // in USD, with no unit
+  budget: string; // "$5.00"
 };
 
 // The cohort version with id `cohortVersionId` among the cohorts of the agent.
@@ -37,13 +37,19 @@ export function findSetupCohort(
   return null;
 }
 
+// A budget in USD with two decimals: "5.00" and 1.5 give "$5.00" and "$1.50".
+function usd(budget: string | number | null | undefined): string {
+  const n = budget == null || budget === "" ? NaN : Number(budget);
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : ABSENT;
+}
+
 const list = (items: string[] | null | undefined): string[] => (items?.length ? items : [ABSENT]);
 
 // - `evalve`: the setup in the loop settings line of the runner. Null for a loop that the old skill made.
 // - `settings`: the settings of a loop that the old skill made. They hold no
 //   count of green runs and no cap on runs, so these two fields show a dash.
 // - `cohort`: null while the cohort loads, and when the server does not have it.
-// A loop with no name in its settings shows the name of its experiments.
+// A loop always has a name: a loop with no name in its settings shows the name of its experiments.
 export function setupFields(loop: { slug: string; hypothesis: string; evalve: EvalveSetup | null; settings: LoopSettings | null; cohort: SetupCohort | null }): SetupFields {
   const { slug, hypothesis, evalve, settings, cohort } = loop;
   const changes = evalve ? evalve.allowedChanges : settings?.allowed_changes;
@@ -56,6 +62,6 @@ export function setupFields(loop: { slug: string; hypothesis: string; evalve: Ev
     changes: list(changes?.map((field) => CHANGE_FIELD_LABELS[field as ChangeField] ?? field)),
     greenRuns: evalve ? String(evalve.requiredGreens) : ABSENT,
     maxRuns: evalve?.maxAttempts != null ? String(evalve.maxAttempts) : ABSENT,
-    budget: budget != null ? String(budget) : ABSENT,
+    budget: usd(budget),
   };
 }
