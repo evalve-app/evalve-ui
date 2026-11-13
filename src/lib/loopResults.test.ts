@@ -345,8 +345,8 @@ describe("resultsTable", () => {
     expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop stopped");
   });
 
-  it("names the status words that can show, for the footer", () => {
-    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed.");
+  it("names the status words that an experiment and a replay can show, for the footer", () => {
+    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed, Pending, Evaluating, No status.");
   });
 
   it("marks the winning lap, and only that lap", () => {

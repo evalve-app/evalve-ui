@@ -423,7 +423,8 @@ function lapResult(l: ResultsLap, c: Criteria | null, winnerLap: number | null, 
 // names the words that the Status column can show, for the footer.
 export type ResultsTable = { evaluators: string[]; rows: ResultsRow[]; state: string; statusNote: string };
 
-const STATUS_NOTE = `Status is one of: ${["Not started", ...new Set(Object.values(RUN_STATUS))].join(", ")}.`;
+// The words of an experiment row, then the words that only a replay in an open row shows.
+const STATUS_NOTE = `Status is one of: ${[...new Set(["Not started", ...Object.values(RUN_STATUS), ...Object.values(REPLAY_STATUS), "No status"])].join(", ")}.`;
 
 // The outcome of the loop decides first: an experiment of a loop that finished
 // can still show as running until its run data loads again.
