@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, CircleX, Copy, Inbox, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, ChevronRight, CircleX, Copy, Inbox, RefreshCw } from "lucide-react";
 import { listExperimentRunJobs, listFailingTasks, listJobs, type Job, type JobStatus, type Task } from "../api/client";
 import { Alert, Button, StatusLabel } from "../design-system/components";
 import { createCopyFeedback, type CopyState } from "../lib/copyFeedback";
@@ -191,6 +191,14 @@ function JobDetail({ job, agentName, workerName }: { job: Job; agentName: (id: s
       <p className="job-failure-summary">{errorSummary(job.error) ?? "The job failed without an error message."}</p>
       {lines.length > 0 ? <Traceback lines={lines} /> : null}
       {task ? <FailingTask task={task} agentName={agentName} workerName={workerName} /> : null}
+      {tasks.isError ? (
+        <div className="job-section job-task-error" role="alert">
+          <span>Could not load the failing task: {tasks.error.message}</span>
+          <button type="button" className="text-button" onClick={() => tasks.refetch()} disabled={tasks.isFetching}>
+            Try again
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -206,8 +214,11 @@ function Traceback({ lines }: { lines: string[] }) {
       <p className="job-section-label">Traceback</p>
       <div className="traceback">
         <div className="traceback-bar">
+          <span className="traceback-copy-failed" aria-live="polite">
+            {copyState === "failed" ? "Could not copy" : ""}
+          </span>
           <button type="button" className="icon-button" aria-label={copyState === "done" ? "Copied" : "Copy traceback"} onClick={() => feedback.copy(lines.join("\n"))}>
-            {copyState === "done" ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+            {copyState === "done" ? <Check size={14} aria-hidden /> : copyState === "failed" ? <CircleAlert size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
           </button>
         </div>
         <pre className="traceback-text">{shown.join("\n")}</pre>
