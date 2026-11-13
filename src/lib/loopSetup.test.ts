@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findSetupCohort, setupFields } from "./loopSetup";
+import { cohortVersionText, findSetupCohort, limitsText, setupFields, setupRuleProblems } from "./loopSetup";
 import { parseEvalveLoop, parseSettings } from "./loops";
 
 const cohort = { name: "Refund requests", version: "v3", caseCount: 23 };
@@ -96,5 +96,38 @@ describe("findSetupCohort", () => {
   it("finds nothing for a version that no loaded cohort has, and for a loop with no cohort version", () => {
     expect(findSetupCohort(cohorts, versionsByCohort, "cv-9")).toBeNull();
     expect(findSetupCohort(cohorts, versionsByCohort, null)).toBeNull();
+  });
+});
+
+describe("setupRuleProblems", () => {
+  it("finds no problem in rules that a loop can run", () => {
+    expect(setupRuleProblems({ greenRuns: 2, maxRuns: 10, budget: 5 })).toEqual([]);
+    expect(setupRuleProblems({ greenRuns: 3, maxRuns: 3, budget: 0.01 })).toEqual([]);
+  });
+
+  it("refuses a cap on runs that is below the number of green runs, or not a whole number", () => {
+    const problem = "Maximum total runs must be a whole number that is not less than the consecutive green runs.";
+    expect(setupRuleProblems({ greenRuns: 3, maxRuns: 2, budget: 5 })).toEqual([problem]);
+    expect(setupRuleProblems({ greenRuns: 1, maxRuns: 2.5, budget: 5 })).toEqual([problem]);
+    expect(setupRuleProblems({ greenRuns: 1.5, maxRuns: 4, budget: 5 })).toEqual([problem]);
+  });
+
+  it("refuses a loop budget that is not above zero", () => {
+    expect(setupRuleProblems({ greenRuns: 2, maxRuns: 10, budget: 0 })).toEqual(["Enter a loop budget above 0 USD."]);
+    expect(setupRuleProblems({ greenRuns: 2, maxRuns: 10, budget: NaN })).toEqual(["Enter a loop budget above 0 USD."]);
+  });
+});
+
+describe("cohortVersionText", () => {
+  it("names the cohort, the version and the number of cases", () => {
+    expect(cohortVersionText({ name: "Refund requests", version: "v3", caseCount: 23 })).toBe("Refund requests · v3 (23 cases)");
+    expect(cohortVersionText({ name: "Late fees", version: "2026-11", caseCount: 1 })).toBe("Late fees · 2026-11 (1 case)");
+  });
+});
+
+describe("limitsText", () => {
+  it("states the cap on runs and the loop budget", () => {
+    expect(limitsText({ maxRuns: 10, budget: 5 })).toBe("Up to 10 runs within a loop budget of $5.00.");
+    expect(limitsText({ maxRuns: 1, budget: 1.5 })).toBe("Up to 1 run within a loop budget of $1.50.");
   });
 });

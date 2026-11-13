@@ -38,9 +38,39 @@ export function findSetupCohort(
 }
 
 // A budget in USD with two decimals: "5.00" and 1.5 give "$5.00" and "$1.50".
-function usd(budget: string | number | null | undefined): string {
+export function usd(budget: string | number | null | undefined): string {
   const n = budget == null || budget === "" ? NaN : Number(budget);
   return Number.isFinite(n) ? `$${n.toFixed(2)}` : ABSENT;
+}
+
+// "Refund requests · v3 (23 cases)". The setup card and the cohort version list of the New loop page show this text.
+export function cohortVersionText(cohort: SetupCohort): string {
+  return `${cohort.name} · ${cohort.version} (${cohort.caseCount} ${cohort.caseCount === 1 ? "case" : "cases"})`;
+}
+
+// The values that a person sets in the editable setup card of the New loop page.
+export type SetupValues = {
+  name: string;
+  hypothesis: string;
+  cohortVersionId: string;
+  evaluators: string[]; // the names of the gating evaluators
+  changes: ChangeField[];
+  greenRuns: number;
+  maxRuns: number;
+  budget: number; // USD
+};
+
+// The problems in the Success and Stopping rules of a new loop. Empty when a loop can run with them.
+export function setupRuleProblems({ greenRuns, maxRuns, budget }: Pick<SetupValues, "greenRuns" | "maxRuns" | "budget">): string[] {
+  const problems: string[] = [];
+  if (!Number.isSafeInteger(greenRuns) || !Number.isSafeInteger(maxRuns) || maxRuns < greenRuns) problems.push("Maximum total runs must be a whole number that is not less than the consecutive green runs.");
+  if (!Number.isFinite(budget) || budget <= 0) problems.push("Enter a loop budget above 0 USD.");
+  return problems;
+}
+
+// The limits of a new loop, for the bar below the setup card.
+export function limitsText({ maxRuns, budget }: Pick<SetupValues, "maxRuns" | "budget">): string {
+  return `Up to ${maxRuns} ${maxRuns === 1 ? "run" : "runs"} within a loop budget of ${usd(budget)}.`;
 }
 
 const list = (items: string[] | null | undefined): string[] => (items?.length ? items : [ABSENT]);
@@ -57,7 +87,7 @@ export function setupFields(loop: { slug: string; hypothesis: string; evalve: Ev
   return {
     name: (evalve ? evalve.name : settings?.name) || slug,
     hypothesis: hypothesis || ABSENT,
-    cohort: cohort ? `${cohort.name} · ${cohort.version} (${cohort.caseCount} ${cohort.caseCount === 1 ? "case" : "cases"})` : ABSENT,
+    cohort: cohort ? cohortVersionText(cohort) : ABSENT,
     gatingEvaluators: list(evalve ? evalve.evaluators : settings?.gate_evaluators),
     changes: list(changes?.map((field) => CHANGE_FIELD_LABELS[field as ChangeField] ?? field)),
     greenRuns: evalve ? String(evalve.requiredGreens) : ABSENT,

@@ -63,13 +63,13 @@ The app is almost read-only. The only calls that change anything are sign in, si
 
 ### MVP and Post-MVP switch
 
-The switch sits at the top right of the Loop pages. It is saved per browser and starts on MVP. It changes what is shown, not the data.
+The switch sits at the top right of the loop list and the loop page. It is saved per browser and starts on MVP. The New loop page has no switch. It reads the saved mode. It changes what is shown, not the data.
 
 | | MVP | Post-MVP |
 | --- | --- | --- |
 | Score | Plain pass rate | Mean pass^k |
 | Runs per experiment | 1 | Several trials, plus a confirmation round |
-| New loop form | One number: the pass rate target | Trials, k, floor, confirmation, screen first |
+| New loop form | The setup card in its editable state (`SetupCard.tsx`), with the same two columns and sections as on the loop page | One card with a row for each section: trials, k, floor, confirmation, screen first |
 | Loop page | The read-only setup card, then three sections: Results, Final results, Agent diff | Grid of experiments with compare checkboxes, four stat tiles, trend line |
 
 MVP uses the same skill with one trial per experiment and k = 1, so no second runner is needed.
@@ -122,7 +122,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | `src/pages/` | One file per page; `agent/loop/` is the Loop tab |
 | `src/pages/agent/loop/useLoop.ts` | Loads one loop and works out the experiments of the loop (`laps`), scores and status |
 | `src/lib/loopResults.ts` | What the three sections of the loop page show in the MVP view |
-| `src/lib/loopSetup.ts` | The fields of the setup card of a loop |
+| `src/lib/loopSetup.ts` | The fields of the setup card of a loop, and the problems in the rules of a new loop |
 | `src/lib/loopRules.ts` | The skill's pass and stop rules, ported |
 | `src/lib/sessionNodes.ts` | Turns a session's raw steps into readable ones |
 | `docs/kitaru-ui-route-map.md` | Which API calls each Kitaru page makes. Use it when building a new page |
