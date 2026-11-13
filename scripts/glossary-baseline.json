@@ -94,7 +94,7 @@
   "src/pages/agent/loop/NewLoopPage.tsx": {
     "regression": 4,
     "re-run": 1,
-    "trial": 18,
+    "trial": 16,
     "gate evaluator": 2
   },
   "src/pages/agent/loop/ResultsSection.tsx": {

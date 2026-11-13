@@ -11,6 +11,7 @@ export type SetupOption<Id extends string = string> = { id: Id; label: string; h
 export type SetupEdit = {
   values: SetupValues;
   onChange: (change: Partial<SetupValues>) => void;
+  locked?: boolean; // after Approve: the card is dimmed and refuses edits
   nameTaken: boolean;
   cohortVersions: SetupOption[];
   evaluators: SetupOption[];
@@ -22,14 +23,15 @@ export type SetupEdit = {
 // hint above its fields.
 // - `fields`: the read-only card of the loop page. The fieldset is disabled,
 //   so no field takes an edit. The card shows at full opacity.
-// - `edit`: the editable card of the New loop page.
+// - `edit`: the editable card of the New loop page. After Approve it is locked:
+//   the fieldset is disabled, and the card shows at 50% opacity.
 export function SetupCard(props: { fields: SetupFields } | { edit: SetupEdit }) {
   const edit = "edit" in props ? props.edit : null;
   const fields = "fields" in props ? props.fields : null;
   const set = edit?.onChange;
   const toggle = <T extends string>(list: T[], id: T, on: boolean) => (on ? [...list, id] : list.filter((x) => x !== id));
   return (
-    <fieldset className="setup-card" disabled={!edit} aria-label="Loop setup">
+    <fieldset className={edit?.locked ? "setup-card locked" : "setup-card"} disabled={!edit || edit.locked} aria-label="Loop setup">
       <div className="setup-col">
         <Section title="Basics" hint="A hypothesis names the failure and its suspected cause. It is stored on every experiment. The cohort version stays the same for the full loop.">
           <Field label="Name">

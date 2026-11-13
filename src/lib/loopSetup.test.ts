@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortVersionText, findSetupCohort, limitsText, setupFields, setupRuleProblems } from "./loopSetup";
+import { cohortVersionText, findSetupCohort, setupFields, setupRuleProblems } from "./loopSetup";
 import { parseEvalveLoop, parseSettings } from "./loops";
 
 const cohort = { name: "Refund requests", version: "v3", caseCount: 23 };
@@ -122,12 +122,5 @@ describe("cohortVersionText", () => {
   it("names the cohort, the version and the number of cases", () => {
     expect(cohortVersionText({ name: "Refund requests", version: "v3", caseCount: 23 })).toBe("Refund requests · v3 (23 cases)");
     expect(cohortVersionText({ name: "Late fees", version: "2026-11", caseCount: 1 })).toBe("Late fees · 2026-11 (1 case)");
-  });
-});
-
-describe("limitsText", () => {
-  it("states the cap on runs and the loop budget", () => {
-    expect(limitsText({ maxRuns: 10, budget: 5 })).toBe("Up to 10 runs within a loop budget of $5.00.");
-    expect(limitsText({ maxRuns: 1, budget: 1.5 })).toBe("Up to 1 run within a loop budget of $1.50.");
   });
 });
