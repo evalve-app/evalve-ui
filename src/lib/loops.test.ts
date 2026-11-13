@@ -39,8 +39,8 @@ describe("lapSummary", () => {
   });
 
   it("says that lap 0 is the control experiment, whatever its description says", () => {
-    expect(lapSummary("Round 0: Unchanged baseline", 0)).toBe("Control experiment, no changes");
-    expect(lapSummary(null, 0)).toBe("Control experiment, no changes");
+    expect(lapSummary("Round 0: Unchanged baseline", 0)).toBe("Replay with no changes");
+    expect(lapSummary(null, 0)).toBe("Replay with no changes");
   });
 });
 

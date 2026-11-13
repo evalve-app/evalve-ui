@@ -68,7 +68,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOl
                   <tr>
                     <td className="rs-lap">
                       <span className="rs-lap-num">
-                        {experimentName(row.lap)}
+                        {experimentName(row.lap, row.lap === 0 ? "short" : "label")}
                         {row.winning ? (
                           <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
                             ★

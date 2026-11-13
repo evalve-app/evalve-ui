@@ -74,7 +74,7 @@ describe("agentDiff", () => {
   const AFTER = "You are a support agent.\nBe polite and brief.\nRefund when asked.\nRefuse refunds after day 30.";
   const input = (over: Partial<AgentDiffInput> = {}): AgentDiffInput => ({
     winnerLap: 1,
-    laps: [lap(0, "Control experiment, no changes", null, [false, false, false]), lap(1, "Add the day-30 rule.", { system_prompt: AFTER }, [true, true, true])],
+    laps: [lap(0, "Replay with no changes", null, [false, false, false]), lap(1, "Add the day-30 rule.", { system_prompt: AFTER }, [true, true, true])],
     firstCase: { id: "s1", name: "refund-01" },
     before: { loading: false, prompt: BEFORE, model: "gpt-4.1-mini", modelParams: null },
     ...over,
@@ -224,7 +224,7 @@ describe("agentDiff", () => {
       input({
         winnerLap: 3,
         laps: [
-          lap(0, "Control experiment, no changes", null, [false, false, false]),
+          lap(0, "Replay with no changes", null, [false, false, false]),
           lap(1, "Add the day-30 rule.", { system_prompt: "x" }, [true, true, false]),
           lap(2, "Use gpt-4.1.", { model: "gpt-4.1" }, [true, false, false]),
           lap(3, "Name the late fee.", { system_prompt: AFTER }, [true, true, true]),
@@ -257,7 +257,7 @@ describe("resultsTable", () => {
   const replay = (id: string, passed: boolean) => ({ caseId: id, caseName: `refund-0${id.slice(1)}`, sessionId: `r-${id}`, passed, status: "completed" });
   const lap = (n: number, over: Partial<ResultsLap> = {}): ResultsLap => ({
     lap: n,
-    summary: n === 0 ? "Control experiment, no changes" : `Change ${n}`,
+    summary: n === 0 ? "Replay with no changes" : `Change ${n}`,
     running: false,
     runs: [{ status: "completed" }],
     evaluatorReplays: [{ evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] }],
@@ -321,7 +321,7 @@ describe("resultsTable", () => {
 
   it("shows the lap summary, and lap 0 says that it is the baseline lap", () => {
     const rows = resultsTable(loop([lap(0, { summary: lapSummary("Round 0: baseline audit", 0) }), lap(1, { summary: lapSummary("Round 1: Refund in full after day 30. Hypothesis: h", 1) })])).rows;
-    expect(rows.map((r) => r.summary)).toEqual(["Control experiment, no changes", "Refund in full after day 30."]);
+    expect(rows.map((r) => r.summary)).toEqual(["Replay with no changes", "Refund in full after day 30."]);
   });
 
   it("marks the winning lap, and only that lap", () => {
