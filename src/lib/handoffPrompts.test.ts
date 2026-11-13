@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newCohortPrompt, newInvestigationPrompt } from "./handoffPrompts";
+import { newCohortPrompt, newEvaluatorPrompt, newInvestigationPrompt } from "./handoffPrompts";
 
 // The expected texts are what Kitaru's own dialogs show for this agent.
 const agent = { id: "01a1c6ab-3988-7679-8226-a2875d668231", name: "support-desk-demo" };
@@ -23,5 +23,14 @@ describe("newInvestigationPrompt", () => {
       prompt:
         'Use the `kitaru-investigation` skill to start a new investigation of agent "support-desk-demo" (id 01a1c6ab-3988-7679-8226-a2875d668231). Review its existing investigations and recorded sessions first. If I name a session I want to understand, start there; otherwise select a small, varied sample. Create the smallest useful ordered worklist. Give each session an issue-focused observation question that asks which agent behaviors may have harmed the outcome and requests supporting trace evidence. If I named a suspected behavior, add one focused question that tests it without assuming it occurred. If an existing investigation already covers the same work, direct me to it instead. Otherwise create the investigation, then hand me back to Kitaru to review it.',
     });
+  });
+});
+
+describe("newEvaluatorPrompt", () => {
+  it("asks the coding agent to confirm once before it registers an evaluator", () => {
+    const p = newEvaluatorPrompt();
+    expect(p.title).toBe("Draft an evaluator from your recorded sessions");
+    expect(p.prompt).toMatch(/^Use the `kitaru-investigation` skill/);
+    expect(p.prompt).toMatch(/Confirm with me once before registering anything\.$/);
   });
 });
