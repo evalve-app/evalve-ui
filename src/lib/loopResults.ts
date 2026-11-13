@@ -143,7 +143,7 @@ const passCount = (passes: Map<string, boolean | null>) => [...passes.values()].
 export type AgentDiffOverride = { system_prompt?: string | null; model?: string | Record<string, string> | null; model_params?: Record<string, unknown> | null };
 
 // One lap, as the Agent diff section reads it.
-export type AgentDiffLap = { lap: number; summary: string; override: AgentDiffOverride | null | undefined; evaluatorReplays: EvaluatorReplays[] };
+export type AgentDiffLap = { lap: number; override: AgentDiffOverride | null | undefined };
 
 // The agent's own settings, from the first LLM step of a recorded session.
 // `loading` is true while the request runs. A value is null when the session
@@ -166,17 +166,20 @@ export type AgentDiffCopy = { label: string; text: string; primary: boolean };
 export type AgentDiffPrompt =
   | { kind: "loading" }
   // The agent's own prompt against the prompt of the winning lap.
-  | { kind: "diff"; lines: PromptDiffLine[]; counts: { added: number; removed: number; unchanged: number }; copy: AgentDiffCopy; source: { sessionId: string; name: string } | null }
+  // `countLine` gives the numbers of added, removed and unchanged lines.
+  | { kind: "diff"; lines: PromptDiffLine[]; countLine: string; copy: AgentDiffCopy; source: { sessionId: string; name: string } | null }
   // No "before" prompt: the prompt of the winning lap in full.
   | { kind: "after-only"; note: string; text: string; copy: AgentDiffCopy }
   | { kind: "unchanged"; text: string };
 
 export type AgentDiff = {
-  winnerLap: number;
+  title: string; // names the two states that the diff compares: the control experiment and the winning lap
+  badge: string | null; // the field that the diff is of. Null when the winning lap did not change the system prompt.
+  sub: string; // the sentence below the title: what the section shows
   prompt: AgentDiffPrompt;
   chips: string[]; // one for each field that the winning lap did not override
   changedFields: { label: string; before: string; after: string }[]; // model and parameters, when the winning lap overrides them
-  lapRows: { lap: number; summary: string; change: string; trend: "better" | "worse" | "same" | null; winning: boolean }[];
+  note: { title: string; text: string }; // the dashboard does not change the agent
 };
 
 const OWN_SETTING = "the agent's own setting";
@@ -192,7 +195,8 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
   const hasParams = !!o.model_params && Object.keys(o.model_params).length > 0;
 
   let prompt: AgentDiffPrompt;
-  if (after == null) prompt = { kind: "unchanged", text: "The winning experiment did not change the system prompt." };
+  const isControl = winning.lap === 0;
+  if (after == null) prompt = { kind: "unchanged", text: `The ${isControl ? "control" : "winning"} experiment did not change the system prompt.` };
   else if (before.loading) prompt = { kind: "loading" };
   else if (!before.prompt)
     prompt = {
@@ -216,10 +220,11 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
       return { kind: l.kind, oldNumber: ++oldNumber, newNumber: ++newNumber, sign: " ", text: l.text };
     });
     const count = (kind: DiffLine["kind"]) => lines.filter((l) => l.kind === kind).length;
+    const added = count("add");
     prompt = {
       kind: "diff",
       lines,
-      counts: { added: count("add"), removed: count("del"), unchanged: count("same") },
+      countLine: `${added} ${added === 1 ? "line" : "lines"} added · ${count("del")} removed · ${count("same")} unchanged`,
       copy: { label: "Copy diff", text: unifiedDiff(diff, old.newline, now.newline), primary: true },
       source: firstCase ? { sessionId: firstCase.id, name: firstCase.name } : null,
     };
@@ -229,32 +234,38 @@ export function agentDiff({ winnerLap, laps, firstCase, before }: AgentDiffInput
   if (o.model) changedFields.push({ label: "Model", before: before.model ?? OWN_SETTING, after: settingText(o.model) });
   if (hasParams) changedFields.push({ label: "Parameters", before: before.modelParams && Object.keys(before.modelParams).length ? settingText(before.modelParams) : OWN_SETTING, after: settingText(o.model_params) });
 
-  const ordered = [...laps].sort((a, b) => a.lap - b.lap);
-  const lapRows = ordered.flatMap((l, i): AgentDiff["lapRows"] => {
-    if (l.lap === 0) return [];
-    const now = lapPassCount(l);
-    const prev = i > 0 ? lapPassCount(ordered[i - 1]) : null;
-    return [
-      {
-        lap: l.lap,
-        summary: l.summary,
-        change: now ? `${prev ? prev.passed : "—"} → ${now.passed} / ${now.total}` : "No results yet",
-        trend: now && prev ? (now.passed > prev.passed ? "better" : now.passed < prev.passed ? "worse" : "same") : null,
-        winning: l.lap === winning.lap,
-      },
-    ];
-  });
-
-  return { winnerLap: winning.lap, prompt, chips: [o.model ? null : "model unchanged", hasParams ? null : "parameters unchanged"].filter((c): c is string => !!c), changedFields, lapRows };
+  // An experiment has no override for tools, so the tools never change.
+  const chips = [o.model ? null : "model unchanged", hasParams ? null : "parameters unchanged", "tools unchanged"].filter((c): c is string => !!c);
+  // "The diff" is correct only when the section shows a line diff. A change of
+  // the model or the parameters, and a prompt with no "before" side, are "the change".
+  // The load state uses the text of the diff, which is the usual result, so
+  // that the text does not change when the diff shows.
+  const showsDiff = prompt.kind === "diff" || prompt.kind === "loading";
+  const toApply = showsDiff ? "diff" : "change";
+  if (isControl)
+    return {
+      title: `Agent diff · ${experimentName(0, "short")}`,
+      badge: null,
+      sub: "The control experiment is the winning experiment. It made no change to the agent.",
+      prompt,
+      chips,
+      changedFields,
+      note: { title: "Nothing to apply", text: "The agent passed with no change." },
+    };
+  return {
+    title: `Agent diff · ${experimentName(0, "short")} → ${experimentName(winning.lap)}`,
+    badge: after == null ? null : "system prompt",
+    sub: showsDiff
+      ? "The full system prompt, with the change that made the loop pass. Copy it and apply it to your agent yourself."
+      : `The change that ${experimentName(winning.lap, "inline")}, the winning experiment, made to the agent. ${prompt.kind === "after-only" ? "Copy it and apply" : "Apply"} it to your agent yourself.`,
+    prompt,
+    chips,
+    changedFields,
+    note: { title: "Apply it yourself", text: `Apply the ${toApply} in your repo and deploy. Then replay the cohort to confirm.` },
+  };
 }
 
 const settingText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
-
-// The cases that passed each gating evaluator in the lap's first completed run, or null with no results.
-function lapPassCount(lap: AgentDiffLap): { passed: number; total: number } | null {
-  const passes = casePasses(lap.evaluatorReplays);
-  return passes.size ? { passed: passCount(passes), total: passes.size } : null;
-}
 
 const withoutFinalNewline = (text: string) => (text.endsWith("\n") ? { text: text.slice(0, -1), newline: true } : { text, newline: false });
 

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy } from "lucide-react";
-import { Alert, Button } from "../../../design-system/components";
-import { experimentName } from "../../../lib/loops";
+import { Alert, Badge, Button } from "../../../design-system/components";
 import { agentDiff, type AgentDiffCopy } from "../../../lib/loopResults";
 import { agentOwnSettingsQuery } from "../../../lib/queries";
 import type { LoopData } from "./useLoop";
@@ -18,7 +17,7 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
   const own = useQuery({ ...agentOwnSettingsQuery(firstCase?.id ?? ""), enabled: hasWinningLap && !!firstCase });
   const diff = agentDiff({
     winnerLap: loop.winnerLap,
-    laps: loop.laps.map((l) => ({ lap: l.lap, summary: l.summary, override: l.experiment.override, evaluatorReplays: l.evaluatorReplays })),
+    laps: loop.laps.map((l) => ({ lap: l.lap, override: l.experiment.override })),
     firstCase,
     // A failed request and a session with no prompt give null values, which is the fallback.
     // Until the cohort loads, the page does not know the first case, so the prompt waits.
@@ -32,22 +31,19 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
   return (
     <section className="agent-diff" aria-labelledby="agent-diff-title">
       <div className="agent-diff-head">
-        <h3 id="agent-diff-title" className="section-title">
-          Agent diff
-        </h3>
-        <p className="agent-diff-sub">{diff.winnerLap === 0 ? "The control experiment is the winning experiment. It made no change to the agent." : `The change that ${experimentName(diff.winnerLap, "inline")}, the winning experiment, made to the agent.`}</p>
+        <div className="agent-diff-title-row">
+          <h3 id="agent-diff-title" className="agent-diff-title">
+            {diff.title}
+          </h3>
+          {diff.badge ? <Badge>{diff.badge}</Badge> : null}
+        </div>
+        <p className="agent-diff-sub">{diff.sub}</p>
       </div>
 
       <div className="agent-diff-card">
         <div className="agent-diff-card-head">
           <span className="agent-diff-card-title">System prompt</span>
-          {prompt.kind === "diff" ? (
-            <span className="agent-diff-counts mono">
-              <span className="added">+{prompt.counts.added} added</span>
-              <span className="removed">−{prompt.counts.removed} removed</span>
-              <span>{prompt.counts.unchanged} unchanged</span>
-            </span>
-          ) : null}
+          {prompt.kind === "diff" ? <span className="agent-diff-counts">{prompt.countLine}</span> : null}
         </div>
         {prompt.kind === "loading" ? (
           <p className="agent-diff-message muted" role="status">
@@ -115,36 +111,9 @@ export function AgentDiffSection({ loop }: { loop: LoopData }) {
         </dl>
       ) : null}
 
-      <div className="agent-diff-cols">
-        {diff.lapRows.length ? (
-          <div className="agent-diff-card">
-            <div className="agent-diff-card-head">
-              <span className="agent-diff-card-title">What each experiment changed</span>
-              <span className="panel-sub">Cases that passed, from the experiment before to this experiment</span>
-            </div>
-            <ul className="agent-diff-laps">
-              {diff.lapRows.map((r) => (
-                <li key={r.lap}>
-                  <span className="agent-diff-lap mono">
-                    {experimentName(r.lap)}
-                    {r.winning ? (
-                      <span className="winner-mark" title="The winning experiment" aria-label="the winning experiment">
-                        ★
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="agent-diff-lap-summary">{r.summary || <span className="muted">—</span>}</span>
-                  <span className={`agent-diff-lap-change mono ${r.trend ?? "none"}`}>{r.change}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        <Alert variant="neutral" title="Apply it yourself">
-          The dashboard does not change your agent. To use the change of the winning experiment, apply it in the code of your agent.
-        </Alert>
-      </div>
+      <Alert variant="neutral" title={diff.note.title}>
+        {diff.note.text}
+      </Alert>
     </section>
   );
 }
