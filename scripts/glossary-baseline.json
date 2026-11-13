@@ -8,9 +8,6 @@
   "src/lib/cellTarget.ts": {
     "trial": 2
   },
-  "src/lib/loopMode.tsx": {
-    "trial": 1
-  },
   "src/lib/loopResults.test.ts": {
     "winner": 16,
     "regression": 3,
@@ -88,10 +85,10 @@
     "trial": 9
   },
   "src/pages/agent/loop/NewLoopPage.tsx": {
-    "regression": 7,
+    "regression": 4,
     "re-run": 1,
-    "trial": 19,
-    "gate evaluator": 4
+    "trial": 18,
+    "gate evaluator": 2
   },
   "src/pages/agent/loop/ResultsSection.tsx": {
     "winner": 3

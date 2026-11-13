@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy } from "lucide-react";
-import { getAgent, listExperiments } from "../../../api/client";
+import { api, getAgent, listExperiments } from "../../../api/client";
 import { evaluatorsQuery } from "../../../lib/queries";
 import { Button, Checkbox, Input, Switch } from "../../../design-system/components";
 import { versionLabel } from "../../../lib/cohorts";
-import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
+import { buildEvalveLoopPrompt } from "../../../lib/evalveLoopHandoff";
+import { LoopModeTabs, type LoopMode } from "../../../lib/loopMode";
 import { useCohorts } from "../../../lib/useCohorts";
 import { CHANGE_FIELD_LABELS, DEFAULT_CRITERIA, groupLoops, slugify, type ChangeField, type Criteria } from "../../../lib/loops";
 
@@ -23,16 +24,22 @@ function stripNulls(x: unknown): unknown {
   return x;
 }
 
-// The inputs the kitaru-loop skill asks for. Review produces the skill's
-// kitaru-loop.json and a short prompt; the coding agent runs the loop.
 export function NewLoopPage() {
   const { agentId = "" } = useParams();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<LoopMode>("mvp");
+  const mvp = mode === "mvp";
 
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
   const { cohorts, versionsByCohort } = useCohorts(agentId);
   const evaluators = useQuery(evaluatorsQuery());
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
+  const info = useQuery({
+    queryKey: ["info"],
+    queryFn: async () => (await api.GET("/api/v1/info")).data,
+    enabled: mvp,
+  });
+  const serverUrl = info.data?.server_url;
 
   const cohortOptions = (cohorts.data ?? []).flatMap((c) =>
     (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count })),
@@ -46,12 +53,10 @@ export function NewLoopPage() {
   const [picked, setPicked] = useState<string[] | null>(null);
   const [changes, setChanges] = useState<ChangeField[]>(["system_prompt"]);
   const [models, setModels] = useState("");
-  const [raw, setC] = useState<Criteria>(DEFAULT_CRITERIA);
-  // MVP is the same skill with the statistics turned off: one run per lap, so
-  // mean pass^1 is the plain share of cases that passed.
-  const mvp = useLoopMode() === "mvp";
-  const c: Criteria = mvp ? { ...raw, trials_per_round: 1, k: 1, screen_first: false, confirmation_round: false, per_case_floor: "allow_one_miss" } : raw;
-  const targetPct = Math.round(c.cohort_target_mean_pass_k * 100);
+  const [c, setC] = useState<Criteria>(DEFAULT_CRITERIA);
+  const [requiredGreens, setRequiredGreens] = useState(2);
+  const [maxAttempts, setMaxAttempts] = useState(10);
+  const [budget, setBudget] = useState(5);
   const [review, setReview] = useState(false);
   const [showBuiltIn, setShowBuiltIn] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -71,15 +76,21 @@ export function NewLoopPage() {
   const taken = !!slug && groupLoops(experiments.data ?? []).has(slug);
   const cohort = cohortOptions.find((o) => o.id === cohortVersionId);
   const modelList = models.split(",").map((m) => m.trim()).filter(Boolean);
+  const mvpChanges = changes.filter((field) => field !== "model_params");
+  const activeChanges = mvp ? mvpChanges : changes;
+  const mvpEvaluators = agentEvaluators.filter((e) => chosen.includes(e.name)).map((e) => ({ ref: `${e.name}@${e.latest_version}` }));
 
   const problems = [
     !slug && "Give the loop a name.",
     taken && `A loop named ${slug} already exists.`,
-    !cohortVersionId && "Pick a cohort.",
-    chosen.length === 0 && "Pick at least one evaluator.",
-    changes.length === 0 && "Pick at least one thing that may change.",
-    changes.includes("model") && modelList.length === 0 && "List the models the loop may switch to.",
-    c.k > c.trials_per_round && "k can't be more than trials per experiment.",
+    !cohort && "Pick a cohort.",
+    (mvp ? mvpEvaluators.length : chosen.length) === 0 && "Pick at least one evaluator.",
+    activeChanges.length === 0 && "Pick at least one thing that may change.",
+    mvp && (!Number.isSafeInteger(requiredGreens) || !Number.isSafeInteger(maxAttempts) || maxAttempts < requiredGreens) && "Maximum replay attempts must be a whole number at least as large as the required green streak.",
+    mvp && (!Number.isFinite(budget) || budget <= 0) && "Enter a positive replay budget.",
+    mvp && !serverUrl && (info.isPending ? "Reading the Kitaru server address…" : "Could not read the Kitaru server address."),
+    !mvp && changes.includes("model") && modelList.length === 0 && "List the models the loop may switch to.",
+    !mvp && c.k > c.trials_per_round && "k can't be more than trials per experiment.",
   ].filter(Boolean) as string[];
 
   // The skill's config file. Tool policy and evaluator params are copied from
@@ -103,8 +114,20 @@ export function NewLoopPage() {
     case_id_field: "case_id",
     prompt_dir: "prompts",
   };
-  const json = JSON.stringify(config, null, 2);
-  const prompt = `/kitaru-loop\nStart the loop "${name.trim()}". Save the config below to a file, run \`loop.py init --from\` on it, then \`loop.py preflight\`. Tell me the worst-case cost and wait for my approval before any run.\n\n${json}`;
+  const hostedPrompt = mvp && serverUrl
+    ? buildEvalveLoopPrompt(window.location.origin, {
+      name: name.trim(),
+      ...(hypothesis.trim() ? { hypothesis: hypothesis.trim() } : {}),
+      server_url: serverUrl,
+      cohort_version_id: cohortVersionId,
+      evaluators: mvpEvaluators,
+      allowed_changes: mvpChanges,
+      required_consecutive_greens: requiredGreens,
+      max_attempts: maxAttempts,
+      budget_usd: String(budget),
+    })
+    : "";
+  const prompt = mvp ? hostedPrompt : `/kitaru-loop\nStart the loop "${name.trim()}". Save the config below to a file, run \`loop.py init --from\` on it, then \`loop.py preflight\`. Tell me the worst-case cost and wait for my approval before any run.\n\n${JSON.stringify(config, null, 2)}`;
 
   async function copy() {
     await navigator.clipboard.writeText(prompt);
@@ -123,23 +146,29 @@ export function NewLoopPage() {
         <dt>Gate evaluators</dt>
         <dd>{chosen.length ? chosen.join(", ") : "—"}</dd>
         <dt>May change</dt>
-        <dd>{changes.length ? changes.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
+        <dd>{activeChanges.length ? activeChanges.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
         <dt>An experiment passes when</dt>
         <dd>
           {mvp
-            ? `At least ${targetPct}% of cases pass every gate evaluator in one run${c.no_regression ? ", and no case does worse than in the control experiment" : ""}`
+            ? `Every case passes every selected evaluator in ${requiredGreens} consecutive ${requiredGreens === 1 ? "replay" : "replays"}`
             : `${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than in the control experiment" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
           .
         </dd>
         <dt>Stops otherwise after</dt>
         <dd>
-          {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
-          {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
+          {mvp ? `${maxAttempts} replay attempts or a $${budget} replay budget` : (
+            <>
+              {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
+              {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
+            </>
+          )}
         </dd>
-        <dt>Worst case</dt>
-        <dd>
-          {c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0)} runs of the cohort
-        </dd>
+        {mvp ? null : (
+          <>
+            <dt>Worst case</dt>
+            <dd>{c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0)} runs of the cohort</dd>
+          </>
+        )}
       </dl>
     </aside>
   );
@@ -153,11 +182,11 @@ export function NewLoopPage() {
         </button>
         <div className="review-layout">
           <div className="panel review-main">
-            <h2 className="section-title">Start the loop</h2>
+            <h2 className="section-title">Start the {mvp ? "MVP" : "Post-MVP"} loop</h2>
             <ol className="steps">
               <li>Copy the prompt.</li>
-              <li>Paste it into Claude Code in the agent's project, with the kitaru-loop skill installed.</li>
-              <li>Check the tool policy and evaluator params in the config. They were copied from this agent's latest experiment.</li>
+              <li>{mvp ? "Paste it into your coding agent with the agent project open. The coding agent fetches the pinned runner from this deployment." : "Paste it into Claude Code in the agent's project, with the kitaru-loop skill installed."}</li>
+              {mvp ? null : <li>Check the tool policy and evaluator params in the config. They were copied from this agent's latest experiment.</li>}
               <li>
                 Experiments show up under <span className="mono">{slug}</span> in the Loop tab as the skill creates them.
               </li>
@@ -167,7 +196,7 @@ export function NewLoopPage() {
               <Button variant="outline" onClick={() => navigate(`/agents/${agentId}/loop`)}>
                 Back to loops
               </Button>
-              <Button icon={copied ? Check : Copy} onClick={copy}>
+              <Button icon={copied ? Check : Copy} disabled={!prompt} onClick={copy}>
                 {copied ? "Copied" : "Copy prompt"}
               </Button>
             </div>
@@ -190,10 +219,10 @@ export function NewLoopPage() {
         <div className="form-header">
           <h2 className="detail-title sans">New loop</h2>
           <p className="detail-description">
-            {mvp ? "The simple version: one run per experiment, and the loop stops at a pass rate you pick." : "These are the kitaru-loop skill's settings."} Nothing runs until you hand the prompt to your coding agent.
+            {mvp ? "Choose how many times every case must pass in a row. Your coding agent runs the loop from the prompt." : "These are the kitaru-loop skill's settings. Nothing runs until you hand the prompt to your coding agent."}
           </p>
         </div>
-        <LoopModeToggle />
+        <LoopModeTabs mode={mode} onChange={setMode} />
       </div>
 
       <div className="form-card">
@@ -216,12 +245,12 @@ export function NewLoopPage() {
           </Field>
         </Section>
 
-        <Section title="Gate evaluators" hint="A case passes only if every evaluator picked here passes.">
+        <Section title="Gate evaluators" hint="Choose evaluators that return pass or fail. A case passes when every selected evaluator passes it.">
           <div className="check-list">
             {agentEvaluators
               .filter((e) => showBuiltIn || !isBuiltIn(e.name) || chosen.includes(e.name))
               .map((e) => (
-                <CheckRow key={e.id} checked={chosen.includes(e.name)} onChange={(v) => setPicked(v ? [...chosen, e.name] : chosen.filter((x) => x !== e.name))} label={<span className="mono">{e.name}</span>} help={e.description ?? undefined} />
+                <CheckRow key={e.id} checked={chosen.includes(e.name)} onChange={(v) => setPicked(v ? [...chosen, e.name] : chosen.filter((x) => x !== e.name))} label={<span className="mono">{e.name}{mvp ? `@${e.latest_version}` : ""}</span>} help={e.description ?? undefined} />
               ))}
           </div>
           {builtInCount > 0 || showBuiltIn ? (
@@ -233,11 +262,11 @@ export function NewLoopPage() {
 
         <Section title="What may change" hint="Each experiment changes exactly one of these, as an override on the same agent version.">
           <div className="check-list">
-            {(Object.keys(CHANGE_FIELD_LABELS) as ChangeField[]).map((f) => (
-              <CheckRow key={f} checked={changes.includes(f)} onChange={(v) => setChanges(v ? [...changes, f] : changes.filter((x) => x !== f))} label={CHANGE_FIELD_LABELS[f]} help={CHANGE_HELP[f]} />
+            {(Object.keys(CHANGE_FIELD_LABELS) as ChangeField[]).filter((f) => !mvp || f !== "model_params").map((f) => (
+              <CheckRow key={f} checked={changes.includes(f)} onChange={(v) => setChanges(v ? [...changes, f] : changes.filter((x) => x !== f))} label={CHANGE_FIELD_LABELS[f]} help={mvp && f === "model" ? "The coding agent chooses a model the replay worker can access." : CHANGE_HELP[f]} />
             ))}
           </div>
-          {changes.includes("model") ? (
+          {!mvp && changes.includes("model") ? (
             <Field label="Allowed models" help="Comma separated. The loop refuses any model not listed.">
               <Input className="w-md" value={models} onChange={(e) => setModels(e.target.value)} placeholder="gpt-4.1-mini, gpt-4.1" />
             </Field>
@@ -245,12 +274,9 @@ export function NewLoopPage() {
         </Section>
 
         {mvp ? (
-          <Section title="Success" hint="Each experiment replays the cohort once. A case passes when every gate evaluator passes.">
+          <Section title="Success" hint="Every case must pass in consecutive replays of the same experiment.">
             <div className="field-grid">
-              <NumberField label="Pass rate target" suffix="% of cases" value={targetPct} min={1} max={100} onChange={(v) => set("cohort_target_mean_pass_k", v / 100)} />
-            </div>
-            <div className="toggle-list">
-              <ToggleRow label="No case may get worse" help="A case that passed in the control experiment and fails now fails the experiment, even if the pass rate went up." checked={c.no_regression} onChange={(v) => set("no_regression", v)} />
+              <NumberField label="Consecutive green replays" suffix="replays" value={requiredGreens} min={1} onChange={setRequiredGreens} />
             </div>
           </Section>
         ) : (
@@ -274,22 +300,33 @@ export function NewLoopPage() {
         </Section>
         )}
 
-        <Section title="Stopping" hint={mvp ? "The loop also stops as soon as an experiment reaches the target." : "The loop also stops as soon as an experiment passes and confirms."}>
+        {mvp ? (
+          <Section title="Stopping" hint="The attempt cap includes the runs of the control experiment and retries. The runner checks the budget before each replay.">
+            <div className="field-grid">
+              <NumberField label="Maximum replay attempts" suffix="replays" value={maxAttempts} min={1} onChange={setMaxAttempts} />
+              <NumberField label="Replay budget" suffix="USD" value={budget} min={0} step={0.01} onChange={setBudget} />
+            </div>
+          </Section>
+        ) : (
+        <Section title="Stopping" hint="The loop also stops as soon as an experiment passes and confirms.">
           <div className="field-grid">
             <NumberField label="Max experiments after the control" suffix="experiments" value={c.max_rounds} min={1} max={50} onChange={(v) => set("max_rounds", v)} />
             <NumberField label="Experiments without improvement (0 = off)" suffix="experiments" value={c.plateau_patience ?? 0} min={0} max={20} onChange={(v) => set("plateau_patience", v === 0 ? null : v)} />
             <NumberField label="Budget (0 = none)" suffix="USD" value={c.budget_usd ?? 0} min={0} max={10000} step={0.5} onChange={(v) => set("budget_usd", v === 0 ? null : v)} />
           </div>
         </Section>
+        )}
       </div>
 
       <div className="form-bar">
         <span className="form-bar-text">
           {problems.length > 0 ? (
             problems[0]
+          ) : mvp ? (
+            <>Up to {maxAttempts} replay attempts within a ${budget} budget.</>
           ) : (
             <>
-              {mvp ? "1 run" : `${c.trials_per_round} trials`} per experiment, up to {c.max_rounds} experiments after the control. Worst case <span className="mono">{worstCase}</span> runs of the cohort.
+              {c.trials_per_round} trials per experiment, up to {c.max_rounds} experiments after the control. Worst case <span className="mono">{worstCase}</span> runs of the cohort.
             </>
           )}
         </span>
@@ -352,12 +389,12 @@ function ToggleRow({ label, help, checked, onChange }: { label: string; help: st
   );
 }
 
-function NumberField({ label, suffix, value, min, max, step, onChange }: { label: string; suffix: string; value: number; min: number; max: number; step?: number; onChange: (n: number) => void }) {
+function NumberField({ label, suffix, value, min, max, step, onChange }: { label: string; suffix: string; value: number; min: number; max?: number; step?: number; onChange: (n: number) => void }) {
   return (
     <label className="number-field">
       <span className="field-label">{label}</span>
       <span className="number-input">
-        <input className="ev-input" type="number" min={min} max={max} step={step ?? 1} value={value} onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))} />
+        <input className="ev-input" type="number" min={min} max={max} step={step ?? 1} value={value} onChange={(e) => onChange(Math.min(max ?? Infinity, Math.max(min, Number(e.target.value) || min)))} />
         <span className="number-suffix">{suffix}</span>
       </span>
     </label>
