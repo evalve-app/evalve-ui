@@ -30,10 +30,20 @@
     "baseline session": 1,
     "trial": 12
   },
+  "src/lib/loopSetup.test.ts": {
+    "round 0": 2,
+    "trial": 1,
+    "gate evaluator": 1
+  },
+  "src/lib/loopSetup.ts": {
+    "gate evaluator": 1
+  },
   "src/lib/loops.test.ts": {
     "winner": 11,
-    "round 0": 3,
-    "iteration": 7
+    "round 0": 5,
+    "iteration": 7,
+    "trial": 1,
+    "gate evaluator": 2
   },
   "src/lib/loops.ts": {
     "winner": 13,
@@ -77,9 +87,9 @@
   },
   "src/pages/agent/loop/LoopPage.tsx": {
     "winner": 1,
-    "regression": 3,
+    "regression": 2,
     "round 0": 1,
-    "trial": 9
+    "trial": 7
   },
   "src/pages/agent/loop/NewLoopPage.tsx": {
     "regression": 4,

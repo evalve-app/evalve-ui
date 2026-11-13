@@ -30,6 +30,8 @@ This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from
 
 The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the control experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning experiment.
 
+The `Evalve loop:` line of the control experiment also carries the setup of the loop: `name`, `agent_version_id`, `cohort_version_id`, `evaluators`, `allowed_changes`, `allowed_models`, `required_consecutive_greens`, `max_attempts` and `budget_usd`. `evaluators` is a list of strings in `name@version` form, and `budget_usd` is a decimal string (`description` in the runner's `loop.py`). `parseEvalveLoop` in `src/lib/loops.ts` reads these fields, and the setup card of the loop page shows them.
+
 The Loop tab remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The New loop form starts in MVP and has its own version switch.
 
 - **Post-MVP** shows the skill's full rules: several trials per experiment, mean pass^k, the gate, and confirmation.
