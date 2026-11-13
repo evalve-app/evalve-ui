@@ -79,7 +79,7 @@ The page shows the header, then three sections in one column. Each section is on
 
 | Section | Shows | When |
 | --- | --- | --- |
-| Results (`ResultsSection.tsx`) | One row for each experiment and one column for each gating evaluator. A cell has one square for each replay, and a square opens the result session. A row opens to list its replays | Always, when the loop has experiments |
+| Results (`ResultsSection.tsx`) | One row for each experiment and one column for each gating evaluator. The head shows the state of the loop, and a legend row is below it. A cell has one square for each replay, and a square opens the result session. A row opens to list its replays. A footer names the status words | Always, when the loop has experiments |
 | Final results (`FinalResultsSection.tsx`) | The outcome and the duration, one card for each gating evaluator, "Got worse", "Experiments", a bar for the pass rate of each experiment, and the criteria with their measured values | A completed loop. A loop that did not pass shows its best experiment |
 | Agent diff (`AgentDiffSection.tsx`) | The full system prompt as a diff from the agent's own prompt to the prompt of the winning experiment, "Copy diff" (the one primary button of the page), and what each experiment changed | A loop with a winning experiment |
 

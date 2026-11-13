@@ -9,7 +9,7 @@
     "trial": 2
   },
   "src/lib/loopResults.test.ts": {
-    "winner": 16,
+    "winner": 18,
     "regression": 3,
     "regressed": 2,
     "baseline audit": 1,

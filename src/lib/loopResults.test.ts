@@ -266,7 +266,7 @@ describe("resultsTable", () => {
     confirmationGate: null,
     ...over,
   });
-  const loop = (laps: ResultsLap[], over: Partial<Parameters<typeof resultsTable>[0]> = {}) => ({ laps, cases, criteria: null, winnerLap: null, cohortCaseCount: 3, ...over });
+  const loop = (laps: ResultsLap[], over: Partial<Parameters<typeof resultsTable>[0]> = {}) => ({ laps, cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running" } as const, ...over });
 
   it("has one column for each gating evaluator, and one row for each lap from the baseline lap on", () => {
     const table = resultsTable(loop([lap(0), lap(1)]));
@@ -297,26 +297,26 @@ describe("resultsTable", () => {
 
   it("counts the passed replays, in the failure tone when a replay failed", () => {
     const cell = resultsTable(loop([lap(0)])).rows[0].cells[0]!;
-    expect(cell.count).toBe("2 of 3 passed");
+    expect(cell.count).toBe("2 / 3 passed");
     expect(cell.tone).toBe("destructive");
   });
 
   it("counts in the success tone when all replays passed", () => {
     const all = [{ evaluator: "action-correct", replays: [replay("s1", true), replay("s2", true), replay("s3", true)] }];
     const cell = resultsTable(loop([lap(1, { evaluatorReplays: all })])).rows[0].cells[0]!;
-    expect(cell.count).toBe("3 of 3 passed");
+    expect(cell.count).toBe("3 / 3 passed");
     expect(cell.tone).toBe("success");
   });
 
   it('says "first 50 of N" when the cohort has more cases than the server gives results for', () => {
     const fifty = Array.from({ length: 50 }, (_, i) => replay(`s${i + 1}`, i >= 5));
     const cell = resultsTable(loop([lap(0, { evaluatorReplays: [{ evaluator: "action-correct", replays: fifty }] })], { cohortCaseCount: 120 })).rows[0].cells[0]!;
-    expect(cell.count).toBe("45 of 50 passed · first 50 of 120");
+    expect(cell.count).toBe("45 / 50 passed · first 50 of 120");
   });
 
   it('does not say "first 50 of N" when a small cohort has a case with no result', () => {
     const cell = resultsTable(loop([lap(0)], { cohortCaseCount: 4 })).rows[0].cells[0]!;
-    expect(cell.count).toBe("2 of 3 passed");
+    expect(cell.count).toBe("2 / 3 passed");
   });
 
   it("shows the lap summary, and lap 0 says that it is the baseline lap", () => {
@@ -324,9 +324,35 @@ describe("resultsTable", () => {
     expect(rows.map((r) => r.summary)).toEqual(["Replay with no changes", "Refund in full after day 30."]);
   });
 
+  it('names the control experiment "Control" and a later experiment by its number', () => {
+    expect(resultsTable(loop([lap(0), lap(1), lap(2)])).rows.map((r) => r.name)).toEqual(["Control", "1", "2"]);
+  });
+
+  it("says which experiment runs while the loop runs", () => {
+    const running = { running: true, runs: [{ status: "running" }], evaluatorReplays: [] };
+    expect(resultsTable(loop([lap(0), lap(1), lap(2, running)])).state).toBe("experiment 2 running…");
+    expect(resultsTable(loop([lap(0, running)])).state).toBe("control experiment running…");
+  });
+
+  it("says that the loop runs when no experiment runs at the moment", () => {
+    expect(resultsTable(loop([lap(0), lap(1)])).state).toBe("loop running…");
+  });
+
+  it("says that the loop finished or stopped, also when an experiment still shows as running", () => {
+    const running = { running: true, runs: [{ status: "running" }], evaluatorReplays: [] };
+    const completed = { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "" } as const;
+    expect(resultsTable(loop([lap(0), lap(1), lap(2, running)], { outcome: completed })).state).toBe("loop finished");
+    expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop stopped");
+  });
+
+  it("names the status words that can show, for the footer", () => {
+    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed.");
+  });
+
   it("marks the winning lap, and only that lap", () => {
     const rows = resultsTable(loop([lap(0), lap(1), lap(2)], { winnerLap: 1 })).rows;
     expect(rows.map((r) => r.winning)).toEqual([false, true, false]);
+    expect(rows[0].result).toMatchObject({ label: "Control", tone: "neutral" });
     expect(rows[1].result).toMatchObject({ label: "Passed", tone: "success" });
   });
 
@@ -342,6 +368,10 @@ describe("resultsTable", () => {
     expect(rows.map((r) => r.result?.label)).toEqual(["Control", "Failed", "Passed"]);
     expect(rows.map((r) => r.result?.tone)).toEqual(["neutral", "destructive", "success"]);
     expect(rows[1].result?.title).toBe("got worse than the control experiment: refund-01");
+  });
+
+  it('gives the control experiment the result "Passed" when it is the winning experiment', () => {
+    expect(resultsTable(loop([lap(0), lap(1)], { winnerLap: 0 })).rows[0].result).toMatchObject({ label: "Passed", tone: "success" });
   });
 
   it("gives no lap result when the loop has no rules on the server", () => {
@@ -741,7 +771,7 @@ describe("a required evaluator that gave no result", () => {
 
   it("gives the case no result in the Results section, and its column no squares", () => {
     const lap = { lap: 0, summary: "", running: false, screenGreen: null, selectionGate: null, confirmationGate: null, runs: [{ status: "completed" }], evaluatorReplays: lists } as unknown as ResultsLap;
-    const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3 }).rows[0];
+    const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running" } }).rows[0];
     expect(row.noResults).toBeNull();
     expect(row.cells.map((c) => c?.evaluator ?? null)).toEqual(["action-correct", null]);
     expect(row.replays.map((r) => r.result)).toEqual(["No result"]);

@@ -53,6 +53,14 @@ _Avoid_: Trial (a trial is a phase of a run, not the run itself)
 **Phase**:
 The role of a run inside an experiment: screen, trial, or confirmation.
 
+**Pass rate**:
+The share of cases that passed. For a run, a case passed when it passed every gating evaluator in that run. For an experiment, a case passed when it passed in every completed run of the experiment.
+_Avoid_: Score, success rate
+
+**Mixed**:
+A case is mixed in an experiment when it passed in some runs of the experiment and failed in others.
+_Avoid_: Flaky, unstable
+
 ### Loops
 
 **Loop**:
@@ -82,7 +90,7 @@ _Avoid_: Regression, regressed
 
 **Handoff prompt**:
 Text that the app writes for a person to paste into a coding agent. The app creates nothing; the coding agent does the work.
-_Avoid_: "prompt" alone for this meaning. "Prompt" alone is the system prompt of the agent, which a loop changes.
+_Avoid_: "prompt" alone for this meaning. "Prompt" alone is the system prompt of the agent, which a loop changes. A button next to the handoff prompt can say "Get prompt" or "Copy prompt".
 
 ### Sign-in
 
