@@ -330,3 +330,20 @@ export async function approveDevice(deviceId: string, userCode: string): Promise
     api.POST("/api/v1/devices/{device_id}/verify", { params: { path: { device_id: deviceId } }, body: { user_code: userCode, trusted: false } }),
   );
 }
+
+// ---- Workers --------------------------------------------------------------
+
+export type Worker = components["schemas"]["WorkerResponse"];
+
+// The live workers. The server leaves out workers past its liveness window,
+// as Kitaru's own Workers page does. Follows next_cursor to the end.
+export async function listWorkers(): Promise<Worker[]> {
+  const workers: Worker[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await unwrap(api.GET("/api/v1/workers", { params: { query: { size: 100, cursor } } }), "workers");
+    workers.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return workers;
+}

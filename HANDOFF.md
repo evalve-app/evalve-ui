@@ -43,8 +43,9 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
 | Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare experiments. See below |
 | Evaluators | `/evaluators` | Read-only list of all evaluators: scope (one agent or all agents), provider, latest version. A row opens nothing |
+| Workers | `/workers` | Read-only list of the live workers (the server leaves out workers that stopped sending heartbeats): status, claims, platform, last seen. Reloads every 15 s. Click a column header to sort. A row opens nothing |
 
-**Placeholders (say "not built yet"):** Workers, Jobs. They are hidden from the nav. The routes `/workers` and `/jobs` still exist.
+**Placeholders (say "not built yet"):** Jobs. It is hidden from the nav. The route `/jobs` still exists.
 
 **CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 

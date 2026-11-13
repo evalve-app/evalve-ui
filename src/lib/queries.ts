@@ -1,4 +1,4 @@
-import { listAgents, listEvaluators, listSessionNodes } from "../api/client";
+import { listAgents, listEvaluators, listSessionNodes, listWorkers } from "../api/client";
 import { agentOwnSettings } from "./sessionNodes";
 
 // Queries that more than one page uses. Every caller takes its options from
@@ -16,3 +16,7 @@ export const agentOwnSettingsQuery = (sessionId: string) => ({
   queryKey: ["agent-own-settings", sessionId],
   queryFn: async () => agentOwnSettings(await listSessionNodes(sessionId)),
 });
+
+// The live workers.
+// API: GET /api/v1/workers
+export const workersQuery = () => ({ queryKey: ["workers"], queryFn: listWorkers });
