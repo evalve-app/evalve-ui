@@ -351,7 +351,8 @@ h1, h2, p { margin: 0; }
 
 /* Setup card (SetupCard.tsx), on the loop page and the New loop page. Two
    columns of sections. On the loop page the card is locked: its fieldset is
-   disabled, and the fields stay at full opacity. */
+   disabled, and the fields stay at full opacity. On the New loop page the
+   card has a footer below it, and Approve locks the card at 50% opacity. */
 .setup-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-8); min-width: 0; margin: 0; padding: var(--spacing-6); border: 1px solid var(--border-border); border-radius: var(--radius-lg); background: var(--surface-card); }
 .setup-col { display: flex; flex-direction: column; gap: var(--spacing-6); min-width: 0; }
 .setup-section { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; }
@@ -376,8 +377,21 @@ h1, h2, p { margin: 0; }
 .setup-unit-input { position: relative; display: flex; align-items: center; }
 .setup-unit-input .setup-input { padding-right: 52px; }
 .setup-unit { position: absolute; right: var(--spacing-3); color: var(--text-muted-foreground); font-size: 12px; pointer-events: none; }
+.setup-card.locked { opacity: .5; }
+.setup-shell { display: flex; flex-direction: column; min-width: 0; }
+.setup-shell .setup-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.setup-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); padding: var(--spacing-3) var(--spacing-6); border: 1px solid var(--border-border); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--surface-card); }
+.setup-footer-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; }
+.setup-problem { color: var(--text-destructive-text); }
+/* Handoff prompt panel, below the setup card of the New loop page. After the
+   copy its body is dimmed, and the buttons stay at full opacity. */
+.handoff-panel, .handoff-body { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.handoff-body.dimmed { opacity: .5; }
+.handoff-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
+.handoff-status { margin: 0; color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; }
 @media (max-width: 900px) {
   .setup-card { grid-template-columns: 1fr; }
+  .setup-footer, .handoff-actions { flex-direction: column; align-items: stretch; }
 }
 
 /* Loop page: Results section (ResultsSection.tsx) */

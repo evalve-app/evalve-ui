@@ -68,11 +68,6 @@ export function setupRuleProblems({ greenRuns, maxRuns, budget }: Pick<SetupValu
   return problems;
 }
 
-// The limits of a new loop, for the bar below the setup card.
-export function limitsText({ maxRuns, budget }: Pick<SetupValues, "maxRuns" | "budget">): string {
-  return `Up to ${maxRuns} ${maxRuns === 1 ? "run" : "runs"} within a loop budget of ${usd(budget)}.`;
-}
-
 const list = (items: string[] | null | undefined): string[] => (items?.length ? items : [ABSENT]);
 
 // - `evalve`: the setup in the loop settings line of the runner. Null for a loop that the old skill made.

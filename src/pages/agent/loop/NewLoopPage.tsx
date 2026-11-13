@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy } from "lucide-react";
@@ -8,7 +8,8 @@ import { Button, Checkbox, Input, Switch } from "../../../design-system/componen
 import { versionLabel } from "../../../lib/cohorts";
 import { buildEvalveLoopPrompt } from "../../../lib/evalveLoopHandoff";
 import { useLoopMode } from "../../../lib/loopMode";
-import { cohortVersionText, limitsText, setupRuleProblems, usd, type SetupValues } from "../../../lib/loopSetup";
+import { approveButtons, nextApproveState, type ApproveAction, type ApproveState } from "../../../lib/loopApprove";
+import { cohortVersionText, setupRuleProblems, type SetupValues } from "../../../lib/loopSetup";
 import { useCohorts } from "../../../lib/useCohorts";
 import { CHANGE_FIELD_LABELS, DEFAULT_CRITERIA, groupLoops, slugify, type ChangeField, type Criteria } from "../../../lib/loops";
 import { SetupCard } from "./SetupCard";
@@ -21,6 +22,9 @@ const CHANGE_HELP: Record<ChangeField, string> = {
 
 // What an experiment may change in the MVP view. The runner has no override for model params.
 const MVP_CHANGES: ("system_prompt" | "model")[] = ["system_prompt", "model"];
+
+// How often the page requests the experiments of the agent while it waits for the control experiment.
+const POLL_MS = 4000;
 
 // Drops null values, the way the skill compares stored policies.
 function stripNulls(x: unknown): unknown {
@@ -38,7 +42,10 @@ export function NewLoopPage() {
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
   const { cohorts, versionsByCohort } = useCohorts(agentId);
   const evaluators = useQuery(evaluatorsQuery());
-  const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
+  // The state of the Approve flow of the MVP view. It is browser state only: a reload returns the page to "edit".
+  const [approval, setApproval] = useState<ApproveState>("edit");
+  // After the copy, the page waits for the coding agent to create the control experiment. There is no time limit.
+  const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId), refetchInterval: mvp && approval === "copied" ? POLL_MS : false });
   const info = useQuery({
     queryKey: ["info"],
     queryFn: async () => (await api.GET("/api/v1/info")).data,
@@ -49,7 +56,13 @@ export function NewLoopPage() {
   const cohortOptions = (cohorts.data ?? []).flatMap((c) =>
     (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count, text: cohortVersionText({ name: c.name, version: versionLabel(v), caseCount: v.session_count }) })),
   );
-  const agentEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
+  const liveEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
+  // The evaluators at the time of Approve (MVP view). The locked card and the handoff prompt use them until Cancel,
+  // so that a later request cannot put a version in the handoff prompt that the person did not approve.
+  const [approvedEvaluators, setApprovedEvaluators] = useState<typeof liveEvaluators | null>(null);
+  const agentEvaluators = approvedEvaluators ?? liveEvaluators;
+  // The number of the current approval. Cancel starts a new number, and a clipboard write of an older number changes nothing.
+  const approvalNumber = useRef(0);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);
 
   const [name, setName] = useState("");
@@ -65,6 +78,7 @@ export function NewLoopPage() {
   const [review, setReview] = useState(false);
   const [showBuiltIn, setShowBuiltIn] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const set = <K extends keyof Criteria>(k: K, v: Criteria[K]) => setC((cur) => ({ ...cur, [k]: v }));
 
   useEffect(() => {
@@ -80,7 +94,9 @@ export function NewLoopPage() {
   const visibleEvaluators = agentEvaluators.filter((e) => showBuiltIn || !isBuiltIn(e.name) || chosen.includes(e.name));
   const builtInCount = agentEvaluators.filter((e) => isBuiltIn(e.name) && !chosen.includes(e.name)).length;
   const slug = slugify(name);
-  const taken = !!slug && groupLoops(experiments.data ?? []).has(slug);
+  const loopExists = !!slug && groupLoops(experiments.data ?? []).has(slug);
+  // In the MVP view the name check runs only in the edit state: after Approve, the coding agent creates a loop with this name.
+  const taken = loopExists && (!mvp || approval === "edit");
   const cohort = cohortOptions.find((o) => o.id === cohortVersionId);
   const modelList = models.split(",").map((m) => m.trim()).filter(Boolean);
   // In the sequence in which the person selected them: the handoff prompt lists them in this sequence.
@@ -109,6 +125,9 @@ export function NewLoopPage() {
     activeChanges.length === 0 && "Pick at least one thing that may change.",
     ...(mvp ? setupRuleProblems({ greenRuns: requiredGreens, maxRuns: maxAttempts, budget }) : []),
     mvp && !serverUrl && (info.isPending ? "Reading the Kitaru server address…" : "Could not read the Kitaru server address."),
+    mvp && !agent.data && (agent.isPending ? "Reading the agent…" : "Could not read the agent."),
+    // Without the experiments, the page cannot tell a name that is in use from the new loop.
+    mvp && !experiments.data && (experiments.isPending ? "Reading the loops of the agent…" : "Could not read the loops of the agent."),
     !mvp && changes.includes("model") && modelList.length === 0 && "List the models the loop may switch to.",
     !mvp && c.k > c.trials_per_round && "k can't be more than trials per experiment.",
   ].filter(Boolean) as string[];
@@ -149,51 +168,55 @@ export function NewLoopPage() {
     : "";
   const prompt = mvp ? hostedPrompt : `/kitaru-loop\nStart the loop "${name.trim()}". Save the config below to a file, run \`loop.py init --from\` on it, then \`loop.py preflight\`. Tell me the worst-case cost and wait for my approval before any run.\n\n${JSON.stringify(config, null, 2)}`;
 
+  const worstCase = c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0);
+
+  // Post-MVP view: the Review screen shows the copy result for a short time.
   async function copy() {
     await navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const summary = (
-    <aside className="panel summary-card" aria-label="Loop summary">
-      <div className="summary-title">Summary</div>
-      <dl className="summary-list">
-        <dt>Experiments</dt>
-        <dd className="mono">{slug ? `${slug}-round-N` : "—"}</dd>
-        <dt>Cohort</dt>
-        <dd>{cohort ? (mvp ? cohort.text : `${cohort.label} (${cohort.sessions} cases)`) : "—"}</dd>
-        <dt>{mvp ? "Gating evaluators" : "Gate evaluators"}</dt>
-        <dd>{chosen.length ? chosen.join(", ") : "—"}</dd>
-        <dt>May change</dt>
-        <dd>{activeChanges.length ? activeChanges.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
-        <dt>An experiment passes when</dt>
-        <dd>
-          {mvp
-            ? `Every case passes every gating evaluator in ${requiredGreens} consecutive ${requiredGreens === 1 ? "run" : "runs"}`
-            : `${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than in the control experiment" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
-          .
-        </dd>
-        <dt>Stops otherwise after</dt>
-        <dd>
-          {mvp ? `${maxAttempts} ${maxAttempts === 1 ? "run" : "runs"} or a loop budget of ${usd(budget)}` : (
-            <>
-              {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
-              {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
-            </>
-          )}
-        </dd>
-        {mvp ? null : (
-          <>
-            <dt>Worst case</dt>
-            <dd>{c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0)} runs of the cohort</dd>
-          </>
-        )}
-      </dl>
-    </aside>
-  );
+  // MVP view: the Approve flow. An inactive button does nothing.
+  const hasProblem = problems.length > 0 || !agent.data;
+  const buttons = approveButtons(approval, { hasProblem });
+  const act = (action: ApproveAction) => setApproval((state) => nextApproveState(state, action, { hasProblem }));
+  function approve() {
+    if (!buttons.approve) return;
+    setApprovedEvaluators(liveEvaluators);
+    act("approve");
+  }
+  function cancelApproval() {
+    if (!buttons.cancel) return;
+    approvalNumber.current += 1;
+    setApprovedEvaluators(null);
+    setCopyFailed(false);
+    act("cancel");
+  }
+  async function copyHandoffPrompt() {
+    const mine = approvalNumber.current;
+    let failed = false;
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      // The browser can refuse the clipboard (no permission, or no HTTPS).
+      failed = true;
+    }
+    // The person canceled this approval while the clipboard write was not complete. The clipboard can hold the
+    // handoff prompt of the old setup, so the page does not show a copy of the new setup.
+    if (mine !== approvalNumber.current) return;
+    setCopyFailed(failed);
+    if (failed) return;
+    act("copyPrompt");
+  }
 
-  if (review) {
+  // When an experiment of the new loop exists, the loop page replaces this page.
+  const waiting = mvp && approval === "copied";
+  useEffect(() => {
+    if (waiting && loopExists) navigate(`/agents/${agentId}/loop/${slug}`, { replace: true });
+  }, [waiting, loopExists, navigate, agentId, slug]);
+
+  if (review && !mvp) {
     return (
       <div className="tab-page">
         <button type="button" className="back-link" onClick={() => setReview(false)}>
@@ -202,11 +225,11 @@ export function NewLoopPage() {
         </button>
         <div className="review-layout">
           <div className="panel review-main">
-            <h2 className="section-title">Start the {mvp ? "MVP" : "Post-MVP"} loop</h2>
+            <h2 className="section-title">Start the Post-MVP loop</h2>
             <ol className="steps">
               <li>Copy the prompt.</li>
-              <li>{mvp ? "Paste it into your coding agent with the agent project open. The coding agent fetches the pinned runner from this deployment." : "Paste it into Claude Code in the agent's project, with the kitaru-loop skill installed."}</li>
-              {mvp ? null : <li>Check the tool policy and evaluator params in the config. They were copied from this agent's latest experiment.</li>}
+              <li>Paste it into Claude Code in the agent's project, with the kitaru-loop skill installed.</li>
+              <li>Check the tool policy and evaluator params in the config. They were copied from this agent's latest experiment.</li>
               <li>
                 Experiments show up under <span className="mono">{slug}</span> in the Loop tab as the skill creates them.
               </li>
@@ -221,7 +244,31 @@ export function NewLoopPage() {
               </Button>
             </div>
           </div>
-          {summary}
+          <aside className="panel summary-card" aria-label="Loop summary">
+            <div className="summary-title">Summary</div>
+            <dl className="summary-list">
+              <dt>Experiments</dt>
+              <dd className="mono">{slug ? `${slug}-round-N` : "—"}</dd>
+              <dt>Cohort</dt>
+              <dd>{cohort ? `${cohort.label} (${cohort.sessions} cases)` : "—"}</dd>
+              <dt>Gate evaluators</dt>
+              <dd>{chosen.length ? chosen.join(", ") : "—"}</dd>
+              <dt>May change</dt>
+              <dd>{changes.length ? changes.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
+              <dt>An experiment passes when</dt>
+              <dd>
+                {`${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than in the control experiment" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
+                .
+              </dd>
+              <dt>Stops otherwise after</dt>
+              <dd>
+                {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
+                {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
+              </dd>
+              <dt>Worst case</dt>
+              <dd>{worstCase} runs of the cohort</dd>
+            </dl>
+          </aside>
         </div>
       </div>
     );
@@ -233,8 +280,6 @@ export function NewLoopPage() {
         {showBuiltIn ? "Hide built-in evaluators" : `Show ${builtInCount} built-in Kitaru evaluators`}
       </button>
     ) : null;
-
-  const worstCase = c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0);
 
   return (
     <div className="tab-page new-loop">
@@ -256,10 +301,13 @@ export function NewLoopPage() {
       )}
 
       {mvp ? (
+        <>
+        <div className="setup-shell">
         <SetupCard
           edit={{
             values: setup,
             onChange: changeSetup,
+            locked: approval !== "edit",
             nameTaken: taken,
             cohortVersions: cohortOptions.map((o) => ({ id: o.id, label: o.text })),
             evaluators: visibleEvaluators.map((e) => ({ id: e.name, label: `${e.name}@${e.latest_version}`, help: e.description ?? undefined })),
@@ -267,7 +315,67 @@ export function NewLoopPage() {
             changes: MVP_CHANGES.map((f) => ({ id: f, label: CHANGE_FIELD_LABELS[f], help: f === "model" ? "The coding agent chooses a model the replay worker can access." : CHANGE_HELP[f] })),
           }}
         />
+          <div className="setup-footer">
+            <div className="setup-footer-text">
+              <span>Approve locks the setup. Cancel unlocks it for editing.</span>
+              {approval === "edit" && problems.length > 0 ? <span className="setup-problem">{problems[0]}</span> : null}
+            </div>
+            <div className="form-bar-actions">
+              <Button variant="outline" disabled={!buttons.cancel} onClick={cancelApproval}>
+                Cancel
+              </Button>
+              <Button variant="outline" disabled={!buttons.approve} onClick={approve}>
+                Approve
+              </Button>
+              <Button disabled={!buttons.getPrompt} onClick={() => act("getPrompt")}>
+                Get prompt
+              </Button>
+            </div>
+          </div>
+        </div>
+        {approval === "prompt" || approval === "copied" ? (
+          <div className="panel handoff-panel">
+            <div className={approval === "copied" ? "handoff-body dimmed" : "handoff-body"}>
+              <h2 className="section-title">Start the MVP loop</h2>
+              <ol className="steps">
+                <li>Copy the handoff prompt.</li>
+                <li>Paste it into your coding agent with the agent project open. The coding agent fetches the pinned runner from this deployment.</li>
+                <li>
+                  Experiments show up under <span className="mono">{slug}</span> in the Loop tab as the coding agent creates them.
+                </li>
+              </ol>
+              <pre className="code-block prompt-preview">{prompt}</pre>
+            </div>
+            <div className="handoff-actions">
+              <p className="handoff-status" aria-live="polite">
+                {approval !== "copied" ? (
+                  copyFailed ? "Could not copy. Select the handoff prompt and copy it." : null
+                ) : experiments.error ? (
+                  // The page cannot see the control experiment while this request fails. The interval continues.
+                  <>
+                    <span className="setup-problem">Could not read the experiments of the agent ({experiments.error.message}).</span> The page tries again every {POLL_MS / 1000} seconds. If the error stays, sign in again.{" "}
+                    <button type="button" className="text-button small-link" onClick={() => experiments.refetch()}>
+                      Try again now
+                    </button>
+                  </>
+                ) : (
+                  "Waiting for your coding agent to create the control experiment."
+                )}
+              </p>
+              <div className="form-bar-actions">
+                <Button variant="outline" onClick={() => navigate(`/agents/${agentId}/loop`)}>
+                  Back to loops
+                </Button>
+                <Button icon={approval === "copied" ? Check : Copy} disabled={!buttons.copyPrompt} onClick={copyHandoffPrompt}>
+                  {approval === "copied" ? "Prompt copied" : "Copy prompt"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        </>
       ) : (
+      <>
       <div className="form-card">
         <Section title="Basics" hint="A hypothesis names the failure and its suspected cause. If you write one, it's stored on every experiment.">
           <Field label="Name">
@@ -337,14 +445,10 @@ export function NewLoopPage() {
           </div>
         </Section>
       </div>
-      )}
-
       <div className="form-bar">
         <span className="form-bar-text">
           {problems.length > 0 ? (
             problems[0]
-          ) : mvp ? (
-            limitsText({ maxRuns: maxAttempts, budget })
           ) : (
             <>
               {c.trials_per_round} trials per experiment, up to {c.max_rounds} experiments after the control. Worst case <span className="mono">{worstCase}</span> runs of the cohort.
@@ -360,6 +464,8 @@ export function NewLoopPage() {
           </Button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
