@@ -7,15 +7,20 @@ import { evaluatorsQuery } from "../../../lib/queries";
 import { Button, Checkbox, Input, Switch } from "../../../design-system/components";
 import { versionLabel } from "../../../lib/cohorts";
 import { buildEvalveLoopPrompt } from "../../../lib/evalveLoopHandoff";
-import { LoopModeTabs, type LoopMode } from "../../../lib/loopMode";
+import { useLoopMode } from "../../../lib/loopMode";
+import { cohortVersionText, limitsText, setupRuleProblems, usd, type SetupValues } from "../../../lib/loopSetup";
 import { useCohorts } from "../../../lib/useCohorts";
 import { CHANGE_FIELD_LABELS, DEFAULT_CRITERIA, groupLoops, slugify, type ChangeField, type Criteria } from "../../../lib/loops";
+import { SetupCard } from "./SetupCard";
 
 const CHANGE_HELP: Record<ChangeField, string> = {
   system_prompt: "The instructions the agent runs with. Usually the first thing to try.",
   model: "Swap the model, only to one on the allow-list below.",
   model_params: "Temperature and other sampling settings.",
 };
+
+// What an experiment may change in the MVP view. The runner has no override for model params.
+const MVP_CHANGES: ("system_prompt" | "model")[] = ["system_prompt", "model"];
 
 // Drops null values, the way the skill compares stored policies.
 function stripNulls(x: unknown): unknown {
@@ -27,8 +32,8 @@ function stripNulls(x: unknown): unknown {
 export function NewLoopPage() {
   const { agentId = "" } = useParams();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<LoopMode>("mvp");
-  const mvp = mode === "mvp";
+  // The mode that the person set on the list page or the loop page.
+  const mvp = useLoopMode() === "mvp";
 
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => getAgent(agentId) });
   const { cohorts, versionsByCohort } = useCohorts(agentId);
@@ -42,7 +47,7 @@ export function NewLoopPage() {
   const serverUrl = info.data?.server_url;
 
   const cohortOptions = (cohorts.data ?? []).flatMap((c) =>
-    (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count })),
+    (versionsByCohort[c.id] ?? []).map((v) => ({ id: v.id, label: `${c.name} · ${versionLabel(v)}`, sessions: v.session_count, text: cohortVersionText({ name: c.name, version: versionLabel(v), caseCount: v.session_count }) })),
   );
   const agentEvaluators = (evaluators.data ?? []).filter((e) => !e.agent_id || e.agent_id === agentId);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);
@@ -71,14 +76,30 @@ export function NewLoopPage() {
 
   const chosen = picked ?? [];
   const isBuiltIn = (n: string) => n.startsWith("kitaru/");
+  // A built-in evaluator shows only when it is selected, or when the person shows the built-in evaluators.
+  const visibleEvaluators = agentEvaluators.filter((e) => showBuiltIn || !isBuiltIn(e.name) || chosen.includes(e.name));
   const builtInCount = agentEvaluators.filter((e) => isBuiltIn(e.name) && !chosen.includes(e.name)).length;
   const slug = slugify(name);
   const taken = !!slug && groupLoops(experiments.data ?? []).has(slug);
   const cohort = cohortOptions.find((o) => o.id === cohortVersionId);
   const modelList = models.split(",").map((m) => m.trim()).filter(Boolean);
-  const mvpChanges = changes.filter((field) => field !== "model_params");
+  // In the sequence in which the person selected them: the handoff prompt lists them in this sequence.
+  const mvpChanges = changes.filter((field): field is (typeof MVP_CHANGES)[number] => field !== "model_params");
   const activeChanges = mvp ? mvpChanges : changes;
   const mvpEvaluators = agentEvaluators.filter((e) => chosen.includes(e.name)).map((e) => ({ ref: `${e.name}@${e.latest_version}` }));
+
+  // The values of the editable setup card, and the function that takes its changes.
+  const setup: SetupValues = { name, hypothesis, cohortVersionId, evaluators: chosen, changes: mvpChanges, greenRuns: requiredGreens, maxRuns: maxAttempts, budget };
+  function changeSetup(change: Partial<SetupValues>) {
+    if (change.name !== undefined) setName(change.name);
+    if (change.hypothesis !== undefined) setHypothesis(change.hypothesis);
+    if (change.cohortVersionId !== undefined) setCohortVersionId(change.cohortVersionId);
+    if (change.evaluators !== undefined) setPicked(change.evaluators);
+    if (change.changes !== undefined) setChanges(change.changes);
+    if (change.greenRuns !== undefined) setRequiredGreens(change.greenRuns);
+    if (change.maxRuns !== undefined) setMaxAttempts(change.maxRuns);
+    if (change.budget !== undefined) setBudget(change.budget);
+  }
 
   const problems = [
     !slug && "Give the loop a name.",
@@ -86,8 +107,7 @@ export function NewLoopPage() {
     !cohort && "Pick a cohort.",
     (mvp ? mvpEvaluators.length : chosen.length) === 0 && "Pick at least one evaluator.",
     activeChanges.length === 0 && "Pick at least one thing that may change.",
-    mvp && (!Number.isSafeInteger(requiredGreens) || !Number.isSafeInteger(maxAttempts) || maxAttempts < requiredGreens) && "Maximum replay attempts must be a whole number at least as large as the required green streak.",
-    mvp && (!Number.isFinite(budget) || budget <= 0) && "Enter a positive replay budget.",
+    ...(mvp ? setupRuleProblems({ greenRuns: requiredGreens, maxRuns: maxAttempts, budget }) : []),
     mvp && !serverUrl && (info.isPending ? "Reading the Kitaru server address…" : "Could not read the Kitaru server address."),
     !mvp && changes.includes("model") && modelList.length === 0 && "List the models the loop may switch to.",
     !mvp && c.k > c.trials_per_round && "k can't be more than trials per experiment.",
@@ -142,21 +162,21 @@ export function NewLoopPage() {
         <dt>Experiments</dt>
         <dd className="mono">{slug ? `${slug}-round-N` : "—"}</dd>
         <dt>Cohort</dt>
-        <dd>{cohort ? `${cohort.label} (${cohort.sessions} cases)` : "—"}</dd>
-        <dt>Gate evaluators</dt>
+        <dd>{cohort ? (mvp ? cohort.text : `${cohort.label} (${cohort.sessions} cases)`) : "—"}</dd>
+        <dt>{mvp ? "Gating evaluators" : "Gate evaluators"}</dt>
         <dd>{chosen.length ? chosen.join(", ") : "—"}</dd>
         <dt>May change</dt>
         <dd>{activeChanges.length ? activeChanges.map((f) => CHANGE_FIELD_LABELS[f]).join(", ") : "—"}</dd>
         <dt>An experiment passes when</dt>
         <dd>
           {mvp
-            ? `Every case passes every selected evaluator in ${requiredGreens} consecutive ${requiredGreens === 1 ? "replay" : "replays"}`
+            ? `Every case passes every gating evaluator in ${requiredGreens} consecutive ${requiredGreens === 1 ? "run" : "runs"}`
             : `${c.per_case_floor === "strict" ? "No case misses" : "No case misses more than once"} in ${c.trials_per_round} trials, mean pass^${c.k} is at least ${c.cohort_target_mean_pass_k}${c.no_regression ? ", no case does worse than in the control experiment" : ""}${c.confirmation_round ? `, and it holds again on ${c.trials_per_round} fresh trials` : ""}`}
           .
         </dd>
         <dt>Stops otherwise after</dt>
         <dd>
-          {mvp ? `${maxAttempts} replay attempts or a $${budget} replay budget` : (
+          {mvp ? `${maxAttempts} ${maxAttempts === 1 ? "run" : "runs"} or a loop budget of ${usd(budget)}` : (
             <>
               {c.max_rounds} experiments after the control{c.plateau_patience != null ? `, or ${c.plateau_patience} experiments without improvement` : ""}
               {c.budget_usd != null ? `, or $${c.budget_usd}` : ""}
@@ -207,6 +227,13 @@ export function NewLoopPage() {
     );
   }
 
+  const builtInToggle =
+    builtInCount > 0 || showBuiltIn ? (
+      <button type="button" className="text-button small-link" onClick={() => setShowBuiltIn(!showBuiltIn)}>
+        {showBuiltIn ? "Hide built-in evaluators" : `Show ${builtInCount} built-in Kitaru evaluators`}
+      </button>
+    ) : null;
+
   const worstCase = c.trials_per_round * (c.max_rounds + 1) + (c.confirmation_round ? c.trials_per_round : 0);
 
   return (
@@ -215,16 +242,32 @@ export function NewLoopPage() {
         <ArrowLeft size={14} aria-hidden />
         Loops
       </button>
-      <div className="form-header-row">
+      {mvp ? (
+        <div className="form-header">
+          <div className="detail-eyebrow">Loop / New</div>
+          <h2 className="detail-title sans">Set up the loop</h2>
+          <p className="detail-description">Fill in the setup, get the handoff prompt, and give it to your coding agent, which runs the loop.</p>
+        </div>
+      ) : (
         <div className="form-header">
           <h2 className="detail-title sans">New loop</h2>
-          <p className="detail-description">
-            {mvp ? "Choose how many times every case must pass in a row. Your coding agent runs the loop from the prompt." : "These are the kitaru-loop skill's settings. Nothing runs until you hand the prompt to your coding agent."}
-          </p>
+          <p className="detail-description">These are the kitaru-loop skill's settings. Nothing runs until you hand the prompt to your coding agent.</p>
         </div>
-        <LoopModeTabs mode={mode} onChange={setMode} />
-      </div>
+      )}
 
+      {mvp ? (
+        <SetupCard
+          edit={{
+            values: setup,
+            onChange: changeSetup,
+            nameTaken: taken,
+            cohortVersions: cohortOptions.map((o) => ({ id: o.id, label: o.text })),
+            evaluators: visibleEvaluators.map((e) => ({ id: e.name, label: `${e.name}@${e.latest_version}`, help: e.description ?? undefined })),
+            evaluatorsFooter: builtInToggle,
+            changes: MVP_CHANGES.map((f) => ({ id: f, label: CHANGE_FIELD_LABELS[f], help: f === "model" ? "The coding agent chooses a model the replay worker can access." : CHANGE_HELP[f] })),
+          }}
+        />
+      ) : (
       <div className="form-card">
         <Section title="Basics" hint="A hypothesis names the failure and its suspected cause. If you write one, it's stored on every experiment.">
           <Field label="Name">
@@ -247,39 +290,26 @@ export function NewLoopPage() {
 
         <Section title="Gate evaluators" hint="Choose evaluators that return pass or fail. A case passes when every selected evaluator passes it.">
           <div className="check-list">
-            {agentEvaluators
-              .filter((e) => showBuiltIn || !isBuiltIn(e.name) || chosen.includes(e.name))
-              .map((e) => (
-                <CheckRow key={e.id} checked={chosen.includes(e.name)} onChange={(v) => setPicked(v ? [...chosen, e.name] : chosen.filter((x) => x !== e.name))} label={<span className="mono">{e.name}{mvp ? `@${e.latest_version}` : ""}</span>} help={e.description ?? undefined} />
+            {visibleEvaluators.map((e) => (
+                <CheckRow key={e.id} checked={chosen.includes(e.name)} onChange={(v) => setPicked(v ? [...chosen, e.name] : chosen.filter((x) => x !== e.name))} label={<span className="mono">{e.name}</span>} help={e.description ?? undefined} />
               ))}
           </div>
-          {builtInCount > 0 || showBuiltIn ? (
-            <button type="button" className="text-button small-link" onClick={() => setShowBuiltIn(!showBuiltIn)}>
-              {showBuiltIn ? "Hide built-in evaluators" : `Show ${builtInCount} built-in Kitaru evaluators`}
-            </button>
-          ) : null}
+          {builtInToggle}
         </Section>
 
         <Section title="What may change" hint="Each experiment changes exactly one of these, as an override on the same agent version.">
           <div className="check-list">
-            {(Object.keys(CHANGE_FIELD_LABELS) as ChangeField[]).filter((f) => !mvp || f !== "model_params").map((f) => (
-              <CheckRow key={f} checked={changes.includes(f)} onChange={(v) => setChanges(v ? [...changes, f] : changes.filter((x) => x !== f))} label={CHANGE_FIELD_LABELS[f]} help={mvp && f === "model" ? "The coding agent chooses a model the replay worker can access." : CHANGE_HELP[f]} />
+            {(Object.keys(CHANGE_FIELD_LABELS) as ChangeField[]).map((f) => (
+              <CheckRow key={f} checked={changes.includes(f)} onChange={(v) => setChanges(v ? [...changes, f] : changes.filter((x) => x !== f))} label={CHANGE_FIELD_LABELS[f]} help={CHANGE_HELP[f]} />
             ))}
           </div>
-          {!mvp && changes.includes("model") ? (
+          {changes.includes("model") ? (
             <Field label="Allowed models" help="Comma separated. The loop refuses any model not listed.">
               <Input className="w-md" value={models} onChange={(e) => setModels(e.target.value)} placeholder="gpt-4.1-mini, gpt-4.1" />
             </Field>
           ) : null}
         </Section>
 
-        {mvp ? (
-          <Section title="Success" hint="Every case must pass in consecutive replays of the same experiment.">
-            <div className="field-grid">
-              <NumberField label="Consecutive green replays" suffix="replays" value={requiredGreens} min={1} onChange={setRequiredGreens} />
-            </div>
-          </Section>
-        ) : (
         <Section title="Passing an experiment" hint="One run can't tell a case that passes 95% of the time from one that always passes, so every experiment replays each case several times.">
           <div className="field-grid">
             <NumberField label="Trials per experiment" suffix="runs" value={c.trials_per_round} min={1} max={20} onChange={(v) => set("trials_per_round", v)} />
@@ -298,16 +328,7 @@ export function NewLoopPage() {
             <ToggleRow label="Screen first" help="Run each new experiment once. Any failing case ends the experiment before spending the other trials." checked={c.screen_first} onChange={(v) => set("screen_first", v)} />
           </div>
         </Section>
-        )}
 
-        {mvp ? (
-          <Section title="Stopping" hint="The attempt cap includes the runs of the control experiment and retries. The runner checks the budget before each replay.">
-            <div className="field-grid">
-              <NumberField label="Maximum replay attempts" suffix="replays" value={maxAttempts} min={1} onChange={setMaxAttempts} />
-              <NumberField label="Replay budget" suffix="USD" value={budget} min={0} step={0.01} onChange={setBudget} />
-            </div>
-          </Section>
-        ) : (
         <Section title="Stopping" hint="The loop also stops as soon as an experiment passes and confirms.">
           <div className="field-grid">
             <NumberField label="Max experiments after the control" suffix="experiments" value={c.max_rounds} min={1} max={50} onChange={(v) => set("max_rounds", v)} />
@@ -315,15 +336,15 @@ export function NewLoopPage() {
             <NumberField label="Budget (0 = none)" suffix="USD" value={c.budget_usd ?? 0} min={0} max={10000} step={0.5} onChange={(v) => set("budget_usd", v === 0 ? null : v)} />
           </div>
         </Section>
-        )}
       </div>
+      )}
 
       <div className="form-bar">
         <span className="form-bar-text">
           {problems.length > 0 ? (
             problems[0]
           ) : mvp ? (
-            <>Up to {maxAttempts} replay attempts within a ${budget} budget.</>
+            limitsText({ maxRuns: maxAttempts, budget })
           ) : (
             <>
               {c.trials_per_round} trials per experiment, up to {c.max_rounds} experiments after the control. Worst case <span className="mono">{worstCase}</span> runs of the cohort.

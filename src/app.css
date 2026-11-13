@@ -349,8 +349,9 @@ h1, h2, p { margin: 0; }
 /* Loop page, MVP view. One subsection for each section component. The lap
    grid, the stat tiles and the trend line above are shared with the Post-MVP view. */
 
-/* Loop page: setup card (SetupCard.tsx). Two columns of sections. The card is
-   locked: its fieldset is disabled, and the fields stay at full opacity. */
+/* Setup card (SetupCard.tsx), on the loop page and the New loop page. Two
+   columns of sections. On the loop page the card is locked: its fieldset is
+   disabled, and the fields stay at full opacity. */
 .setup-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-8); min-width: 0; margin: 0; padding: var(--spacing-6); border: 1px solid var(--border-border); border-radius: var(--radius-lg); background: var(--surface-card); }
 .setup-col { display: flex; flex-direction: column; gap: var(--spacing-6); min-width: 0; }
 .setup-section { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; }
@@ -359,7 +360,7 @@ h1, h2, p { margin: 0; }
 .setup-hint { margin: 0; color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; }
 .setup-field { display: flex; flex-direction: column; gap: var(--spacing-1-5); min-width: 0; }
 .setup-label { color: var(--text-foreground); font: 500 13px/18px var(--font-sans); }
-.setup-input.ev-input { width: 100%; }
+.setup-input.ev-input, .setup-input.ev-select { width: 100%; max-width: none; }
 .setup-input.ev-input:disabled { opacity: 1; cursor: default; }
 .setup-text.ev-input { height: auto; min-height: 76px; margin: 0; padding: var(--spacing-2) var(--spacing-3); line-height: 20px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .setup-checks { display: flex; flex-direction: column; gap: var(--spacing-2); margin: 0; padding: 0; list-style: none; }
@@ -367,6 +368,9 @@ h1, h2, p { margin: 0; }
 .setup-check .ev-checkbox { flex: none; margin-top: 2px; }
 .setup-check .ev-checkbox:disabled { opacity: 1; }
 .setup-check-label { min-width: 0; font: 500 14px/20px var(--font-sans); overflow-wrap: anywhere; }
+.setup-check-text { display: flex; flex-direction: column; min-width: 0; }
+.setup-card:not(:disabled) .setup-check-text { cursor: pointer; }
+.setup-check-help { color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; }
 .setup-check-label.mono { font-family: var(--font-mono); font-size: 13px; }
 .setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-4); align-items: end; }
 .setup-unit-input { position: relative; display: flex; align-items: center; }
@@ -546,7 +550,6 @@ a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 }
 
 /* MVP / Post-MVP switch for the Loop tab. */
-.form-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-6); }
 .loop-mode { flex: none; }
 .loop-mode .ev-tab { padding: 0 var(--spacing-3); font-size: 13px; white-space: nowrap; }
 
