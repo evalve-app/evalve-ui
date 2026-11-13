@@ -597,7 +597,6 @@ describe("finalResults", () => {
   function finalLap(lap: number, results: Record<string, number[]>, more: Partial<FinalLap> = {}): FinalLap {
     return {
       lap,
-      experiment: { description: null },
       runs: [],
       evaluatorReplays: Object.entries(results).map(([evaluator, passes]) => ({
         evaluator,
@@ -607,8 +606,7 @@ describe("finalResults", () => {
     };
   }
 
-  // One run for each lap and k = 1: the pass rate of that run is the number that the rule of the loop uses.
-  const criteria = { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 1, k: 1, confirmation_round: false };
+  const criteria = { max_rounds: 4 };
   const passed = { kind: "completed", passed: true, winnerLap: 2, title: "Experiment 2 passed", detail: "It met every check across 1 runs." } as const;
   const notPassed = { kind: "completed", passed: false, winnerLap: null, title: "No experiment passed", detail: "The loop ran all 4 experiments it was allowed after the control." } as const;
 
@@ -639,15 +637,13 @@ describe("finalResults", () => {
   it("names the winning lap and the duration in the heading of a loop that passed", () => {
     const r = finalResults(passedLoop)!;
     expect(r.badge).toEqual({ label: "Passed", tone: "success" });
-    expect(r.line).toBe("Experiment 2 passed · 12 min");
-    expect(r.detail).toBe("It met every check across 1 runs.");
+    expect(r.line).toBe("Experiment 2 passed · 12 min. It met every check across 1 runs.");
   });
 
   it("names the best lap in the heading of a loop that did not pass, with a neutral badge", () => {
     const r = finalResults(notPassedLoop)!;
     expect(r.badge).toEqual({ label: "Not passed", tone: "neutral" });
-    expect(r.line).toBe("No experiment passed · Best experiment: experiment 1 · 8 min");
-    expect(r.detail).toBe("The loop ran all 4 experiments it was allowed after the control.");
+    expect(r.line).toBe("No experiment passed · Best experiment: experiment 1 · 8 min. The loop ran all 4 experiments it was allowed after the control.");
   });
 
   it("measures the duration from the earliest run start to the latest run end, in hours for a long loop", () => {
@@ -655,12 +651,12 @@ describe("finalResults", () => {
       finalLap(0, { "action-correct": [1, 1, 1, 1] }, { runs: [{ started_at: "2026-01-01T12:00:00Z", ended_at: "2026-01-01T12:30:00Z" }] }),
       finalLap(1, { "action-correct": [1, 1, 1, 1] }, { runs: [{ started_at: "2026-01-01T10:00:00Z", ended_at: "2026-01-01T11:00:00Z" }] }),
     ];
-    expect(finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 1, title: "Experiment 1 passed" }, laps: long, totalLaps: 2 })!.line).toBe("Experiment 1 passed · 2 h 30 min");
+    expect(finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 1, title: "Experiment 1 passed" }, laps: long, totalLaps: 2 })!.line).toBe("Experiment 1 passed · 2 h 30 min. It met every check across 1 runs.");
   });
 
   it("leaves the duration out when no run has a start and an end", () => {
     const noTimes = laps.map((l) => ({ ...l, runs: [] }));
-    expect(finalResults({ ...passedLoop, laps: noTimes })!.line).toBe("Experiment 2 passed");
+    expect(finalResults({ ...passedLoop, laps: noTimes })!.line).toBe("Experiment 2 passed. It met every check across 1 runs.");
   });
 
   it("gives one card for each gating evaluator with the count of the winning lap and of the baseline lap", () => {
@@ -687,25 +683,19 @@ describe("finalResults", () => {
     expect(r.cards[0]).toEqual({ label: "action-correct", value: "25%", sub: "1 of 4 · was 2 of 4" });
   });
 
-  it("shows no Criteria card when a confirmation run also decides the lap", () => {
-    // The first run of lap 2 passes each case, but the loop did not pass: the confirmation run failed.
-    const r = finalResults({ ...passedLoop, outcome: notPassed, settings: { criteria: { ...criteria, confirmation_round: true } } })!;
-    expect(r.criteria).toBeNull();
-    expect(r.criteriaSummary).toBeNull();
-  });
-
-  it("shows no Criteria card when its rows do not agree with the outcome", () => {
-    // Each row is met, but a rule that the page cannot measure (the floor for each case) failed the loop.
-    const r = finalResults({ ...passedLoop, outcome: notPassed })!;
-    expect(r.criteria).toBeNull();
+  it("does not count a case as got worse when a gating evaluator gave it no result", () => {
+    const partial = finalLap(1, { "action-correct": [1, 1, 1, 1], tone: [1, 1] });
+    const r = finalResults({ ...notPassedLoop, laps: [laps[0], partial], totalLaps: 2 })!;
+    // No result is not a failure, so those cases did not get worse.
+    expect(r.cards.find((c) => c.label === "Got worse")).toMatchObject({ value: "0" });
   });
 
   it("does not count a case as passed when a gating evaluator gave it no result", () => {
+    // Experiment 1 has no failure, but two cases have no result from "tone": 2 of 4 passed. Experiment 2: 3 of 4.
     const partial = finalLap(1, { "action-correct": [1, 1, 1, 1], tone: [1, 1] });
-    const r = finalResults({ ...notPassedLoop, laps: [laps[0], partial], totalLaps: 2 })!;
-    expect(r.bars[1]).toMatchObject({ lap: 1, text: "50%" });
-    // No result is not a failure, so those cases did not get worse.
-    expect(r.cards.find((c) => c.label === "Got worse")).toMatchObject({ value: "0" });
+    const full = finalLap(2, { "action-correct": [1, 1, 1, 0], tone: [1, 1, 1, 1] });
+    const r = finalResults({ ...notPassedLoop, laps: [laps[0], partial, full] })!;
+    expect(r.line).toContain("Best experiment: experiment 2");
   });
 
   it("names no best lap when only the baseline lap has a score", () => {
@@ -731,7 +721,7 @@ describe("finalResults", () => {
   it("names no change and no second experiment when the control experiment is the winning experiment", () => {
     const r = finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 0, title: "The control passed" } })!;
     expect(r.cards.find((c) => c.label === "Got worse")).toEqual({ label: "Got worse", value: "0", sub: "of 4 cases" });
-    expect(r.note.text).toBe("The loop changed only its own copy of the agent.");
+    expect(r.note.text).toBe("The loop only changed its own copy.");
   });
 
   it("gives the laps after the control experiment, with the limit from the loop settings", () => {
@@ -742,97 +732,9 @@ describe("finalResults", () => {
     expect(finalResults({ ...passedLoop, settings: null })!.cards[2]).toEqual({ label: "Experiments", value: "2", sub: "after the control experiment" });
   });
 
-  it("gives one bar for each lap that has a score, with the pass rate over all gating evaluators", () => {
-    const two = [
-      finalLap(0, { "action-correct": [0, 0, 1, 1], tone: [1, 1, 1, 0] }),
-      finalLap(1, { "action-correct": [1, 1, 1, 1], tone: [1, 0, 1, 1] }),
-      finalLap(2, {}),
-    ];
-    const r = finalResults({ ...passedLoop, outcome: { ...passed, winnerLap: 1 }, laps: two, totalLaps: 3 })!;
-    expect(r.bars).toEqual([
-      { lap: 0, label: "Control", rate: 0.25, text: "25%", inUse: false },
-      { lap: 1, label: "1", rate: 0.75, text: "75%", inUse: true },
-    ]);
-    expect(r.chartLabel).toBe("Pass rate by experiment: the control experiment, 25%; experiment 1, 75%");
-  });
-
-  it("gives the criteria rows of a loop with settings, each with its measured value", () => {
-    expect(finalResults(passedLoop)!.criteria).toEqual([
-      { met: true, label: "Pass rate, at least 90%", value: "100%" },
-      { met: true, label: "No case got worse", value: "0 cases got worse" },
-    ]);
-    expect(finalResults(notPassedLoop)!.criteria).toEqual([
-      { met: false, label: "Pass rate, at least 90%", value: "75%" },
-      { met: false, label: "No case got worse", value: "1 case got worse" },
-    ]);
-  });
-
-  it("gives no 'No case got worse' row when that setting is off, and no row for the lap limit", () => {
-    const r = finalResults({ ...passedLoop, settings: { criteria: { ...criteria, no_regression: false } } })!;
-    expect(r.criteria!.map((c) => c.label)).toEqual(["Pass rate, at least 90%"]);
-  });
-
-  it("gives one criteria row for a loop from the Evalve runner", () => {
-    const evalve = `Baseline lap\nEvalve loop: ${JSON.stringify({ schema_version: 1, lap: 0, loop_id: "l1", required_consecutive_greens: 2 })}`;
-    const evalveLaps = [{ ...laps[0], experiment: { description: evalve } }, laps[1], laps[2]];
-    expect(finalResults({ ...passedLoop, laps: evalveLaps, settings: null })!.criteria).toEqual([
-      { met: true, label: "Every case passed in 2 consecutive replays", value: "4 of 4 cases passed in experiment 2" },
-    ]);
-    expect(finalResults({ ...notPassedLoop, laps: [evalveLaps[0], laps[1]], totalLaps: 2, settings: null })!.criteria).toEqual([
-      { met: false, label: "Every case passed in 2 consecutive replays", value: "3 of 4 cases passed in experiment 1" },
-    ]);
-  });
-
-  // The shape of `day-30-refunds`: 5 runs for each lap, pass^3, and an outcome that the known loops list gives.
-  // One run is 20 of 23, under the 90% target, but the loop passed on pass^3 over 5 runs.
-  describe("a loop that the rules decide on more than one run for each lap", () => {
-    const row = (n: number) => Array.from({ length: 23 }, (_, i) => (i < n ? 1 : 0));
-    const ids = Array.from({ length: 23 }, (_, i) => `s${i + 1}`);
-    const lap23 = (lap: number, n: number): FinalLap => ({ ...finalLap(lap, {}), evaluatorReplays: [{ evaluator: "support-desk-action-correct", replays: row(n).map((p, i) => ({ caseId: ids[i], caseName: ids[i], sessionId: null, passed: p === 1 })) }] });
-    const day30: FinalResultsLoop = {
-      outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
-      laps: [lap23(0, 0), lap23(1, 20)],
-      totalLaps: 2,
-      settings: { criteria: { cohort_target_mean_pass_k: 0.9, no_regression: true, max_rounds: 4, trials_per_round: 5, k: 3, confirmation_round: true } },
-    };
-
-    it("shows no criteria row, because one run does not give the number that the rule uses", () => {
-      const r = finalResults(day30)!;
-      expect(r.badge.label).toBe("Passed");
-      expect(r.criteria).toBeNull();
-      expect(r.criteriaSummary).toBeNull();
-    });
-
-    it("keeps the cards and the limit of the Laps card", () => {
-      expect(finalResults(day30)!.cards).toEqual([
-        { label: "support-desk-action-correct", value: "87%", sub: "20 of 23 · was 0 of 23" },
-        { label: "Got worse", value: "0", sub: "of 23 cases, control experiment to experiment 1" },
-        { label: "Experiments", value: "1", sub: "after the control experiment · limit 4" },
-      ]);
-    });
-
-    it("shows no criteria row for several runs with k = 1 also", () => {
-      expect(finalResults({ ...day30, settings: { criteria: { ...day30.settings!.criteria, k: 1 } } })!.criteria).toBeNull();
-    });
-  });
-
-  it("never shows an unmet criterion below a Passed badge", () => {
-    for (const loop of [passedLoop, { ...passedLoop, settings: null }]) expect(finalResults(loop)!.criteria?.every((c) => c.met) ?? true).toBe(true);
-  });
-
-  it("gives no criteria for a loop with no rules on the server", () => {
-    expect(finalResults({ ...passedLoop, settings: null })!.criteria).toBeNull();
-  });
-
-  it("says how many criteria the lap in use met", () => {
-    expect(finalResults(passedLoop)!.criteriaSummary).toBe("all met");
-    expect(finalResults(notPassedLoop)!.criteriaSummary).toBe("0 of 2 met");
-    expect(finalResults({ ...passedLoop, settings: null })!.criteriaSummary).toBeNull();
-  });
-
   it("says that the agent was not changed, and points to the diff only for a loop that passed", () => {
-    expect(finalResults(passedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop changed only its own copy of the agent. The change of the winning experiment is below." });
-    expect(finalResults(notPassedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop changed only its own copy of the agent." });
+    expect(finalResults(passedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop only changed its own copy. The change of the winning experiment is below." });
+    expect(finalResults(notPassedLoop)!.note).toEqual({ title: "Nothing was changed in your agent", text: "The loop only changed its own copy." });
   });
 });
 

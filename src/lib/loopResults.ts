@@ -7,7 +7,7 @@ import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
 import type { Gate } from "./loopRules";
-import { experimentName, isGating, parseEvalveLoop, type Criteria, type LoopOutcome } from "./loops";
+import { experimentName, isGating, type Criteria, type LoopOutcome } from "./loops";
 
 // One case of the loop's cohort: the id of its recorded session, and its name.
 export type CaseInfo = { id: string; name: string };
@@ -604,23 +604,17 @@ export type FinalResultsLoop = {
   outcome: LoopOutcome;
   laps: {
     lap: number;
-    experiment: { description?: string | null };
     runs: { started_at?: string | null; ended_at?: string | null }[];
     evaluatorReplays: EvaluatorReplays[];
   }[];
   totalLaps: number;
-  settings: { criteria: Pick<Criteria, "cohort_target_mean_pass_k" | "no_regression" | "max_rounds" | "trials_per_round" | "k" | "confirmation_round"> } | null;
+  settings: { criteria: Pick<Criteria, "max_rounds"> } | null;
 };
 
 export type FinalResults = {
   badge: { label: string; tone: "success" | "neutral" };
-  line: string; // the outcome title, the best lap for a loop that did not pass, and the duration
-  detail: string;
+  line: string; // the outcome title, the best lap for a loop that did not pass, and the duration, then the outcome detail
   cards: { label: string; value: string; sub: string }[];
-  chartLabel: string; // each lap and its rate as text, for the bar chart
-  bars: { lap: number; label: string; rate: number; text: string; inUse: boolean }[];
-  criteria: { met: boolean; label: string; value: string }[] | null; // null: the loop has no rules on the server, or no rule that the dashboard can measure
-  criteriaSummary: string | null; // "all met" or "1 of 2 met"; null with no criteria
   note: { title: string; text: string };
 };
 
@@ -660,7 +654,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   const gotWorse = inUse && baseline.size ? [...inUse.passes].filter(([id, ok]) => ok === false && baseline.get(id) === true).length : null;
 
   const duration = loopDuration(loop.laps);
-  const line = [outcome.title, !outcome.passed && inUse ? `Best experiment: ${experimentName(inUse.lap.lap, "inline")}` : null, duration].filter(Boolean).join(" · ");
+  const summary = [outcome.title, !outcome.passed && inUse ? `Best experiment: ${experimentName(inUse.lap.lap, "inline")}` : null, duration].filter(Boolean).join(" · ");
 
   const cards: FinalResults["cards"] = [];
   for (const e of inUse?.lap.evaluatorReplays ?? []) {
@@ -677,44 +671,10 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   if (inUse && gotWorse != null) cards.push({ label: "Got worse", value: String(gotWorse), sub: inUse.lap.lap === 0 ? `of ${inUse.passes.size} cases` : `of ${inUse.passes.size} cases, control experiment to ${experimentName(inUse.lap.lap, "inline")}` });
   cards.push({ label: "Experiments", value: String(Math.max(loop.totalLaps - 1, 0)), sub: loop.settings ? `after the control experiment · limit ${loop.settings.criteria.max_rounds}` : "after the control experiment" });
 
-  const bars = scored.map((s) => ({ lap: s.lap.lap, label: experimentName(s.lap.lap, "short"), rate: s.rate, text: formatPercent(s.rate), inUse: s === inUse }));
-
-  // A row only for a criterion that the dashboard can measure: no lap limit, no budget, no metric gates.
-  // The numbers here come from one run of the lap. The rule of a loop with
-  // settings uses each run of the lap (mean pass^k), so one run gives the
-  // number of the rule only with one run for each lap and k = 1. With more
-  // runs (for example `day-30-refunds`: 5 runs, pass^3), or with a
-  // confirmation run that also decides the lap, there are no rows, so that
-  // the rows cannot contradict the badge.
-  let criteria: FinalResults["criteria"] = null;
-  const greens = parseEvalveLoop(baselineLap?.experiment.description)?.requiredGreens;
-  if (inUse && greens != null) {
-    criteria = [
-      {
-        met: outcome.passed,
-        label: `Every case passed in ${greens} consecutive ${greens === 1 ? "replay" : "replays"}`,
-        value: `${passCount(inUse.passes)} of ${inUse.passes.size} cases passed in ${experimentName(inUse.lap.lap, "inline")}`,
-      },
-    ];
-  } else if (inUse && loop.settings && loop.settings.criteria.trials_per_round === 1 && loop.settings.criteria.k === 1 && !loop.settings.criteria.confirmation_round) {
-    const c = loop.settings.criteria;
-    const rows = [{ met: inUse.rate >= c.cohort_target_mean_pass_k, label: `Pass rate, at least ${formatPercent(c.cohort_target_mean_pass_k)}`, value: formatPercent(inUse.rate) }];
-    if (c.no_regression && gotWorse != null) rows.push({ met: gotWorse === 0, label: "No case got worse", value: `${gotWorse} ${gotWorse === 1 ? "case" : "cases"} got worse` });
-    // The loop has more rules than these rows (the floor for each case, the
-    // budget). When the rows do not agree with the outcome, a rule that the
-    // page cannot measure decided it, so the card does not show.
-    if (rows.every((r) => r.met) === outcome.passed) criteria = rows;
-  }
-
   return {
     badge: outcome.passed ? { label: "Passed", tone: "success" } : { label: "Not passed", tone: "neutral" },
-    line,
-    detail: outcome.detail,
+    line: `${summary}. ${outcome.detail}`,
     cards,
-    chartLabel: `Pass rate by experiment: ${bars.map((b) => `${experimentName(b.lap, "inline")}, ${b.text}`).join("; ")}`,
-    bars,
-    criteria,
-    criteriaSummary: criteria ? (criteria.every((c) => c.met) ? "all met" : `${criteria.filter((c) => c.met).length} of ${criteria.length} met`) : null,
-    note: { title: "Nothing was changed in your agent", text: `The loop changed only its own copy of the agent.${outcome.passed && inUse?.lap.lap !== 0 ? " The change of the winning experiment is below." : ""}` },
+    note: { title: "Nothing was changed in your agent", text: `The loop only changed its own copy.${outcome.passed && inUse?.lap.lap !== 0 ? " The change of the winning experiment is below." : ""}` },
   };
 }
