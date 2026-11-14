@@ -29,7 +29,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 ## Loop
 
 - Remove the `day-30-refunds` entry from `KNOWN_LOOPS` in `src/pages/agent/loop/useLoop.ts` once round 0 of a loop carries the `Loop settings:` line (needs the `loop.py` change in loop-skills to be committed and used).
-- Port the budget stop and metric gates from the skill's `loop.py` to `src/lib/loopRules.ts`. Until then a loop the skill stopped on budget shows "Stopped early".
+- Port the budget stop and metric gates from the skill's `loop.py` to `src/lib/loopRules.ts`. Until then a loop that reached its budget in the skill shows "Stopped" or "Failed" after 10 minutes with no activity.
 - Mockup ideas the skill has no setting for: a threshold per evaluator, a time limit, replaying passing sessions each experiment.
 
 ### Loop page: later work (out of scope of #16)

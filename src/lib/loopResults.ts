@@ -564,7 +564,9 @@ const LEGEND_SEVERAL_RUNS: ResultsTable["legend"] = [
 // can still show as running until its run data loads again.
 function loopState(laps: ResultsLap[], outcome: LoopOutcome): string {
   if (outcome.kind === "completed") return "loop finished";
-  if (outcome.kind === "canceled") return "loop stopped";
+  if (outcome.kind === "canceled") return "loop canceled";
+  if (outcome.kind === "stopped") return "loop stopped";
+  if (outcome.kind === "failed") return "loop failed";
   const running = [...laps].reverse().find((l) => l.running);
   if (!running) return "loop running…";
   return `${running.lap === 0 ? "control experiment" : experimentName(running.lap, "inline")} running…`;

@@ -107,7 +107,9 @@ export function parseSettings(description: string | null | undefined): LoopSetti
 export type LoopOutcome =
   | { kind: "running" }
   | { kind: "completed"; passed: boolean; winnerLap: number | null; title: string; detail: string }
-  | { kind: "canceled" };
+  | { kind: "canceled" }
+  | { kind: "stopped" }
+  | { kind: "failed" };
 
 type CompletedLoop = Extract<LoopOutcome, { kind: "completed" }>;
 type KnownLoop = { baselineExperimentId?: string; settings?: LoopSettings; outcome: CompletedLoop };
@@ -230,6 +232,21 @@ export function isActiveRun(run: Pick<ExperimentRun, "status">): boolean {
   return run.status === "running" || run.status === "canceling";
 }
 
+// A loop with no stop result and no activity for this time shows Stopped or Failed.
+export const LOOP_QUIET_MS = 10 * 60 * 1000;
+
+// The time of the newest activity of a loop, in ms: the newest of each
+// experiment `created`, each run `created` and each run `ended_at`. Null when no value parses.
+export function lastLoopActivity(
+  experiments: Pick<Experiment, "created">[],
+  runs: Pick<ExperimentRun, "created" | "ended_at">[],
+): number | null {
+  const times = [...experiments.map((e) => e.created), ...runs.flatMap((r) => [r.created, r.ended_at])]
+    .map((value) => (value ? Date.parse(value) : NaN))
+    .filter((time) => !Number.isNaN(time));
+  return times.length ? Math.max(...times) : null;
+}
+
 export function shouldPollLoopRuns(
   evalve: EvalveLoop | null,
   experimentIds: string[],
@@ -267,6 +284,8 @@ export function resolveLoopOutcome(
   legacyCompletion: CompletedLoop | null,
   active: boolean,
   latestStatus: ExperimentRun["status"] | undefined,
+  // The loop has no active run, and no new experiment or run for LOOP_QUIET_MS.
+  quiet: boolean,
 ): LoopOutcome {
   const result = evalve?.result;
   if (evalve && result?.status === "stop_success") {
@@ -286,7 +305,20 @@ export function resolveLoopOutcome(
   }
   if (active) return { kind: "running" };
   if (legacyCompletion) return legacyCompletion;
-  return latestStatus === "canceled" ? { kind: "canceled" } : { kind: "running" };
+  if (latestStatus === "canceled") return { kind: "canceled" };
+  // The runner publishes no result when it exits with an error or when the
+  // coding agent stops. Without this rule, that loop shows Running with no time limit.
+  if (!quiet) return { kind: "running" };
+  return latestStatus === "failed" ? { kind: "failed" } : { kind: "stopped" };
+}
+
+// The word and the dot tone that the UI shows for a loop status.
+export function loopStatusLabel(outcome: LoopOutcome): { status: string; tone: "success" | "warning" | "destructive" | "muted" } {
+  if (outcome.kind === "running") return { status: "Running", tone: "warning" };
+  if (outcome.kind === "completed") return { status: "Completed", tone: outcome.passed ? "success" : "muted" };
+  if (outcome.kind === "failed") return { status: "Failed", tone: "destructive" };
+  if (outcome.kind === "stopped") return { status: "Stopped", tone: "muted" };
+  return { status: "Canceled", tone: "muted" };
 }
 
 // The one-line change a lap made: the skill writes "Round N: <change> Hypothesis: …".

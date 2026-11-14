@@ -8,7 +8,7 @@ import { formatPercent, formatRelative } from "../../../lib/format";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
 import { passRate } from "../../../lib/loopRules";
-import { CHANGE_FIELD_LABELS, groupLoops, type LoopOutcome } from "../../../lib/loops";
+import { CHANGE_FIELD_LABELS, groupLoops, loopStatusLabel, type LoopOutcome } from "../../../lib/loops";
 import { useLoop, type Lap } from "./useLoop";
 
 // Every loop for this agent. A loop is the experiments the kitaru-loop skill
@@ -139,7 +139,5 @@ function LoopRow({ agentId, slug, mvp, onOpen }: { agentId: string; slug: string
 }
 
 export function LoopStatus({ outcome }: { outcome: LoopOutcome }) {
-  if (outcome.kind === "running") return <StatusLabel status="Running" />;
-  if (outcome.kind === "completed") return <StatusLabel status="Completed" tone={outcome.passed ? "success" : "muted"} />;
-  return <StatusLabel status="Canceled" />;
+  return <StatusLabel {...loopStatusLabel(outcome)} />;
 }

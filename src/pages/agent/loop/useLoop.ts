@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   getRunAggregates,
@@ -13,7 +13,7 @@ import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../
 import { caseName } from "../../../lib/experiments";
 import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -89,6 +89,22 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     enabled: ids.length > 0,
     refetchInterval: (q) => (shouldPollLoopRuns(evalve, ids, q.state.data ?? []) ? 4000 : false),
   });
+
+  // The quiet rule: a loop with no stop result shows Stopped or Failed after
+  // LOOP_QUIET_MS with no activity. The time comes from the browser clock.
+  // A failed runs request is not a loaded one: an active run can exist.
+  const runsLoaded = !experiments.isPending && (ids.length === 0 || runs.isSuccess);
+  const lastActivity = useMemo(() => lastLoopActivity(ordered.map((l) => l.experiment), runs.data ?? []), [ordered, runs.data]);
+  const [now, setNow] = useState(() => Date.now());
+  const quietAt = lastActivity == null ? null : lastActivity + LOOP_QUIET_MS;
+  // Not quiet while the runs load: an active run or a newer run can be in the answer.
+  const quiet = runsLoaded && quietAt != null && now >= quietAt;
+  useEffect(() => {
+    if (quietAt == null || now >= quietAt) return;
+    // The timer changes the row at the end of the quiet time, with no data change.
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(quietAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [quietAt, now]);
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);
   const aggs = useQueries({ queries: scored.map((r) => ({ queryKey: ["aggregates", r.id, r.status], queryFn: () => getRunAggregates(r.id) })) });
@@ -231,7 +247,10 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop stopped because ${decision.patience} experiments in a row did no better than ${experimentName(decision.bestLap, "inline")}.` };
     else if (!legacyCompletion && c && decision?.action === "stop_cap")
       legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop ran all ${c.max_rounds} experiments it was allowed after the control.` };
-    const outcome = resolveLoopOutcome(evalve, legacyCompletion, running, runs.data?.[0]?.status);
+    // A loop of the skill gets its completion from the run results. Until they
+    // load, the loop is not quiet, so that Stopped does not show before Completed.
+    const completionPending = !evalve && !!c && loading;
+    const outcome = resolveLoopOutcome(evalve, legacyCompletion, running, runs.data?.[0]?.status, quiet && !completionPending);
 
     return {
       slug,
@@ -254,5 +273,5 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       error: (experiments.error ?? runs.error ?? resultsError) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve]);
+  }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve, quiet]);
 }

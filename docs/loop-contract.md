@@ -16,7 +16,15 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 - **Run phases**, from run order, the same way the skill does: round 0 runs are all trials. In later rounds run 1 is the screen (when `screen_first` is on), runs up to n are trials, and the next n are confirmation.
 - **pass^k per case**, `C(c,k)/C(n,k)`, and the mean across the cohort on the selection trials.
 - **The gate**: per-case floor, cohort target, no regression against round 0.
-- **The status** is **Completed** when a stop rule fires, **Canceled** when the latest run was canceled and there is no active run or completed result, or **Running** while the loop is awaiting a terminal result.
+- **The loop status** is one of five. The server keeps no loop status, so the dashboard calculates it, in this order:
+  1. **Completed**, when the runner published a stop result.
+  2. **Running**, when a run is active.
+  3. **Completed**, when a stop rule of the skill fires.
+  4. **Canceled**, when a person canceled the newest run.
+  5. **Running**, when the loop had activity in the last 10 minutes. Activity is a new experiment, a new run, or the end of a run.
+  6. **Failed**, when the newest run failed. **Stopped**, in all other cases.
+
+  The 10-minute rule has this reason: the runner publishes only `"running"` or a stop result. When the runner exits with an error, or the coding agent stops, the published result stays `"running"`. Without the rule, that loop shows Running with no time limit. Stopped and Failed go back to Running when a new run starts. The time comes from the browser clock.
 
 This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from the skill's `loop.py`, in `src/lib/loopRules.ts`. If one changes, change the other.
 
