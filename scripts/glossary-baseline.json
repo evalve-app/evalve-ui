@@ -39,7 +39,7 @@
     "gate evaluator": 1
   },
   "src/lib/loops.test.ts": {
-    "winner": 11,
+    "winner": 13,
     "round 0": 5,
     "iteration": 7,
     "trial": 1,

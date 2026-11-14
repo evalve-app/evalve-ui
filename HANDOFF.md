@@ -58,7 +58,7 @@ The app is almost read-only. The only calls that change anything are sign in, si
 
 - **A loop is a set of experiments** named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The UI calls a round an "experiment". Round 0 is the control experiment, with no change. Each later experiment makes one change. The code names an experiment in a loop `lap`.
 - **The New loop form does not submit anything.** It produces a prompt and a config. You paste the prompt into Claude Code in the agent's project, and the skill does the rest.
-- **Three statuses:** Running, Completed, Stopped early.
+- **Five statuses:** Running, Completed, Canceled, Stopped, Failed. The dashboard calculates the status. A loop with no stop result and no activity for 10 minutes shows Failed if its newest run failed, and Stopped in all other cases.
 - **The rules live in two places:** the skill's `loop.py` and our port in `src/lib/loopRules.ts`. If one changes, change the other.
 
 ### MVP and Post-MVP switch
@@ -135,7 +135,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 - The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the runner source (release 0.1.0). The card was checked in a browser only with a mock API.
 - "Run again" on an experiment.
 - Session page: a failed session, a running session, and agents not built on openai-agents. Anything it can't read as text falls back to raw JSON.
-- The budget stop and metric gates are not ported, so a loop stopped on budget shows "Stopped early".
+- The budget stop and metric gates are not ported, so a loop that reached its budget in the skill shows "Stopped" or "Failed" after 10 minutes with no activity.
 
 ## Loose ends outside this folder (Alyssa's, listed so you know they exist)
 

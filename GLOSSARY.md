@@ -66,6 +66,25 @@ _Avoid_: Flaky, unstable
 **Loop**:
 A set of experiments, run one after the other to improve an agent, one change at a time.
 
+**Loop status**:
+The state of a loop that the dashboard shows: Running, Completed, Canceled, Stopped, or Failed. The server keeps no loop status. The dashboard calculates it.
+
+**Completed**:
+The loop reached a stop rule. A completed loop passed or did not pass.
+_Avoid_: Finished, stopped, failed (for a loop that did not pass)
+
+**Canceled**:
+A person canceled the newest run of the loop, and the loop has no stop result.
+_Avoid_: Stopped
+
+**Stopped**:
+The loop has no stop result and no activity for 10 minutes, and its newest run did not fail. The status goes back to Running if a new run starts.
+_Avoid_: Stopped early, canceled, timed out
+
+**Failed**:
+The loop has no stop result and no activity for 10 minutes, and its newest run failed. The status goes back to Running if a new run starts.
+_Avoid_: "Failed" for a loop that did not pass
+
 **Control experiment**:
 The experiment of a loop that replays the cohort with no change. Later experiments are scored against it. It has no number.
 _Avoid_: Baseline lap, baseline (alone), baseline audit, round 0, control group, experiment 0

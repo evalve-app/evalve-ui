@@ -381,11 +381,16 @@ describe("resultsTable", () => {
     expect(resultsTable(loop([lap(0), lap(1)])).state).toBe("loop running…");
   });
 
-  it("says that the loop finished or stopped, also when an experiment still shows as running", () => {
+  it("says that the loop finished or that a person canceled it, also when an experiment still shows as running", () => {
     const running = { running: true, runs: [{ status: "running" }], runReplays: [] };
     const completed = { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "" } as const;
     expect(resultsTable(loop([lap(0), lap(1), lap(2, running)], { outcome: completed })).state).toBe("loop finished");
-    expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop stopped");
+    expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop canceled");
+  });
+
+  it("says that a quiet loop with no stop result stopped or failed", () => {
+    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "stopped" } })).state).toBe("loop stopped");
+    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "failed" } })).state).toBe("loop failed");
   });
 
   it("names the status words that an experiment and a run can show, for the footer", () => {
