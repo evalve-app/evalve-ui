@@ -13,7 +13,7 @@ import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../
 import { caseName } from "../../../lib/experiments";
 import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, newestRunStatus, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -90,11 +90,22 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     refetchInterval: (q) => (shouldPollLoopRuns(evalve, ids, q.state.data ?? []) ? 4000 : false),
   });
 
+  // The runs of the experiments outside the lap limit. Only the loop status reads
+  // them: a person can start a run on an older experiment, and the status is for the whole loop.
+  const olderIds = ordered.slice(0, -opts.lapLimit).map((l) => l.experiment.id);
+  const olderRuns = useQuery({
+    queryKey: ["experiment-runs", olderIds],
+    queryFn: () => listExperimentRuns(olderIds),
+    enabled: olderIds.length > 0,
+    refetchInterval: (q) => (shouldPollLoopRuns(evalve, olderIds, q.state.data ?? []) ? 4000 : false),
+  });
+  const loopRuns = useMemo(() => [...(runs.data ?? []), ...(olderRuns.data ?? [])], [runs.data, olderRuns.data]);
+
   // The quiet rule: a loop with no stop result shows Stopped or Failed after
   // LOOP_QUIET_MS with no activity. The time comes from the browser clock.
   // A failed runs request is not a loaded one: an active run can exist.
-  const runsLoaded = !experiments.isPending && (ids.length === 0 || runs.isSuccess);
-  const lastActivity = useMemo(() => lastLoopActivity(ordered.map((l) => l.experiment), runs.data ?? []), [ordered, runs.data]);
+  const runsLoaded = !experiments.isPending && (ids.length === 0 || runs.isSuccess) && (olderIds.length === 0 || olderRuns.isSuccess);
+  const lastActivity = useMemo(() => lastLoopActivity(ordered.map((l) => l.experiment), loopRuns), [ordered, loopRuns]);
   const [now, setNow] = useState(() => Date.now());
   const quietAt = lastActivity == null ? null : lastActivity + LOOP_QUIET_MS;
   // Not quiet while the runs load: an active run or a newer run can be in the answer.
@@ -250,7 +261,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     // A loop of the skill gets its completion from the run results. Until they
     // load, the loop is not quiet, so that Stopped does not show before Completed.
     const completionPending = !evalve && !!c && loading;
-    const outcome = resolveLoopOutcome(evalve, legacyCompletion, running, runs.data?.[0]?.status, quiet && !completionPending);
+    const outcome = resolveLoopOutcome(evalve, legacyCompletion, loopRuns.some(isActiveRun), newestRunStatus(loopRuns), quiet && !completionPending);
 
     return {
       slug,
@@ -270,8 +281,8 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       decision,
       outcome,
       isLoading: loading,
-      error: (experiments.error ?? runs.error ?? resultsError) as Error | null,
+      error: (experiments.error ?? runs.error ?? olderRuns.error ?? resultsError) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, baseline.data, baseline.isError, scored, resultsKey, slug, evalve, quiet]);
+  }, [experiments.data, runs.data, loopRuns, baseline.data, baseline.isError, scored, resultsKey, slug, evalve, quiet]);
 }

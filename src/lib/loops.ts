@@ -247,6 +247,11 @@ export function lastLoopActivity(
   return times.length ? Math.max(...times) : null;
 }
 
+// The status of the run with the newest `created` time. Undefined with no run.
+export function newestRunStatus(runs: Pick<ExperimentRun, "created" | "status">[]): ExperimentRun["status"] | undefined {
+  return runs.reduce<(typeof runs)[number] | undefined>((newest, run) => (!newest || run.created > newest.created ? run : newest), undefined)?.status;
+}
+
 export function shouldPollLoopRuns(
   evalve: EvalveLoop | null,
   experimentIds: string[],

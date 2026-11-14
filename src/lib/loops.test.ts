@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopStatusLabel, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -244,5 +244,18 @@ describe("the label of a loop status", () => {
     expect(loopStatusLabel({ kind: "canceled" })).toEqual({ status: "Canceled", tone: "muted" });
     expect(loopStatusLabel({ kind: "stopped" })).toEqual({ status: "Stopped", tone: "muted" });
     expect(loopStatusLabel({ kind: "failed" })).toEqual({ status: "Failed", tone: "destructive" });
+  });
+});
+
+describe("the status of the newest run of a loop", () => {
+  it("is the status of the run with the newest created time, in any list order", () => {
+    const old = { created: "2026-11-14T10:00:00Z", status: "completed" as const };
+    const newest = { created: "2026-11-14T11:00:00Z", status: "failed" as const };
+    expect(newestRunStatus([old, newest])).toBe("failed");
+    expect(newestRunStatus([newest, old])).toBe("failed");
+  });
+
+  it("is undefined for a loop with no run", () => {
+    expect(newestRunStatus([])).toBeUndefined();
   });
 });
