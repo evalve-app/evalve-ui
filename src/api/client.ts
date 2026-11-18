@@ -8,7 +8,11 @@
 //    csrf_token in the X-CSRF-Token header. A malicious site can make your
 //    browser send the cookie, but it can't read the token, so the server knows
 //    the request came from this app.
-import createClient, { type Middleware } from "openapi-fetch";
+// 3. The sign-in lasts 1 hour, and nothing makes it longer. After that the
+//    server answers 401. The sign-in gate (src/lib/signInGate.ts) holds each
+//    read until the person signs in again in the "Sign in again" dialog.
+import createClient from "openapi-fetch";
+import { createSignInGate } from "../lib/signInGate";
 import type { components, paths } from "./schema";
 
 export type Agent = components["schemas"]["AgentResponse"];
@@ -43,13 +47,18 @@ function writeCsrf(token: string | null) {
   }
 }
 
-const csrfMiddleware: Middleware = {
-  onRequest({ request }) {
-    const token = readCsrf();
-    if (token) request.headers.set("X-CSRF-Token", token);
-    return request;
-  },
-};
+// Sends one request with the newest CSRF token. The sign-in gate calls this
+// again for a read that got a 401, after the person signs in again.
+function send(request: Request) {
+  const token = readCsrf();
+  if (token) request.headers.set("X-CSRF-Token", token);
+  return fetch(request);
+}
+
+// What a 401 does (see src/lib/signInGate.ts). For a signed-in person, a read
+// waits for a new sign-in, and a call that changes data gets the 401. With no
+// one signed in, each call gets the 401.
+export const signInGate = createSignInGate(send);
 
 // baseUrl "" = same origin. In dev, Vite forwards /api to Kitaru; in
 // production, Caddy does.
@@ -64,8 +73,7 @@ function querySerializer(query: Record<string, unknown>) {
   return params.toString();
 }
 
-export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin", querySerializer });
-api.use(csrfMiddleware);
+export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin", querySerializer, fetch: signInGate.fetch });
 
 export class UnauthorizedError extends Error {}
 
@@ -75,6 +83,7 @@ function errorDetail(error: unknown): string | null {
   return typeof detail === "string" ? detail : null;
 }
 
+// Does not go through the sign-in gate: a 401 here is a wrong username or password.
 export async function login(username: string, password: string) {
   const body = new URLSearchParams({ username, password });
   const res = await fetch("/api/v1/login", {
@@ -87,15 +96,30 @@ export async function login(username: string, password: string) {
   if (!res.ok) throw new Error(`Login failed (${res.status}).`);
   const data = (await res.json()) as { csrf_token?: string | null };
   writeCsrf(data.csrf_token ?? null);
+  // The gate does not open the page here: the account of this sign-in is not
+  // loaded yet, and it can be a different account.
+  signInGate.accepted();
 }
 
 export async function logout() {
-  await api.POST("/api/v1/logout");
-  writeCsrf(null);
+  // Signed out first, so that a 401 here does not open the "Sign in again" dialog.
+  signInGate.signedOut();
+  try {
+    await api.POST("/api/v1/logout");
+  } finally {
+    // Also when the server does not answer: without the token, the server refuses each call.
+    writeCsrf(null);
+    // A second time: the gate then ignores the answer to each read of the
+    // account that left before this moment (see `fetchAccount`).
+    signInGate.signedOut();
+  }
 }
 
+// The gate knows this read (`fetchAccount`): a good answer to a signed-out
+// person tells the gate that the person is signed in. The gate ignores an
+// answer that is from before a sign-out.
 export async function getCurrentAccount(): Promise<Account> {
-  const { data, response } = await api.GET("/api/v1/accounts/me");
+  const { data, response } = await api.GET("/api/v1/accounts/me", { fetch: signInGate.fetchAccount });
   if (response.status === 401) throw new UnauthorizedError("Not signed in.");
   if (!data) throw new Error(`Could not load your account (${response.status}).`);
   return data;
@@ -418,8 +442,9 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 
 // Creates an API key for the signed-in account. The answer carries the key
 // value one time. Does not use `unwrap`, because the page chooses its text
-// from the status (409 is a name that a key has already). A 401 throws an
-// ApiError with status 401, and the page tells the person to sign in again.
+// from the status (409 is a name that a key has already). A 401 opens the
+// "Sign in again" dialog and throws an ApiError with status 401. The call is
+// not sent again: the page tells the person to create the key after the sign-in.
 export async function createApiKey(name: string): Promise<IssuedApiKey> {
   return unwrapOrApiError(api.POST("/api/v1/api-keys", { body: { name } }));
 }
@@ -427,8 +452,9 @@ export async function createApiKey(name: string): Promise<IssuedApiKey> {
 // Deletes an API key, so that it cannot sign in again. The page calls this
 // "revoke". Does not use `unwrap`, because a success (204) has no body, and
 // because the page chooses its text from the status (404 is a key that is
-// gone). A 401 throws an ApiError with status 401, and the page tells the
-// person to sign in again.
+// gone). A 401 opens the "Sign in again" dialog and throws an ApiError with
+// status 401. The call is not sent again: the page tells the person to revoke
+// the key after the sign-in.
 export async function deleteApiKey(apiKeyId: string): Promise<void> {
   const { error, response } = await api.DELETE("/api/v1/api-keys/{api_key_id}", { params: { path: { api_key_id: apiKeyId } } });
   if (!response.ok) throw new ApiError(response.status, errorDetail(error));

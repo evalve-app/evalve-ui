@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   getRunAggregates,
@@ -6,6 +6,7 @@ import {
   listExperimentRuns,
   listExperiments,
   listRunReplays,
+  signInGate,
   type Experiment,
   type ExperimentRun,
 } from "../../../api/client";
@@ -13,7 +14,8 @@ import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../
 import { caseName } from "../../../lib/experiments";
 import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
 import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, newestRunStatus, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { signInBlocks } from "../../../lib/signInGate";
+import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, loopQuiet, newestRunStatus, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
 
 export type { CaseInfo };
 
@@ -109,7 +111,14 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
   const [now, setNow] = useState(() => Date.now());
   const quietAt = lastActivity == null ? null : lastActivity + LOOP_QUIET_MS;
   // Not quiet while the runs load: an active run or a newer run can be in the answer.
-  const quiet = runsLoaded && quietAt != null && now >= quietAt;
+  const quietNow = runsLoaded && quietAt != null && now >= quietAt;
+  // After the sign-in ends, a request waits and the runs on the page get old.
+  // The loop keeps its quiet value until the answer comes (see `loopQuiet`).
+  const signInEnded = signInBlocks(useSyncExternalStore(signInGate.subscribe, signInGate.state));
+  const [quietState, setQuietState] = useState({ waits: false, quiet: false });
+  const nextQuiet = loopQuiet(quietState, signInEnded, experiments.isFetching || runs.isFetching || olderRuns.isFetching, quietNow);
+  if (nextQuiet.waits !== quietState.waits || nextQuiet.quiet !== quietState.quiet) setQuietState(nextQuiet);
+  const quiet = nextQuiet.quiet;
   useEffect(() => {
     if (quietAt == null || now >= quietAt) return;
     // The timer changes the row at the end of the quiet time, with no data change.

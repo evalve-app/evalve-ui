@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { apiKeyCreateError, apiKeyName, apiKeyRevokeError, apiKeyRows, type ApiKeyInput } from "./apiKeys";
 
-const SIGN_IN_AGAIN = "You are not signed in any more. Load this page again, and sign in.";
-
 const key = (name: string, over: Partial<ApiKeyInput> = {}): ApiKeyInput => ({
   id: name,
   name,
@@ -47,8 +45,8 @@ describe("apiKeyName", () => {
 });
 
 describe("apiKeyCreateError", () => {
-  it("tells a person whose sign-in ended to sign in again", () => {
-    expect(apiKeyCreateError({ status: 401, detail: "Not authenticated" })).toBe(SIGN_IN_AGAIN);
+  it("tells a person whose sign-in ended to create the key after the new sign-in", () => {
+    expect(apiKeyCreateError({ status: 401, detail: "Not authenticated" })).toBe("The key was not created, because your sign-in ended. Create the key after you sign in.");
   });
 
   it("says the server did not answer when there is no response", () => {
@@ -73,8 +71,8 @@ describe("apiKeyCreateError", () => {
 });
 
 describe("apiKeyRevokeError", () => {
-  it("tells a person whose sign-in ended to sign in again", () => {
-    expect(apiKeyRevokeError({ status: 401, detail: "Not authenticated" })).toBe(SIGN_IN_AGAIN);
+  it("tells a person whose sign-in ended to revoke the key after the new sign-in", () => {
+    expect(apiKeyRevokeError({ status: 401, detail: "Not authenticated" })).toBe("The key was not revoked, because your sign-in ended. Revoke the key after you sign in.");
   });
 
   it("says the server did not answer when there is no response", () => {

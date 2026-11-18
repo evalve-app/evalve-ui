@@ -72,6 +72,7 @@ h1, h2, p { margin: 0; }
 .dialog-title { font: 600 18px/28px var(--font-sans); }
 .dialog-description { margin-top: var(--spacing-1); color: var(--text-muted-foreground); }
 .dialog-hint { margin-top: var(--spacing-2); color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
+.sign-in-again-out { display: flex; justify-content: center; margin-top: var(--spacing-3); }
 .dialog-footer { display: flex; justify-content: flex-end; gap: var(--spacing-2); margin-top: var(--spacing-6); }
 .icon-button { display: inline-flex; padding: var(--spacing-1-5); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-muted-foreground); cursor: pointer; }
 .icon-button:hover { background: var(--surface-accent); color: var(--text-foreground); }
