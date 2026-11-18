@@ -23,9 +23,11 @@ const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2))
 // MVP: the plain share of case runs that passed, over every run of the lap.
 // Only the compare page shows this number in the MVP view. The sections of the
 // loop page in the MVP view do not use it: they take the pass rate of a lap
-// from its first completed run (see `src/lib/loopResults.ts`).
-export function useScore() {
-  const mvp = useLoopMode() === "mvp";
+// from its first completed run (see `src/lib/loopResults.ts`). `view` overrides
+// the saved switch: a backend Loop has the MVP view only.
+export function useScore(view?: "mvp" | "post") {
+  const saved = useLoopMode();
+  const mvp = (view ?? saved) === "mvp";
   return {
     mvp,
     of: (l: Lap | null | undefined) => (!l ? null : mvp ? passRate(l.cases) : l.meanPassK),
@@ -218,9 +220,9 @@ function simpleResult(l: Lap, c: Criteria | null, cases: CaseInfo[]): { label: s
   return { label: "Passed", tone: "ok", title: "This experiment met the target" };
 }
 
-export function LapGrid({ laps, cases, selected, onToggle, c, winnerLap }: { laps: Lap[]; cases: CaseInfo[]; selected?: number[]; onToggle?: (lap: number) => void; c: Criteria | null; winnerLap: number | null }) {
+export function LapGrid({ laps, cases, selected, onToggle, c, winnerLap, view }: { laps: Lap[]; cases: CaseInfo[]; selected?: number[]; onToggle?: (lap: number) => void; c: Criteria | null; winnerLap: number | null; view?: "mvp" | "post" }) {
   const n = c?.trials_per_round;
-  const s = useScore();
+  const s = useScore(view);
   return (
     <div className="lap-grid-wrap">
       <table className="lap-grid">
@@ -295,8 +297,8 @@ export function LapGrid({ laps, cases, selected, onToggle, c, winnerLap }: { lap
 // One run: "passed" or "failed". Several runs: "4/5".
 const word = (x: { c: number; n: number }) => (x.n === 1 ? (x.c ? "passed" : "failed") : `${x.c}/${x.n}`);
 
-export function CompareCard({ a, b, cases, agentId }: { a: Lap; b: Lap; cases: CaseInfo[]; agentId: string }) {
-  const s = useScore();
+export function CompareCard({ a, b, cases, agentId, view }: { a: Lap; b: Lap; cases: CaseInfo[]; agentId: string; view?: "mvp" | "post" }) {
+  const s = useScore(view);
   const rows = cases
     .map((cs) => ({ id: cs.id, name: cs.name, before: s.stats(a).get(cs.id), after: s.stats(b).get(cs.id), conf: s.mvp ? undefined : b.confirmation?.get(cs.id) }))
     .filter((r) => r.before?.n && r.after?.n && r.before.c / r.before.n !== r.after.c / r.after.n);

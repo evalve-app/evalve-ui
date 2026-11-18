@@ -19,7 +19,7 @@ export function SkillLoopComparePage() {
 // The compare page of a backend Loop, at loop/:loopId/compare. A backend Loop has the MVP view only.
 export function LoopComparePage() {
   const { agentId = "", loopId = "" } = useParams();
-  const loop = useBackendLoop(agentId, loopId, { lapLimit: 200 });
+  const loop = useBackendLoop(loopId, { lapLimit: 200 });
   return <LoopCompare agentId={agentId} loop={loop} mvp back={{ to: `/agents/${agentId}/loop/${loopId}`, label: loop.loop?.name ?? loopId }} />;
 }
 
@@ -66,10 +66,10 @@ function LoopCompare({ agentId, loop, mvp, back }: { agentId: string; loop: Loop
               </div>
               <Legend single={single} />
             </div>
-            <LapGrid laps={laps} cases={loop.cases} c={loop.criteria} winnerLap={loop.winnerLap} />
+            <LapGrid laps={laps} cases={loop.cases} c={loop.criteria} winnerLap={loop.winnerLap} view={mvp ? "mvp" : "post"} />
           </div>
           {pairs.map(([a, b]) => (
-            <CompareCard key={`${a.lap}-${b.lap}`} a={a} b={b} cases={loop.cases} agentId={agentId} />
+            <CompareCard key={`${a.lap}-${b.lap}`} a={a} b={b} cases={loop.cases} agentId={agentId} view={mvp ? "mvp" : "post"} />
           ))}
         </>
       ) : null}

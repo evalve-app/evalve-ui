@@ -29,7 +29,7 @@ export function LoopPage() {
   const queryClient = useQueryClient();
   const [lapLimit, setLapLimit] = useState(LAP_PAGE);
   const preview = useEmptyPreview().on;
-  const real = useBackendLoop(agentId, loopId, { lapLimit });
+  const real = useBackendLoop(loopId, { lapLimit });
   const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false } : real;
   const detail = loop.loop;
   const completed = detail?.status === "completed";
