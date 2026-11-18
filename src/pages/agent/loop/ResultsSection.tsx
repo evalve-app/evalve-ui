@@ -20,7 +20,13 @@ export function ResultsSection({ loop, backend, onShowOlder }: { loop: LoopResul
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
   // With no results in any lap, one column holds the text of each lap.
   const resultColumns = table.evaluators.length || 1;
-  const evaluatorCells = (list: (ResultsCell | null)[]) => list.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>);
+  // A run row of a backend Loop can open before any lap has results: it then fills the one column also.
+  const evaluatorCells = (list: (ResultsCell | null)[]) =>
+    table.evaluators.length ? (
+      list.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>)
+    ) : (
+      <td className="muted">—</td>
+    );
 
   return (
     <section className="panel" aria-label="Results">
