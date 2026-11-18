@@ -43,12 +43,12 @@ _Avoid_: Judge, grader, metric
 ### Experiments
 
 **Experiment**:
-One replay of a cohort version with a named set of evaluators, with or without a change to the agent. An experiment has one or more runs. A loop is a set of experiments.
-_Avoid_: Lap, round, iteration (use "round" and "iteration" only when you name a server experiment)
+One change to the agent, tested by one or more Runs. Kitaru uses the same term for the record that it stores.
+_Avoid_: Round, lap, candidate
 
 **Run**:
-One pass of an experiment over every session in its cohort version. Each of these sessions is a case. The run makes one replay for each session, and the evaluators of the experiment score each replay. An experiment can have several runs.
-_Avoid_: Trial (a trial is a phase of a run, not the run itself)
+One replay of each session in the cohort version, with a score from each selected evaluator.
+_Avoid_: attempt
 
 **Phase**:
 The role of a run inside an experiment: screen, trial, or confirmation.
@@ -64,7 +64,15 @@ _Avoid_: Flaky, unstable
 ### Loops
 
 **Loop**:
-A set of experiments, run one after the other to improve an agent, one change at a time.
+An ordered collection of Experiments on one agent and one cohort version, which starts with the Control Experiment and stops when an Experiment passes or a limit is reached.
+
+**Loop owner**:
+The Kitaru account that started a Loop.
+_Avoid_: owner (alone), creator
+
+**Evalve backend**:
+The Evalve service that owns the Loop rules and keeps the state of each Loop.
+_Avoid_: Loop API, Loop state API, server
 
 **Loop status**:
 The state of a loop that the dashboard shows: Running, Completed, Canceled, Stopped, or Failed. The server keeps no loop status. The dashboard calculates it.
@@ -85,9 +93,9 @@ _Avoid_: Stopped early, canceled, timed out
 The loop has no stop result and no activity for 10 minutes, and its newest run failed. The status goes back to Running if a new run starts.
 _Avoid_: "Failed" for a loop that did not pass
 
-**Control experiment**:
-The experiment of a loop that replays the cohort with no change. Later experiments are scored against it. It has no number.
-_Avoid_: Baseline lap, baseline (alone), baseline audit, round 0, control group, experiment 0
+**Control Experiment**:
+Experiment 0 of a Loop, which tests the agent with no change.
+_Avoid_: baseline, Round 0
 
 **Gating evaluator**:
 An evaluator whose result decides if a case passed in a loop. A case passes a run only when it passes every gating evaluator.
@@ -106,6 +114,14 @@ A case got worse when it passed in the control experiment and failed in a later 
 _Avoid_: Regression, regressed
 
 ### Coding agents
+
+**Coding agent**:
+The AI assistant on a Teammate's machine that calls the Evalve MCP. "Agent" alone is the agent that a Loop tests.
+_Avoid_: agent (alone), client
+
+**Evalve MCP**:
+The local tool server through which a coding agent runs Loops on the Evalve backend.
+_Avoid_: Loop MCP, MCP server (alone), Kitaru MCP
 
 **Handoff prompt**:
 Text that the app writes for a person to paste into a coding agent. The app creates nothing; the coding agent does the work.
@@ -132,3 +148,6 @@ _Avoid_: Account page, profile, preferences
 ## Flagged ambiguities
 
 - In the UI, "baseline" has one meaning: the "Baseline" row of the experiment grid, which scores the recorded session. Say "control experiment" for the experiment of a loop with no change, and "recorded session" for the session itself.
+- "Trial" is a phase of a Run (see Phase), never a whole Run.
+- Say "round" or "iteration" only to name a server experiment, or in the `Round N:` line of the loop protocol (`docs/loop-contract.md`).
+- Do not call the Control Experiment a "baseline lap", "baseline audit" or "control group".
