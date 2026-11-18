@@ -95,12 +95,6 @@
   "src/pages/agent/loop/LoopPage.tsx": {
     "winner": 1
   },
-  "src/pages/agent/loop/NewLoopPage.tsx": {
-    "regression": 4,
-    "re-run": 1,
-    "trial": 16,
-    "gate evaluator": 2
-  },
   "src/pages/agent/loop/ResultsSection.tsx": {
     "winner": 3
   },

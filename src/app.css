@@ -391,6 +391,8 @@ h1, h2, p { margin: 0; }
 /* Handoff prompt panel, below the setup card of the New loop page. After the
    copy its body is dimmed, and the buttons stay at full opacity. */
 .handoff-panel, .handoff-body { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+/* "Get prompt" moves the page to the panel. The margin keeps it clear of the top bar (56px). */
+.handoff-panel { scroll-margin-top: 72px; }
 .handoff-body.dimmed { opacity: .5; }
 .handoff-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
 .handoff-status { margin: 0; color: var(--text-muted-foreground); font-size: 13px; line-height: 18px; }

@@ -1,63 +1,45 @@
-import release from "./evalveLoopRelease.json";
-import { slugify } from "./loops";
+// The handoff prompt of the New Loop page. The coding agent starts the Loop
+// with the Evalve MCP, and the Evalve backend owns the Loop rules, so the
+// handoff prompt has no rules.
 
-type EvalveLoopHandoff = {
+// The Loop parameters that a person selects on the New Loop page, with the
+// field names of the Loop API. The coding agent finds the other fields of
+// `evalve_loop_start` in the agent project. The handoff prompt names the
+// `control_*` fields too: the backend refuses a start with no cost estimate
+// when the cohort has no recorded cost.
+export type LoopParameters = {
   name: string;
   hypothesis?: string;
-  server_url: string;
   cohort_version_id: string;
-  evaluators: { ref: string }[];
+  evaluators: { ref: string }[]; // each `name@version`
   allowed_changes: ("system_prompt" | "model")[];
   required_consecutive_greens: number;
-  max_attempts: number;
-  budget_usd: string;
+  max_runs: number;
+  budget_usd: string; // a decimal string, as the backend sends money
 };
 
-export function buildEvalveLoopPrompt(dashboardOrigin: string, config: EvalveLoopHandoff): string {
-  const url = new URL(`/skills/evalve-loop/${release.version}/`, dashboardOrigin).href;
-  const loopDir = `sessions/evalve-loop/${slugify(config.name)}`;
-  const releaseDir = `${loopDir}/release-${release.version}`;
-  const configPath = `${loopDir}/evalve-loop.json`;
-  const required = config.required_consecutive_greens;
-  const replays = required === 1 ? "replay" : "replays";
+// - `dashboardOrigin`: the Evalve backend is at `/evalve` on the origin of the dashboard.
+// - `backendVersion`: `version` of `GET /evalve/health`. The Evalve MCP has a Git tag for each backend version.
+export function buildEvalveLoopPrompt({ dashboardOrigin, backendVersion }: { dashboardOrigin: string; backendVersion: string }, parameters: LoopParameters): string {
+  const server = new URL("/evalve", dashboardOrigin).href;
   return [
-    "Run this Evalve MVP loop from the agent project root. Use the pinned release below.",
+    "Run this Evalve Loop from the root of the agent project. Use only the `evalve_*` tools of the Evalve MCP to run it.",
     "",
-    "Fetch these files with this command and verify each SHA-256 before using the release.",
-    "",
-    "```sh",
-    "python3 - <<'PY'",
-    "from hashlib import sha256",
-    "from pathlib import Path",
-    "from urllib.request import urlopen",
-    "",
-    `url = ${JSON.stringify(url)}`,
-    `root = Path(${JSON.stringify(releaseDir)})`,
-    `files = ${JSON.stringify(release.files)}`,
-    "for name, checksum in files.items():",
-    "    path = root / name",
-    "    if path.is_file() and sha256(path.read_bytes()).hexdigest() == checksum:",
-    "        continue",
-    "    with urlopen(url + name, timeout=30) as response:",
-    "        data = response.read()",
-    "    if sha256(data).hexdigest() != checksum:",
-    "        raise SystemExit(f'Checksum mismatch for {name}')",
-    "    path.parent.mkdir(parents=True, exist_ok=True)",
-    "    path.write_bytes(data)",
-    "PY",
-    "```",
-    "",
-    `Read ${releaseDir}/SKILL.md and follow it. Resolve the replay tool policy, evaluator parameters, and any allowed models from this project and its replay worker. Ask me about missing or ambiguous prerequisites.`,
-    `Save the resolved config as ${configPath}. If it already exists, check that it matches this handoff before resuming the same loop.`,
-    `Use python3 ${releaseDir}/scripts/loop.py --project-root . --config ${configPath} for preflight and every subsequent command.`,
-    "",
-    `Complete ${required} fully scored baseline ${replays}. A replay is green when every session passes every selected evaluator. A lap wins with ${required} consecutive green ${replays}.`,
-    "Report the winning change and the replay counts when the loop finishes.",
-    "",
-    "Loop settings",
+    "Loop parameters",
     "",
     "```json",
-    JSON.stringify(config, null, 2),
+    JSON.stringify(parameters, null, 2),
+    "```",
+    "",
+    "Find `tool_policy`, the `params` and `connection_id` of each evaluator, `allowed_models`, `agent_version`, `control_model` and `control_estimate_usd` in this project. Ask me when one is missing or not clear.",
+    "",
+    "Call `evalve_loop_start` with these parameters and the values that you found. Then follow the tool descriptions: call `evalve_loop_status` each minute, and send a change with `evalve_loop_propose_experiment` when the next action is `needs_change`. When the Loop ends, report the outcome and the winning change.",
+    "",
+    "If the `evalve_*` tools are missing, stop and tell me to run these two commands in this project. Then I set `KITARU_API_KEY` and start you again.",
+    "",
+    "```sh",
+    `uv add "evalve-mcp @ git+https://github.com/evalve-app/evalve-backend@v${backendVersion}#subdirectory=evalve-mcp"`,
+    `uv run evalve-mcp setup --server ${server}`,
     "```",
   ].join("\n");
 }
