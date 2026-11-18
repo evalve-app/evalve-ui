@@ -30,7 +30,7 @@ export function LoopPage() {
   const [lapLimit, setLapLimit] = useState(LAP_PAGE);
   const preview = useEmptyPreview().on;
   const real = useBackendLoop(loopId, { lapLimit });
-  const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false } : real;
+  const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false, backendExperiments: [] } : real;
   const detail = loop.loop;
   const completed = detail?.status === "completed";
 
@@ -72,9 +72,9 @@ export function LoopPage() {
 
       {detail ? <LoopSetupCard agentId={agentId} loop={loop} detail={detail} /> : null}
 
-      {loop.laps.length > 0 ? (
+      {loop.backendExperiments.length > 0 ? (
         <>
-          <ResultsSection loop={loop} onShowOlder={() => setLapLimit(lapLimit + LAP_PAGE)} />
+          <ResultsSection loop={loop} backend={loop.backendExperiments} onShowOlder={() => setLapLimit(lapLimit + LAP_PAGE)} />
           {/* A Canceled or Failed Loop shows the Results table only. */}
           {completed ? (
             <>

@@ -15,7 +15,7 @@
     "trial": 2
   },
   "src/lib/loopResults.test.ts": {
-    "winner": 20,
+    "winner": 21,
     "regressed": 2,
     "baseline audit": 1,
     "baseline session": 2,
@@ -23,7 +23,7 @@
     "trial": 1
   },
   "src/lib/loopResults.ts": {
-    "winner": 10,
+    "winner": 9,
     "regressed": 2,
     "baseline session": 1
   },

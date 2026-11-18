@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoopDetail, LoopListItem } from "../api/evalve";
-import { backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
+import { backendExperiments, backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
 import type { SkillLoopRow } from "./loops";
 
 const item = (over: Partial<LoopListItem> = {}): LoopListItem => ({
@@ -111,5 +111,70 @@ describe("the setup of a backend Loop", () => {
 describe("the spend of a Loop", () => {
   it("shows the recorded spend of the budget", () => {
     expect(spendText({ recorded_usd: "0", accounted_usd: "0", budget_usd: "2.5" })).toBe("$0 of $2.50");
+  });
+});
+
+describe("the Experiments of a backend Loop, for the Results table", () => {
+  type Summary = LoopDetail["experiments"][number];
+  type Result = NonNullable<Summary["runs"][number]["result"]>;
+  const result = (over: Partial<Result> = {}): Result => ({
+    run_id: "run-1",
+    run_status: "completed",
+    outcome: "green",
+    passed: 20,
+    failed: 0,
+    unscored: 0,
+    missing_session_ids: [],
+    recorded_cost_usd: "0.4",
+    cost_incomplete: false,
+    run_error: null,
+    ...over,
+  });
+  const runOf = (number: number, r: Result | null) => ({ number, run_id: r?.run_id ?? null, result: r, agent_version_id: "av", cohort_version_id: "cv", collected_at: null, estimated_cost_usd: "0.4", submit_started_at: "2026-11-01T10:00:00Z" });
+  const experiment = (over: Partial<Summary> = {}): Summary => ({ number: 1, name: "evalve-01JD8-exp-1", experiment_id: "exp-1", override: { system_prompt: "Refund in full." }, change: "Refund in full after day 30.", runs: [], ...over });
+
+  it("names the kind of the override and keeps the reason for the change", () => {
+    const [e] = backendExperiments([experiment()]);
+    expect(e).toMatchObject({ number: 1, experimentId: "exp-1", kind: "System prompt", kindTitle: null, change: "Refund in full after day 30." });
+  });
+
+  it("gives a Model override the model name as a tooltip", () => {
+    expect(backendExperiments([experiment({ override: { model: "claude-sonnet-5-5" } })])[0]).toMatchObject({ kind: "Model", kindTitle: "claude-sonnet-5-5" });
+  });
+
+  it("gives the Control Experiment no kind, and the text of a replay with no changes", () => {
+    expect(backendExperiments([experiment({ number: 0, override: {}, change: "" })])[0]).toMatchObject({ kind: null, kindTitle: null, change: "Replay with no changes" });
+  });
+
+  it("keeps an Experiment that has no Kitaru experiment yet, and puts the Experiments in number order", () => {
+    const list = backendExperiments([experiment({ number: 2, experiment_id: null }), experiment({ number: 0, override: {} })]);
+    expect(list.map((e) => [e.number, e.experimentId])).toEqual([[0, "exp-1"], [2, null]]);
+  });
+
+  it("shows a green Run as Green", () => {
+    const run = backendExperiments([experiment({ runs: [runOf(1, result())] })])[0].runs[0];
+    expect(run).toMatchObject({ runId: "run-1", number: 1, status: "completed", detail: null, verdict: { label: "Green", tone: "success" } });
+  });
+
+  it("shows a red Run with the count of failed cases", () => {
+    const run = backendExperiments([experiment({ runs: [runOf(1, result({ outcome: "red", passed: 17, failed: 3 }))] })])[0].runs[0];
+    expect(run.verdict).toEqual({ label: "Red · 3 of 20 failed", tone: "destructive", title: "3 of 20 cases failed a gating evaluator in this Run" });
+  });
+
+  it("shows the run error of an incomplete Run", () => {
+    const run = backendExperiments([experiment({ runs: [runOf(1, result({ outcome: "incomplete", run_error: "The replay timed out." }))] })])[0].runs[0];
+    expect(run).toMatchObject({ detail: "The replay timed out.", verdict: { label: "Incomplete", tone: "warning", title: "The replay timed out." } });
+  });
+
+  it("says how many cases have no score when an incomplete Run has no run error", () => {
+    const one = backendExperiments([experiment({ runs: [runOf(1, result({ outcome: "incomplete", unscored: 1 }))] })])[0].runs[0];
+    const two = backendExperiments([experiment({ runs: [runOf(1, result({ outcome: "incomplete", unscored: 2 }))] })])[0].runs[0];
+    const none = backendExperiments([experiment({ runs: [runOf(1, result({ outcome: "incomplete" }))] })])[0].runs[0];
+    expect([one.detail, two.detail, none.detail]).toEqual(["1 case has no score", "2 cases have no score", null]);
+  });
+
+  it("shows a Run with no result yet as Running", () => {
+    const run = backendExperiments([experiment({ runs: [runOf(1, null)] })])[0].runs[0];
+    expect(run).toMatchObject({ runId: null, status: null, detail: null, verdict: { label: "Running", tone: "neutral" } });
   });
 });

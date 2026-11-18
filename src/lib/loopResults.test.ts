@@ -606,6 +606,76 @@ describe("resultsTable", () => {
   it('says what "Show runs" lists, for the footer', () => {
     expect(resultsTable(loop([lap(0)])).runsNote).toBe('"Show runs" lists each completed run of the experiment, with the squares, the pass rate, the status and the result of that run.');
   });
+
+  describe("a backend Loop", () => {
+    const green = { label: "Green", tone: "success", title: "" } as const;
+    const red = { label: "Red · 1 of 3 failed", tone: "destructive", title: "" } as const;
+    const running = { label: "Running", tone: "neutral", title: "" } as const;
+    const incomplete = { label: "Incomplete", tone: "warning", title: "" } as const;
+    type Backend = NonNullable<Parameters<typeof resultsTable>[0]["backend"]>[number];
+    const exp = (number: number, runs: Backend["runs"], over: Partial<Backend> = {}): Backend => ({
+      number,
+      experimentId: `exp-${number}`,
+      kind: number === 0 ? null : "System prompt",
+      kindTitle: null,
+      change: number === 0 ? "Replay with no changes" : `Change ${number}`,
+      runs,
+      ...over,
+    });
+    const brun = (number: number, verdict: Backend["runs"][number]["verdict"], over: Partial<Backend["runs"][number]> = {}): Backend["runs"][number] => ({
+      runId: `run-${number}`,
+      number,
+      status: verdict === running ? null : "completed",
+      verdict,
+      detail: null,
+      ...over,
+    });
+    // The Kitaru lap, with the id of its one run.
+    const kitaruLap = (n: number) => lap(n, { runReplays: oneRun([{ evaluator: "action-correct", replays: [replay("s1", false), replay("s2", true), replay("s3", true)] }]).map((r) => ({ ...r, runId: "run-1" })) });
+
+    it("shows the kind, the change and the Kitaru experiment of each row", () => {
+      const row = resultsTable(loop([kitaruLap(0), kitaruLap(1)], { backend: [exp(0, []), exp(1, [brun(1, red)])] })).rows[1];
+      expect(row.backend).toEqual({ kind: "System prompt", kindTitle: null, change: "Change 1", experimentId: "exp-1", verdicts: [red] });
+      expect(row.cells[0]!.squares).toHaveLength(3);
+    });
+
+    it("gives a row to an Experiment that Kitaru does not have yet, with no squares", () => {
+      const rows = resultsTable(loop([kitaruLap(0)], { backend: [exp(0, [brun(1, green)]), exp(1, [brun(1, running)], { experimentId: null })] })).rows;
+      expect(rows.map((r) => r.lap)).toEqual([0, 1]);
+      expect(rows[1]).toMatchObject({ noResults: "No results yet", status: "Running", passRate: null, backend: { experimentId: null } });
+      expect(rows[1].runs.map((r) => [r.name, r.status, r.result.label])).toEqual([["Run #1", "Running", "Running"]]);
+    });
+
+    it("says Not started for an Experiment with no Run", () => {
+      expect(resultsTable(loop([], { backend: [exp(0, [])] })).rows[0].status).toBe("Not started");
+    });
+
+    it("takes the result of each Run from the backend, and keeps the squares of Kitaru", () => {
+      const row = resultsTable(loop([kitaruLap(1)], { backend: [exp(1, [brun(1, green)])] })).rows[0];
+      // Kitaru says a case failed; the backend Run is green, and the backend decides.
+      expect(row.runs[0]).toMatchObject({ result: green, passRate: "66.7%" });
+      expect(row.runs[0].cells[0]!.squares).toHaveLength(3);
+    });
+
+    it("lists each Run of the backend, also one that Kitaru has no results for, with its detail", () => {
+      const row = resultsTable(loop([kitaruLap(1)], { backend: [exp(1, [brun(1, red), brun(2, incomplete, { status: "failed", detail: "The replay timed out." })])] })).rows[0];
+      expect(row.runs.map((r) => [r.name, r.status, r.result.label, r.detail])).toEqual([
+        ["Run #1", "Completed", red.label, null],
+        ["Run #2", "Failed", "Incomplete", "The replay timed out."],
+      ]);
+      expect(row.runs[1].cells).toEqual([null]);
+    });
+
+    it("gives the passing Experiment Passed and a ★, an Experiment with a red Run Failed, and other Experiments no result", () => {
+      const rows = resultsTable(loop([], { winnerLap: 2, backend: [exp(0, [brun(1, red)]), exp(1, [brun(1, green), brun(2, running)]), exp(2, [brun(1, green)])] })).rows;
+      expect(rows.map((r) => [r.result?.label ?? null, r.winning])).toEqual([["Failed", false], [null, false], ["Passed", true]]);
+      expect(rows[0].result?.title).toBe("1 of 1 Run was red");
+    });
+
+    it("says what Show runs lists for a backend Loop", () => {
+      expect(resultsTable(loop([], { backend: [] })).runsNote).toBe('"Show runs" lists each Run of the experiment: green, red or incomplete, with the squares and the pass rate once its results load.');
+    });
+  });
 });
 
 describe("finalResults", () => {
