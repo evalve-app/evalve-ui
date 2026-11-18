@@ -125,6 +125,11 @@ export async function getCurrentAccount(): Promise<Account> {
   return data;
 }
 
+// Another account, by id. The Loop pages show its name for the Loop owner.
+export async function getAccount(accountId: string): Promise<Account> {
+  return unwrap(api.GET("/api/v1/accounts/{account_id}", { params: { path: { account_id: accountId } } }), "the account");
+}
+
 export async function listAgents(): Promise<Agent[]> {
   const { data, response } = await api.GET("/api/v1/agents", { params: { query: { size: 50 } } });
   if (response.status === 401) throw new UnauthorizedError("Not signed in.");
