@@ -61,9 +61,10 @@ export function NewLoopPage() {
   // a later answer cannot put a value in the handoff prompt that the person did not approve.
   // - `evaluators`: the evaluators with their versions.
   // - `version`: the backend version.
-  // - `seenIds`: the Loops of the viewer, from a read at the time of Approve. Null until that read answers, and
-  //   when it fails (see `startedLoop`).
-  const [approved, setApproved] = useState<{ evaluators: typeof liveEvaluators; version: string; seenIds: ReadonlySet<string> | null } | null>(null);
+  // - `seenIds`: the Loops of the viewer, from a read at the time of Approve. Null when that read fails (see `startedLoop`).
+  // - `reading`: that read has no answer yet. The copy waits for it, so that the wait after the copy always
+  //   starts with the Loops of before the copy.
+  const [approved, setApproved] = useState<{ evaluators: typeof liveEvaluators; version: string; seenIds: ReadonlySet<string> | null; reading: boolean } | null>(null);
   const agentEvaluators = approved?.evaluators ?? liveEvaluators;
   // Before Approve, only the answer of the newest health call counts: the query keeps the version of an older
   // answer when a later call fails.
@@ -72,8 +73,6 @@ export function NewLoopPage() {
   // The number of the current approval. Cancel starts a new number, and a clipboard write or a read of the Loops
   // of an older number changes nothing.
   const approvalNumber = useRef(0);
-  // True after the copy of the current approval: from then on, the coding agent can have started the Loop.
-  const copiedRef = useRef(false);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);
 
   const [name, setName] = useState("");
@@ -153,28 +152,30 @@ export function NewLoopPage() {
   async function approve() {
     if (!buttons.approve || !liveVersion) return;
     const mine = approvalNumber.current;
-    copiedRef.current = false;
     // The Loops of the viewer are not known yet: the list that the page has can be old (see `startedLoop`).
-    setApproved({ evaluators: liveEvaluators, version: liveVersion, seenIds: null });
+    setApproved({ evaluators: liveEvaluators, version: liveVersion, seenIds: null, reading: !!myId });
     act("approve");
     // Reads the Loops of the viewer at the time of Approve. A Loop that started and ended while the person
     // filled the setup is then a Loop that the page saw, not the new Loop.
     if (!myId) return;
     const fresh = await myLoops.refetch();
-    // Not after Cancel. Not after the copy: the answer could have the new Loop, and the page would not open it.
-    if (mine !== approvalNumber.current || copiedRef.current || fresh.error || !fresh.data) return;
-    const seenIds = new Set(fresh.data.map((loop) => loop.loop_id));
-    setApproved((current) => current && { ...current, seenIds });
+    // Not after Cancel: that approval is gone.
+    if (mine !== approvalNumber.current) return;
+    const seenIds = fresh.error || !fresh.data ? null : new Set(fresh.data.map((loop) => loop.loop_id));
+    setApproved((current) => current && { ...current, seenIds, reading: false });
   }
   function cancelApproval() {
     if (!buttons.cancel) return;
     approvalNumber.current += 1;
-    copiedRef.current = false;
     setApproved(null);
     setCopyFailed(false);
     act("cancel");
   }
+  // The copy waits for the read of Approve. After the copy the coding agent can start the Loop, and a read
+  // that answers later could not tell the new Loop from the Loops of before.
+  const canCopy = buttons.copyPrompt && !approved?.reading;
   async function copyHandoffPrompt() {
+    if (!canCopy) return;
     const mine = approvalNumber.current;
     let failed = false;
     try {
@@ -188,7 +189,6 @@ export function NewLoopPage() {
     if (mine !== approvalNumber.current) return;
     setCopyFailed(failed);
     if (failed) return;
-    copiedRef.current = true;
     act("copyPrompt");
   }
 
@@ -298,7 +298,7 @@ export function NewLoopPage() {
               <Button variant="outline" onClick={() => navigate(`/agents/${agentId}/loop`)}>
                 Back to loops
               </Button>
-              <Button icon={approval === "copied" ? Check : Copy} disabled={!buttons.copyPrompt} onClick={copyHandoffPrompt}>
+              <Button icon={approval === "copied" ? Check : Copy} disabled={!canCopy} onClick={copyHandoffPrompt}>
                 {approval === "copied" ? "Prompt copied" : "Copy prompt"}
               </Button>
             </div>
