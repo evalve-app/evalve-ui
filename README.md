@@ -36,7 +36,20 @@ The dev server forwards every `/api` request to the Kitaru server, so the browse
 - **New design tokens:** replace `src/design-system/tokens.json`, then run `npm run gen:tokens`.
 - **New Evalve Loop release:** run `node scripts/package-loop-release.mjs ../loop-skills/evalve-loop <version>` from a reviewed skills checkout. The script packages the public release files and pins their checksums in the New Loop prompt. Keep the previous version directories in `public/skills/evalve-loop/` so existing prompts can still fetch them.
 
-## Deploy
+## Release
+
+Push a tag such as `v0.1.0` from `main`:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `Release` workflow runs the checks, builds the app, and attaches `dashboard.tgz` and `dashboard.tgz.sha256` to a GitHub release. Its summary prints the asset URL and SHA-256. Paste them into `src/evalve/cli.py` in `evalve-deploy` in a pull request. After it merges, `evalve up` installs this release on the server. Tag a release when a set of changes is ready to ship, not for every commit. A tag cannot be released twice, so use a new version for each release.
+
+## Deploy by hand
+
+Until `evalve up` installs the dashboard, use the script:
 
 ```
 ./scripts/deploy-dashboard.sh

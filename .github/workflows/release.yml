@@ -1,0 +1,62 @@
+name: Release
+
+# A v* tag publishes the built dashboard as a GitHub release asset.
+# evalve-deploy pins the asset URL and its SHA-256, and `evalve up` installs it.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: python3 -B -m unittest discover -s tests
+      - run: npm run build
+
+      - name: Package the build
+        run: |
+          test -f dist/index.html
+          tar -czf dashboard.tgz -C dist .
+          sha256sum dashboard.tgz > dashboard.tgz.sha256
+
+      # gh release create fails if the release exists, so an asset is never replaced.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dashboard.tgz dashboard.tgz.sha256 \
+            --verify-tag --title "$TAG" \
+            --notes "Built dashboard for evalve-deploy. Pin the URL and SHA-256 from the workflow summary."
+
+      - name: Summary
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sha=$(cut -d ' ' -f 1 dashboard.tgz.sha256)
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dashboard.tgz"
+          {
+            echo "## Dashboard $TAG"
+            echo
+            echo "Paste into \`src/evalve/cli.py\` in evalve-deploy:"
+            echo
+            echo '```python'
+            echo "DEFAULT_DASHBOARD_URL = \"$url\""
+            echo "DEFAULT_DASHBOARD_SHA256 = \"$sha\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
