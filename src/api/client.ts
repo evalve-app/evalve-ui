@@ -396,3 +396,40 @@ export async function listFailingTasks(jobId: string): Promise<Task[]> {
   const page = await unwrap(api.GET("/api/v1/tasks", { params: { query: { size: 50, filter: filter as never } } }), "tasks");
   return page.items;
 }
+
+// ---- API keys -------------------------------------------------------------
+
+export type ApiKey = components["schemas"]["ApiKeyResponse"];
+// A new key together with its value. No later call gives the value again.
+export type IssuedApiKey = components["schemas"]["ApiKeyIssuedResponse"];
+
+// Every API key of the signed-in account, newest first. Follows next_cursor to
+// the end.
+export async function listApiKeys(): Promise<ApiKey[]> {
+  const keys: ApiKey[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await unwrap(api.GET("/api/v1/api-keys", { params: { query: { size: 100, sort: "created:desc", cursor } } }), "API keys");
+    keys.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return keys;
+}
+
+// Creates an API key for the signed-in account. The answer carries the key
+// value one time. Does not use `unwrap`, because the page chooses its text
+// from the status (409 is a name that a key has already). A 401 throws an
+// ApiError with status 401, and the page tells the person to sign in again.
+export async function createApiKey(name: string): Promise<IssuedApiKey> {
+  return unwrapOrApiError(api.POST("/api/v1/api-keys", { body: { name } }));
+}
+
+// Deletes an API key, so that it cannot sign in again. The page calls this
+// "revoke". Does not use `unwrap`, because a success (204) has no body, and
+// because the page chooses its text from the status (404 is a key that is
+// gone). A 401 throws an ApiError with status 401, and the page tells the
+// person to sign in again.
+export async function deleteApiKey(apiKeyId: string): Promise<void> {
+  const { error, response } = await api.DELETE("/api/v1/api-keys/{api_key_id}", { params: { path: { api_key_id: apiKeyId } } });
+  if (!response.ok) throw new ApiError(response.status, errorDetail(error));
+}

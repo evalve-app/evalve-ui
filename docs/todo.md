@@ -50,6 +50,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 
 ## Not tested yet
 
+- The Settings page with the real server: the list of API keys, "Create key", "Copy key" and "Revoke". sc-240 checked them in a browser only with a mock API, because the Kitaru server did not answer. "Create key" and "Revoke" change data, so a person must check them by hand.
 - The Approve, Get prompt and Copy prompt states of the New loop page, and the change to the loop page when the control experiment exists. The screenshot script does not click, so a person must check them by hand (issue #42).
 - The setup card of the loop page with a real loop, and the `Evalve loop:` line of a real control experiment. Issue #40 checked the card only with a mock API, because the sign-in of the test account failed.
 - A real one-run-per-experiment (MVP) loop on the Loop pages.

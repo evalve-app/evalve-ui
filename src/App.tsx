@@ -13,6 +13,7 @@ import { WorkersPage } from "./pages/WorkersPage";
 import { JobsPage } from "./pages/JobsPage";
 import { ApproveDevicePage } from "./pages/ApproveDevicePage";
 import { SessionPage } from "./pages/SessionPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { AgentLayout } from "./pages/agent/AgentLayout";
 import { SessionsTab } from "./pages/agent/SessionsTab";
 import { InvestigationsTab } from "./pages/agent/InvestigationsTab";
@@ -30,6 +31,7 @@ const NAV = [
   { to: "/evaluators", label: "Evaluators" },
   { to: "/workers", label: "Workers" },
   { to: "/jobs", label: "Jobs" },
+  { to: "/settings", label: "Settings" },
 ];
 
 export function App() {
@@ -56,6 +58,7 @@ export function App() {
         <Route path="/evaluators" element={<EvaluatorsPage />} />
         <Route path="/workers" element={<WorkersPage />} />
         <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/agents" replace />} />
     </Routes>
