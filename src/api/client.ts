@@ -96,7 +96,9 @@ export async function login(username: string, password: string) {
   if (!res.ok) throw new Error(`Login failed (${res.status}).`);
   const data = (await res.json()) as { csrf_token?: string | null };
   writeCsrf(data.csrf_token ?? null);
-  signInGate.signedIn();
+  // The gate does not open the page here: the account of this sign-in is not
+  // loaded yet, and it can be a different account.
+  signInGate.accepted();
 }
 
 export async function logout() {
@@ -107,14 +109,19 @@ export async function logout() {
   } finally {
     // Also when the server does not answer: without the token, the server refuses each call.
     writeCsrf(null);
+    // A second time: the gate then ignores the answer to each read of the
+    // account that left before this moment (see `fetchAccount`).
+    signInGate.signedOut();
   }
 }
 
+// The gate knows this read (`fetchAccount`): a good answer to a signed-out
+// person tells the gate that the person is signed in. The gate ignores an
+// answer that is from before a sign-out.
 export async function getCurrentAccount(): Promise<Account> {
-  const { data, response } = await api.GET("/api/v1/accounts/me");
+  const { data, response } = await api.GET("/api/v1/accounts/me", { fetch: signInGate.fetchAccount });
   if (response.status === 401) throw new UnauthorizedError("Not signed in.");
   if (!data) throw new Error(`Could not load your account (${response.status}).`);
-  signInGate.signedIn();
   return data;
 }
 

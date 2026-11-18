@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { signInGate } from "../api/client";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCurrentAccount, signInGate, UnauthorizedError } from "../api/client";
 import { Button } from "../design-system/components";
+import { signInBlocks } from "../lib/signInGate";
 import { useSignOut } from "../lib/useSignOut";
 import { SignInForm } from "./SignInForm";
 
@@ -13,7 +14,13 @@ export function SignInAgainDialog() {
   const titleId = useId();
   const queryClient = useQueryClient();
   const signOut = useSignOut();
-  const open = useSyncExternalStore(signInGate.subscribe, signInGate.state) === "ended";
+  const open = signInBlocks(useSyncExternalStore(signInGate.subscribe, signInGate.state));
+  // The account that the page shows now. Not enabled: this dialog only reads
+  // what the layout in App.tsx loaded.
+  const shownId = useQuery({ queryKey: ["me"], queryFn: getCurrentAccount, enabled: false }).data?.id;
+  // The account of the sign-in that the server accepted in this dialog. A new
+  // object for each sign-in, so that a second sign-in of one account counts.
+  const [checked, setChecked] = useState<{ id: string } | null>(null);
 
   // A native <dialog> gives focus trapping, and makes the page below inert.
   useEffect(() => {
@@ -23,12 +30,27 @@ export function SignInAgainDialog() {
     if (!open && d.open) d.close();
   }, [open]);
 
-  // Reads the account of the new sign-in. The same account keeps the page as
-  // it is. A different account gets a new page with no data and no state of
-  // the account before: src/lib/accountChange.ts removes the data, and the key
-  // on <main> in App.tsx starts the page again.
+  // Opens the page only after React shows the account of the new sign-in. For
+  // a different account, that is the same commit that starts the page again
+  // (the key on <main> in App.tsx). Before that commit, the page below still
+  // shows the account before, and a click there would act for the new account.
+  useEffect(() => {
+    if (checked !== null && shownId === checked.id) signInGate.accountShown();
+  }, [checked, shownId]);
+
+  // Reads the account of the new sign-in, while the page stays blocked. The
+  // same account keeps the page as it is. A different account gets a new page
+  // with no data and no state of the account before: src/lib/accountChange.ts
+  // removes the data at the write below, and the key on <main> starts the page again.
   async function onSignedIn() {
-    await queryClient.refetchQueries({ queryKey: ["me"] });
+    const account = await getCurrentAccount().catch((error: unknown) => {
+      if (error instanceof UnauthorizedError) throw new Error("The server did not keep the sign-in. Sign in again.");
+      throw error;
+    });
+    // The person signed out during the read.
+    if (signInGate.state() !== "checking") return;
+    queryClient.setQueryData(["me"], account);
+    setChecked({ id: account.id });
   }
 
   return (
@@ -40,7 +62,7 @@ export function SignInAgainDialog() {
       onCancel={(e) => e.preventDefault()}
       // A browser can close the dialog on a second Escape. Open it again.
       onClose={() => {
-        if (signInGate.state() === "ended") ref.current?.showModal();
+        if (signInBlocks(signInGate.state())) ref.current?.showModal();
       }}
     >
       <div className="dialog-header">
