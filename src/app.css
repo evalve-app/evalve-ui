@@ -401,6 +401,10 @@ h1, h2, p { margin: 0; }
   .setup-footer, .handoff-actions { flex-direction: column; align-items: stretch; }
 }
 
+/* Loop page: "Cancel Loop" in the header (LoopPage.tsx). In a narrow window, the question wraps and the buttons keep their size. */
+.loop-cancel-confirm { display: inline-flex; align-items: center; gap: var(--spacing-2); font-size: 13px; text-align: right; }
+.loop-cancel-confirm .ev-btn { flex: none; }
+
 /* Loop page: Results section (ResultsSection.tsx) */
 .results-wrap { overflow-x: auto; margin-top: var(--spacing-4); }
 .results-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 18px; }
@@ -433,6 +437,11 @@ a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .rs-rate { font: 500 13px/18px var(--font-sans); white-space: nowrap; }
 .results-table tr.rs-run > td { background: var(--surface-muted); }
 .results-table td.rs-run-name { padding-left: var(--spacing-8); color: var(--text-muted-foreground); white-space: nowrap; }
+.rs-backend-name { display: inline-flex; flex-direction: column; gap: var(--spacing-0-5); white-space: normal; }
+.rs-kind { color: var(--text-muted-foreground); font: 500 11px/14px var(--font-sans); letter-spacing: 0.02em; text-transform: uppercase; }
+.rs-change { max-width: 280px; color: var(--text-muted-foreground); font: 400 12px/16px var(--font-sans); }
+.rs-verdicts { display: flex; flex-wrap: wrap; gap: var(--spacing-1); margin-top: var(--spacing-1-5); }
+.rs-run-detail { max-width: 280px; margin: var(--spacing-1) 0 0; color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 .rs-footer { margin: var(--spacing-3) 0 0; color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 
 /* Loop page: Final results section (FinalResultsSection.tsx) */

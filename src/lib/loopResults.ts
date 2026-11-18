@@ -3,6 +3,7 @@
 // plain loop data and returns what one section shows, with all text that
 // depends on server data already made. The section components only lay it out.
 import type { EvalAggregate, Replay } from "../api/client";
+import type { BackendExperiment } from "./backendLoops";
 import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
@@ -102,7 +103,7 @@ export function evaluatorReplays(run: Map<string, RunCell> | undefined, cases: C
 // and the replays of each gating evaluator in case order. `unscored` holds the
 // ids of the cases of the run that are in no list: no gating evaluator gave a
 // pass/fail result for them. Such a case is not a pass and not a failure.
-export type RunReplays = { run: number; status: string; evaluatorReplays: EvaluatorReplays[]; unscored: string[] };
+export type RunReplays = { run: number; runId?: string; status: string; evaluatorReplays: EvaluatorReplays[]; unscored: string[] };
 
 // The replays of each run of one lap that has results, oldest run first.
 // `results` holds, by run id, what runResults gives for the run. The loop data hook loads results only for a completed run,
@@ -120,7 +121,7 @@ export function runReplays(
       if (!found) return [];
       const lists = evaluatorReplays(found.cells, cases, gatingEvaluators, found.evaluators);
       const listed = new Set(lists.flatMap((e) => e.replays.map((x) => x.caseId)));
-      return [{ run: r.number, status: r.status, evaluatorReplays: lists, unscored: [...found.passed.keys()].filter((id) => !listed.has(id)) }];
+      return [{ run: r.number, runId: r.id, status: r.status, evaluatorReplays: lists, unscored: [...found.passed.keys()].filter((id) => !listed.has(id)) }];
     });
 }
 
@@ -426,7 +427,7 @@ function passRate(runs: RunReplays[]): number | null {
 }
 
 // If the lap met the rule of the loop. `title` says why, for a tooltip.
-export type LapResult = { label: string; tone: "success" | "destructive" | "neutral"; title: string };
+export type LapResult = { label: string; tone: "success" | "destructive" | "warning" | "neutral"; title: string };
 
 // One completed run in an open row, in the columns of the experiment row.
 export type ResultsRun = {
@@ -436,6 +437,16 @@ export type ResultsRun = {
   passRate: string | null; // null when the run has no case with a result
   status: string; // the run status from the server, as a word
   result: LapResult;
+  detail: string | null; // a backend Run: why it is incomplete
+};
+
+// What the backend gives a row of a backend Loop. Null for a Skill Loop.
+export type ResultsRowBackend = {
+  kind: string | null; // "System prompt" or "Model"; null for the Control Experiment
+  kindTitle: string | null;
+  change: string;
+  experimentId: string | null; // the Kitaru experiment, for the link; null until the backend makes it
+  verdicts: LapResult[]; // one for each Run, oldest first
 };
 
 export type ResultsRow = {
@@ -456,10 +467,12 @@ export type ResultsRow = {
   // that says how many are loaded, which also shows after each count.
   incomplete: string | null;
   runs: ResultsRun[]; // what the open row lists, oldest run first
+  backend: ResultsRowBackend | null;
 };
 
-const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Stopping", canceled: "Stopped", failed: "Failed", completed: "Completed" };
-const runStatus = (status: string) => RUN_STATUS[status] ?? status;
+const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Canceling", canceled: "Canceled", failed: "Failed", completed: "Completed" };
+// The word that the dashboard shows for the status of a Run (see "Canceled" in GLOSSARY.md).
+export const runStatus = (status: string) => RUN_STATUS[status] ?? status;
 
 // The result of one run: a run passed when each case passed every gating evaluator in it.
 function runResult(run: RunReplays): LapResult {
@@ -482,7 +495,29 @@ function resultsRun(run: RunReplays, evaluators: string[], cohortCaseCount: numb
     passRate: rate == null ? null : formatPercent(rate),
     status: runStatus(run.status),
     result: runResult(run),
+    detail: null,
   };
+}
+
+// A Run of a backend Loop. The backend gives the result; Kitaru gives the
+// squares and the pass rate once the results of the Run load.
+function backendRun(run: BackendExperiment["runs"][number], found: RunReplays | undefined, evaluators: string[], cohortCaseCount: number | null): ResultsRun {
+  const base = found ? resultsRun(found, evaluators, cohortCaseCount) : { cells: evaluators.map(() => null), passRate: null };
+  return { ...base, run: run.number, name: `Run #${run.number}`, status: run.status ? runStatus(run.status) : "Running", result: run.verdict, detail: run.detail };
+}
+
+// The result of a backend Experiment: the backend's passing Experiment passed,
+// and an Experiment with a red Run failed.
+function backendResult(e: BackendExperiment, passing: boolean): LapResult | null {
+  if (passing) return { label: "Passed", tone: "success", title: "This experiment made the loop pass" };
+  const red = e.runs.filter((r) => r.verdict.tone === "destructive").length;
+  return red ? { label: "Failed", tone: "destructive", title: `${red} of ${e.runs.length} ${e.runs.length === 1 ? "Run was" : "Runs were"} red` } : null;
+}
+
+function backendStatus(e: BackendExperiment): string {
+  if (e.runs.some((r) => r.status == null)) return "Running";
+  const last = e.runs[e.runs.length - 1];
+  return last?.status ? runStatus(last.status) : "Not started";
 }
 
 const completedRun = (l: ResultsLap) => l.runs.find((r) => r.status === "completed");
@@ -548,6 +583,7 @@ function withPassRateReason(result: LapResult | null, rate: number | null, runCo
 export type ResultsTable = { evaluators: string[]; rows: ResultsRow[]; legend: { state: SquareState; label: string }[]; state: string; runsNote: string; statusNote: string };
 
 const RUNS_NOTE = '"Show runs" lists each completed run of the experiment, with the squares, the pass rate, the status and the result of that run.';
+const BACKEND_RUNS_NOTE = '"Show runs" lists each Run of the experiment: green, red or incomplete, with the squares and the pass rate once its results load.';
 const STATUS_NOTE = `Status is one of: ${["Not started", ...Object.values(RUN_STATUS)].join(", ")}.`;
 
 // "Mixed" can occur only in an experiment with more than one completed run.
@@ -576,7 +612,20 @@ function loopState(laps: ResultsLap[], outcome: LoopOutcome): string {
 // The Results table: one row for each lap, from the control experiment to the
 // last lap, and one column for each gating evaluator. A row shows each case across
 // the completed runs of the lap, and it opens to one row for each of these runs.
-export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; criteria: Criteria | null; winnerLap: number | null; cohortCaseCount: number | null; outcome: LoopOutcome }): ResultsTable {
+//
+// A backend Loop also gives `backend`: the Experiments of the page, as the
+// backend knows them. Each of them gets a row, also before Kitaru has its
+// experiment, and the backend gives the result of each Run and Experiment.
+export function resultsTable(loop: {
+  laps: ResultsLap[];
+  cases: CaseInfo[];
+  criteria: Criteria | null;
+  winnerLap: number | null;
+  cohortCaseCount: number | null;
+  outcome: LoopOutcome;
+  backend?: BackendExperiment[];
+}): ResultsTable {
+  const passingLap = loop.winnerLap;
   const laps = [...loop.laps].sort((a, b) => a.lap - b.lap);
   // Each run's lists are in the column order already (see evaluatorReplays).
   const evaluators: string[] = [];
@@ -585,7 +634,7 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
   const caseOrder = new Map(loop.cases.map((c, i) => [c.id, i]));
   // More than one completed run, also while the results of a run still load.
   const severalRuns = (l: ResultsLap) => Math.max(l.runReplays.length, l.runs.filter((r) => r.status === "completed").length) > 1;
-  const rows = laps.map((l): ResultsRow => {
+  const kitaruRows = laps.map((l): ResultsRow => {
     const noResults = noResultsText(l);
     const completed = l.runs.filter((r) => r.status === "completed").length;
     // The results of a completed run still load, or the request for them failed.
@@ -595,10 +644,10 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
       lap: l.lap,
       name: experimentName(l.lap, "short"),
       summary: l.summary,
-      winning: l.lap === loop.winnerLap,
+      winning: l.lap === passingLap,
       status: lapStatus(l),
       noResults,
-      result: noResults == null ? withPassRateReason(lapResult(l, loop.criteria, loop.winnerLap, caseName), rate, l.runReplays.length) : null,
+      result: noResults == null ? withPassRateReason(lapResult(l, loop.criteria, passingLap, caseName), rate, l.runReplays.length) : null,
       cells: evaluators.map((name) => {
         const cell = experimentCell(name, l.runReplays, severalRuns(l), caseOrder, loop.cohortCaseCount);
         return cell && incomplete ? { ...cell, count: `${cell.count} · ${incomplete}`, tone: "neutral" as const } : cell;
@@ -606,9 +655,34 @@ export function resultsTable(loop: { laps: ResultsLap[]; cases: CaseInfo[]; crit
       passRate: noResults == null && rate != null ? formatPercent(rate) : null,
       incomplete,
       runs: noResults == null ? l.runReplays.map((r) => resultsRun(r, evaluators, loop.cohortCaseCount)) : [],
+      backend: null,
     };
   });
-  return { evaluators, rows, legend: laps.some(severalRuns) ? LEGEND_SEVERAL_RUNS : LEGEND_ONE_RUN, state: loopState(laps, loop.outcome), runsNote: RUNS_NOTE, statusNote: STATUS_NOTE };
+  const rows = loop.backend ? loop.backend.map((e) => backendRow(e, kitaruRows.find((r) => r.lap === e.number), laps.find((l) => l.lap === e.number))) : kitaruRows;
+
+  // A backend row: the row of the Kitaru experiment, with the change and the
+  // results from the backend. With no Kitaru experiment yet, the row has no squares.
+  function backendRow(e: BackendExperiment, row: ResultsRow | undefined, l: ResultsLap | undefined): ResultsRow {
+    const winning = e.number === passingLap;
+    const result = backendResult(e, winning);
+    const rate = l && !row?.incomplete ? passRate(l.runReplays) : null;
+    return {
+      lap: e.number,
+      name: experimentName(e.number, "short"),
+      summary: e.change,
+      status: l ? lapStatus(l) : backendStatus(e),
+      noResults: "No results yet",
+      cells: evaluators.map(() => null),
+      passRate: null,
+      incomplete: null,
+      ...row,
+      winning,
+      result: withPassRateReason(result, rate, l?.runReplays.length ?? 0),
+      runs: e.runs.map((r) => backendRun(r, l?.runReplays.find((x) => x.runId != null && x.runId === r.runId), evaluators, loop.cohortCaseCount)),
+      backend: { kind: e.kind, kindTitle: e.kindTitle, change: e.change, experimentId: e.experimentId, verdicts: e.runs.map((r) => r.verdict) },
+    };
+  }
+  return { evaluators, rows, legend: laps.some(severalRuns) ? LEGEND_SEVERAL_RUNS : LEGEND_ONE_RUN, state: loopState(laps, loop.outcome), runsNote: loop.backend ? BACKEND_RUNS_NOTE : RUNS_NOTE, statusNote: STATUS_NOTE };
 }
 
 // Final results section

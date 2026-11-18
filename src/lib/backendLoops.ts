@@ -3,7 +3,8 @@
 // the dashboard shows them. Skill Loops are in loops.ts.
 import type { LoopDetail, LoopListItem } from "../api/evalve";
 import { formatCost } from "./format";
-import type { EvalveSetup, SkillLoopRow } from "./loops";
+import { lapSummary, type EvalveSetup, type SkillLoopRow } from "./loops";
+import type { LapResult } from "./loopResults";
 import { backendLoopOutcome, type LoopOutcome } from "./loopStatus";
 
 // The Loop page and the list poll at this interval while a Loop is running.
@@ -39,6 +40,13 @@ export function listItemOutcome(item: LoopListItem): LoopOutcome {
     passingExperiment: item.outcome === "passed" ? item.experiments - 1 : null,
     requiredGreens: null,
   });
+}
+
+// The time at which a backend Loop ended, for the "Ended" line of the Loop
+// page. Null while the Loop runs. The backend sets `updated_at` in the same
+// write that ends the Loop.
+export function loopEndedAt(loop: Pick<LoopDetail, "status" | "updated_at">): string | null {
+  return loop.status === "running" ? null : loop.updated_at;
 }
 
 // The name of the Loop owner. "You" for the viewer's own Loop. Before the
@@ -108,4 +116,63 @@ export function loopListRows(backend: LoopListItem[], skill: SkillLoopRow[], onl
     ...(onlyMine ? [] : skill.map((row): LoopRow => ({ kind: "skill", key: `skill:${row.slug}`, ...row }))),
   ];
   return rows.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+// The Results table of a backend Loop
+
+type BackendExperimentSummary = LoopDetail["experiments"][number];
+type BackendRun = BackendExperimentSummary["runs"][number];
+
+// One Run of an Experiment, as the backend scored it (see "Green", "Red" and
+// "Incomplete" in GLOSSARY.md). A Run with no result yet is running.
+export type BackendRunRow = {
+  runId: string | null;
+  number: number;
+  status: string | null; // the run status of the result; null while the Run has no result
+  verdict: LapResult;
+  detail: string | null; // why an incomplete Run has no full score
+};
+
+// What the backend knows about one Experiment, for its row of the Results table.
+export type BackendExperiment = {
+  number: number;
+  experimentId: string | null; // the Kitaru experiment; null until the backend makes it
+  kind: string | null; // "System prompt" or "Model"; null for the Control Experiment
+  kindTitle: string | null; // the model name of a Model override, for a tooltip
+  change: string;
+  runs: BackendRunRow[]; // oldest first
+};
+
+const CHANGE_KIND: Record<string, string> = { system_prompt: "System prompt", model: "Model" };
+
+const cases = (n: number) => `${n} ${n === 1 ? "case" : "cases"}`;
+
+function runVerdict(result: BackendRun["result"]): Pick<BackendRunRow, "verdict" | "detail"> {
+  if (!result) return { verdict: { label: "Running", tone: "neutral", title: "The Run has no result yet" }, detail: null };
+  if (result.outcome === "green") return { verdict: { label: "Green", tone: "success", title: "Each case passed every gating evaluator in this Run" }, detail: null };
+  if (result.outcome === "red") {
+    const total = result.passed + result.failed;
+    return { verdict: { label: `Red · ${result.failed} of ${total} failed`, tone: "destructive", title: `${result.failed} of ${cases(total)} failed a gating evaluator in this Run` }, detail: null };
+  }
+  const detail = result.run_error || (result.unscored ? `${cases(result.unscored)} ${result.unscored === 1 ? "has" : "have"} no score` : null);
+  return { verdict: { label: "Incomplete", tone: "warning", title: detail ?? "The Run could not be fully scored" }, detail };
+}
+
+// The Experiments of a backend Loop, in number order, with the change and the Runs of each.
+export function backendExperiments(experiments: BackendExperimentSummary[]): BackendExperiment[] {
+  return [...experiments]
+    .sort((a, b) => a.number - b.number)
+    .map((e) => {
+      const keys = Object.keys(e.override).filter((k) => CHANGE_KIND[k]);
+      return {
+        number: e.number,
+        experimentId: e.experiment_id,
+        kind: e.number === 0 || keys.length === 0 ? null : keys.map((k) => CHANGE_KIND[k]).join(" and "),
+        kindTitle: e.number > 0 && e.override.model ? e.override.model : null,
+        change: e.number === 0 ? lapSummary(null, 0) : e.change,
+        runs: [...e.runs]
+          .sort((a, b) => a.number - b.number)
+          .map((r) => ({ runId: r.run_id ?? r.result?.run_id ?? null, number: r.number, status: r.result?.run_status ?? null, ...runVerdict(r.result) })),
+      };
+    });
 }

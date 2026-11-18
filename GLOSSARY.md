@@ -50,6 +50,15 @@ _Avoid_: Round, lap, candidate
 One replay of each session in the cohort version, with a score from each selected evaluator.
 _Avoid_: attempt
 
+**Green**:
+A Run that finished, in which each case passed every gating evaluator.
+
+**Red**:
+A Run that finished and was fully scored, in which one case or more failed a gating evaluator.
+
+**Incomplete**:
+A Run that could not be fully scored: it did not finish, or a case has no result from a gating evaluator.
+
 **Phase**:
 The role of a run inside an experiment: screen, trial, or confirmation.
 
@@ -164,3 +173,4 @@ _Avoid_: Account page, profile, preferences
 - "Trial" is a phase of a Run (see Phase), never a whole Run.
 - Say "round" or "iteration" only to name a server experiment, or in the `Round N:` line of the loop protocol (`docs/loop-contract.md`).
 - Do not call the Control Experiment a "baseline lap", "baseline audit" or "control group".
+- "Canceled" is also the word for a Run that Kitaru canceled, and "Canceling" is the word while Kitaru cancels it. Do not say "Stopped" or "Stopping" for a Run.

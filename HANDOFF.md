@@ -41,7 +41,7 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Investigations | `/agents/:id/investigations` | Read-only list: status, how many sessions have a verdict, last change. A row opens nothing. "New investigation" gives a handoff prompt; it does not create anything |
 | Cohorts | `/agents/:id/cohorts` | Read-only list: newest version, session count, last change. A row opens the cohort page at `/cohorts/:cohortId?version=N`, which lists the sessions in one cohort version. "New cohort" gives a handoff prompt; it does not create anything |
 | Experiments | `/agents/:id/experiments` | List, plus run results at `/experiments/:experimentId` |
-| Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare experiments. See below |
+| Loop | `/agents/:id/loop` | List, New loop form, the loop page (Results, Final results, Agent diff), compare experiments. On the page of a running backend Loop, the Loop owner gets "Cancel Loop", which asks one time. Not tested yet with a real cancel. See below |
 | Evaluators | `/evaluators` | Read-only list of all evaluators: name, description, scope (one agent or all agents), latest version. Click a column header to sort. A row opens nothing. "New evaluator" gives a handoff prompt; it does not create anything |
 | Workers | `/workers` | Read-only list of the live workers (the server leaves out workers that stopped sending heartbeats): status, claims, platform, last seen. Reloads every 15 s. Click a column header to sort. A row opens nothing |
 | Jobs | `/jobs` | Read-only list of the 50 newest jobs: kind, status, created, duration, first line of the error. Filter by status or by experiment run id. Open a row to see why a job failed: the traceback and the failing task. Reloads every 15 s. Nothing cancels a job |
@@ -51,11 +51,11 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 
 **CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 
-The app is almost read-only. The only calls that change anything are sign in, sign out, "Approve device" on the CLI login page, "Run again" on an experiment, and "Create key" and "Revoke" on the Settings page.
+The app is almost read-only. The only calls that change anything are sign in, sign out, "Approve device" on the CLI login page, "Run again" on an experiment, "Cancel Loop" on the Loop page, and "Create key" and "Revoke" on the Settings page.
 
 ## The Loop tab
 
-**The dashboard never runs a loop. It only reads one.** Loops are run by a coding agent using the `kitaru-loop` skill (https://github.com/evalve-app/loop-skills). The full contract is in [docs/loop-contract.md](docs/loop-contract.md). The short version:
+**The dashboard never runs a loop. It reads one, and the Loop owner can cancel a running backend Loop ("Cancel Loop" on the Loop page).** Loops are run by a coding agent using the `kitaru-loop` skill (https://github.com/alyssa43/loop-skills). The full contract is in [docs/loop-contract.md](docs/loop-contract.md). The short version:
 
 - **A loop is a set of experiments** named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The UI calls a round an "experiment". Round 0 is the control experiment, with no change. Each later experiment makes one change. The code names an experiment in a loop `lap`.
 - **The New Loop page does not start a Loop.** It produces a handoff prompt with the Loop parameters. You paste it into a coding agent in the agent's project, and the coding agent starts the Loop on the Evalve backend with the Evalve MCP (`evalve_loop_start`). The page reads the backend for three things: the version for the install command (`GET /evalve/health`), the name check, and the wait for the new Loop (`GET /evalve/v1/loops`).
@@ -97,7 +97,7 @@ The page shows the header, then the setup card, then three sections in one colum
 ## Things that will trip you up
 
 - **Every API call needs the CSRF header.** `src/api/client.ts` and `src/api/evalve.ts` add it for you. A raw `fetch` without it gets a 401.
-- **The sign-in ends after 1 hour.** A "Sign in again" dialog opens over the page, and the page keeps its state. The dialog also has "Sign out". After the sign-in, the dialog stays open until the page shows the account of that sign-in. A sign-in with a different account starts the page again with no data and no state of the account before. A read that got a 401 waits, and continues after the sign-in. A call that changes data ("Run again", "Approve device", "Create key", "Revoke") is not sent again: do the action again. The logic is in `src/lib/signInGate.ts`.
+- **The sign-in ends after 1 hour.** A "Sign in again" dialog opens over the page, and the page keeps its state. The dialog also has "Sign out". After the sign-in, the dialog stays open until the page shows the account of that sign-in. A sign-in with a different account starts the page again with no data and no state of the account before. A read that got a 401 waits, and continues after the sign-in. A call that changes data ("Run again", "Approve device", "Cancel Loop", "Create key", "Revoke") is not sent again: do the action again. The logic is in `src/lib/signInGate.ts`.
 - **"Run again" costs money.** It replays the whole cohort and calls the model. It has not been clicked yet.
 - **Session number is not searchable on the server.** A `#371` search filters the rows already loaded.
 - **Empty states have a preview switch.** Account menu (top right) → "Preview empty states". A pill in the top bar shows when it's on.
@@ -119,7 +119,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | --- | --- |
 | `src/App.tsx` | Routes and the top bar |
 | `src/api/client.ts` | Every Kitaru call the app makes |
-| `src/api/evalve.ts` | The client for the Evalve backend. The Loop list and the Loop page read Loops with it, and the New Loop page reads the backend version and the Loop list |
+| `src/api/evalve.ts` | The client for the Evalve backend. The Loop list and the Loop page read Loops with it, the Loop page cancels a Loop with it ("Cancel Loop"), and the New Loop page reads the backend version and the Loop list |
 | `src/pages/` | One file per page; `agent/loop/` is the Loop tab |
 | `src/pages/agent/loop/useLoop.ts` | Loads one loop and works out the experiments of the loop (`laps`), scores and status |
 | `src/lib/signInGate.ts` | What a 401 does: the "Sign in again" dialog, and the reads that wait for the new sign-in |
@@ -136,6 +136,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 - The three sections of the loop page with real data. They were checked in a browser only with a mock API.
 - The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the retired runner, kept at the loop-skills tag `evalve-loop-0.1.0`. The card was checked in a browser only with a mock API.
 - "Run again" on an experiment.
+- "Cancel Loop" with a real running Loop. It was checked in a browser only with a mock API. A real cancel needs a running Loop, which spends money, so a person must do it by hand.
 - The "Sign in again" dialog with the Kitaru server. It was checked in a browser only with a mock API, because the Kitaru server did not answer.
 - Session page: a failed session, a running session, and agents not built on openai-agents. Anything it can't read as text falls back to raw JSON.
 - The budget stop and metric gates are not ported, so a loop that reached its budget in the skill shows "Stopped" or "Failed" after 10 minutes with no activity.
