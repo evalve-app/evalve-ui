@@ -252,6 +252,14 @@ export function newestRunStatus(runs: Pick<ExperimentRun, "created" | "status">[
   return runs.reduce<(typeof runs)[number] | undefined>((newest, run) => (!newest || run.created > newest.created ? run : newest), undefined)?.status;
 }
 
+// True while the experiments and the runs on the page can be old because the
+// sign-in ended. A request that got a 401 waits for the new sign-in, and its
+// answer comes some time after that sign-in. `waited` is the value of the
+// render before. `fetching`: a request for the experiments or the runs has no answer yet.
+export function loopReadWaits(waited: boolean, signInEnded: boolean, fetching: boolean): boolean {
+  return signInEnded || (waited && fetching);
+}
+
 export function shouldPollLoopRuns(
   evalve: EvalveLoop | null,
   experimentIds: string[],

@@ -17,9 +17,8 @@ describe("deviceLoadError", () => {
     expect(deviceLoadError({ status: 500, detail: null })).toBe("The device request did not load. The server returned HTTP 500.");
   });
 
-  it("tells a person whose sign-in ended to sign in again", () => {
+  it("tells a person who is not signed in to load the page again", () => {
     expect(deviceLoadError({ status: 401, detail: "Not authenticated" })).toBe(SIGN_IN_AGAIN);
-    expect(deviceApproveError({ status: 401, detail: "Not authenticated" })).toBe(SIGN_IN_AGAIN);
   });
 
   it("says the server did not answer when there is no response", () => {
@@ -28,6 +27,12 @@ describe("deviceLoadError", () => {
 });
 
 describe("deviceApproveError", () => {
+  it("tells a person whose sign-in ended to sign in again, and then to approve the device", () => {
+    expect(deviceApproveError({ status: 401, detail: "Not authenticated" })).toBe(
+      "The device was not approved, because your sign-in ended. Sign in again, and then approve the device.",
+    );
+  });
+
   it("says the request expired", () => {
     expect(deviceApproveError({ status: 422, detail: "Device authorization has expired" })).toBe("The device was not approved, because the request expired. " + START_AGAIN);
   });

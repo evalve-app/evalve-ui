@@ -7,6 +7,7 @@ import { Alert, Avatar, EvalveLogo, Switch } from "./design-system/components";
 import { useEmptyPreview } from "./lib/emptyPreview";
 import { useDismiss } from "./lib/useDismiss";
 import { LoginPage } from "./pages/LoginPage";
+import { SignInAgainDialog } from "./pages/SignInAgainDialog";
 import { AgentsPage } from "./pages/AgentsPage";
 import { EvaluatorsPage } from "./pages/EvaluatorsPage";
 import { WorkersPage } from "./pages/WorkersPage";
@@ -33,6 +34,15 @@ const NAV = [
 ];
 
 export function App() {
+  return (
+    <>
+      <AppRoutes />
+      <SignInAgainDialog />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -63,7 +73,9 @@ export function App() {
 }
 
 // Every page behind login goes through here: it checks who is signed in
-// (GET /accounts/me) and sends anyone who isn't to /login.
+// (GET /accounts/me) and sends anyone who isn't to /login. That is the 401 of
+// a page load. A 401 after the account loaded opens the "Sign in again" dialog
+// and keeps the page (see src/lib/signInGate.ts).
 function SignedInLayout() {
   const location = useLocation();
   const me = useQuery({ queryKey: ["me"], queryFn: getCurrentAccount });

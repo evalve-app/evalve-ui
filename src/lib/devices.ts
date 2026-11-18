@@ -8,6 +8,9 @@ const START_AGAIN = "Start the sign-in again in your terminal to get a new link.
 // The sign-in to the dashboard ends after a time. The page load sends a
 // signed-out person to the login page and then back to the same link.
 const SIGN_IN_AGAIN = "You are not signed in any more. Load this page again, and sign in.";
+// The approval is not sent a second time after the "Sign in again" dialog: a
+// different account can sign in there, and the device would get a token for it.
+const APPROVE_AGAIN = "The device was not approved, because your sign-in ended. Sign in again, and then approve the device.";
 
 // For a link that has no device id or no user code.
 export const DEVICE_LINK_INCOMPLETE = `The device id or the code is missing. ${START_AGAIN}`;
@@ -28,7 +31,7 @@ export function deviceLoadError({ status, detail }: DeviceFailure): string {
 // code. Only the detail text tells them apart, so any other 422 gets the
 // general message. Three wrong codes lock the device.
 export function deviceApproveError({ status, detail }: DeviceFailure): string {
-  if (status === 401) return SIGN_IN_AGAIN;
+  if (status === 401) return APPROVE_AGAIN;
   if (status === null) return "The device was not approved, because the server did not answer. Try again in a moment.";
   if (status === 422) {
     if (detail === "Device authorization has expired") return `The device was not approved, because the request expired. ${START_AGAIN}`;

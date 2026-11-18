@@ -54,5 +54,6 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 - The setup card of the loop page with a real loop, and the `Evalve loop:` line of a real control experiment. Issue #40 checked the card only with a mock API, because the sign-in of the test account failed.
 - A real one-run-per-experiment (MVP) loop on the Loop pages.
 - The loop page in the MVP view (Results, Final results, Agent diff) with the real `day-30-refunds` loop. Issue #21 checked it only with a mock API, because the sign-in of the test account failed.
+- The "Sign in again" dialog after a real sign-in ends (1 hour). Story sc-239 checked it only with a mock API, because the Kitaru server did not answer.
 - "Run again" on the experiment page. It replays the cohort and calls the model, so it costs money.
 - Session page: a failed session, a running session, and agents on a framework other than openai-agents.

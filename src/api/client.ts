@@ -8,7 +8,11 @@
 //    csrf_token in the X-CSRF-Token header. A malicious site can make your
 //    browser send the cookie, but it can't read the token, so the server knows
 //    the request came from this app.
-import createClient, { type Middleware } from "openapi-fetch";
+// 3. The sign-in lasts 1 hour, and nothing makes it longer. After that the
+//    server answers 401. The sign-in gate (src/lib/signInGate.ts) holds each
+//    read until the person signs in again in the "Sign in again" dialog.
+import createClient from "openapi-fetch";
+import { createSignInGate } from "../lib/signInGate";
 import type { components, paths } from "./schema";
 
 export type Agent = components["schemas"]["AgentResponse"];
@@ -43,13 +47,18 @@ function writeCsrf(token: string | null) {
   }
 }
 
-const csrfMiddleware: Middleware = {
-  onRequest({ request }) {
-    const token = readCsrf();
-    if (token) request.headers.set("X-CSRF-Token", token);
-    return request;
-  },
-};
+// Sends one request with the newest CSRF token. The sign-in gate calls this
+// again for a read that got a 401, after the person signs in again.
+function send(request: Request) {
+  const token = readCsrf();
+  if (token) request.headers.set("X-CSRF-Token", token);
+  return fetch(request);
+}
+
+// What a 401 does (see src/lib/signInGate.ts). For a signed-in person, a read
+// waits for a new sign-in, and a call that changes data gets the 401. With no
+// one signed in, each call gets the 401.
+export const signInGate = createSignInGate(send);
 
 // baseUrl "" = same origin. In dev, Vite forwards /api to Kitaru; in
 // production, Caddy does.
@@ -64,8 +73,7 @@ function querySerializer(query: Record<string, unknown>) {
   return params.toString();
 }
 
-export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin", querySerializer });
-api.use(csrfMiddleware);
+export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin", querySerializer, fetch: signInGate.fetch });
 
 export class UnauthorizedError extends Error {}
 
@@ -75,6 +83,7 @@ function errorDetail(error: unknown): string | null {
   return typeof detail === "string" ? detail : null;
 }
 
+// Does not go through the sign-in gate: a 401 here is a wrong username or password.
 export async function login(username: string, password: string) {
   const body = new URLSearchParams({ username, password });
   const res = await fetch("/api/v1/login", {
@@ -87,9 +96,12 @@ export async function login(username: string, password: string) {
   if (!res.ok) throw new Error(`Login failed (${res.status}).`);
   const data = (await res.json()) as { csrf_token?: string | null };
   writeCsrf(data.csrf_token ?? null);
+  signInGate.signedIn();
 }
 
 export async function logout() {
+  // Signed out first, so that a 401 here does not open the "Sign in again" dialog.
+  signInGate.signedOut();
   await api.POST("/api/v1/logout");
   writeCsrf(null);
 }
@@ -98,6 +110,7 @@ export async function getCurrentAccount(): Promise<Account> {
   const { data, response } = await api.GET("/api/v1/accounts/me");
   if (response.status === 401) throw new UnauthorizedError("Not signed in.");
   if (!data) throw new Error(`Could not load your account (${response.status}).`);
+  signInGate.signedIn();
   return data;
 }
 

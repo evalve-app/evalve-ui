@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopReadWaits, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -257,5 +257,23 @@ describe("the status of the newest run of a loop", () => {
 
   it("is undefined for a loop with no run", () => {
     expect(newestRunStatus([])).toBeUndefined();
+  });
+});
+
+describe("loopReadWaits", () => {
+  it("waits while the sign-in is ended, with or without a request", () => {
+    expect(loopReadWaits(false, true, false)).toBe(true);
+    expect(loopReadWaits(false, true, true)).toBe(true);
+    expect(loopReadWaits(true, true, false)).toBe(true);
+  });
+
+  it("waits after the new sign-in until the request that waited gets its answer", () => {
+    expect(loopReadWaits(true, false, true)).toBe(true);
+    expect(loopReadWaits(true, false, false)).toBe(false);
+  });
+
+  it("does not wait for a usual request of a signed-in person", () => {
+    expect(loopReadWaits(false, false, true)).toBe(false);
+    expect(loopReadWaits(false, false, false)).toBe(false);
   });
 });
