@@ -394,7 +394,7 @@ describe("resultsTable", () => {
   });
 
   it("names the status words that an experiment and a run can show, for the footer", () => {
-    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Stopping, Stopped, Failed, Completed.");
+    expect(resultsTable(loop([lap(0)])).statusNote).toBe("Status is one of: Not started, Running, Canceling, Canceled, Failed, Completed.");
   });
 
   it("marks the winning lap, and only that lap", () => {
@@ -405,8 +405,10 @@ describe("resultsTable", () => {
   });
 
   it("gives each lap the status of its run from the server", () => {
-    const rows = resultsTable(loop([lap(0), lap(1, { runs: [{ status: "failed" }], runReplays: [] }), lap(2, { runs: [{ status: "canceled" }], runReplays: [] }), lap(3, { runs: [], runReplays: [] })])).rows;
-    expect(rows.map((r) => r.status)).toEqual(["Completed", "Failed", "Stopped", "Not started"]);
+    const rows = resultsTable(
+      loop([lap(0), lap(1, { runs: [{ status: "failed" }], runReplays: [] }), lap(2, { runs: [{ status: "canceled" }], runReplays: [] }), lap(3, { runs: [{ status: "canceling" }], runReplays: [] }), lap(4, { runs: [], runReplays: [] })]),
+    ).rows;
+    expect(rows.map((r) => r.status)).toEqual(["Completed", "Failed", "Canceled", "Canceling", "Not started"]);
   });
 
   it("gives the lap result from the rule of the MVP view: the baseline lap has no result, a later lap passed or failed", () => {

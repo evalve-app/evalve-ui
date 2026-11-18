@@ -401,6 +401,10 @@ h1, h2, p { margin: 0; }
   .setup-footer, .handoff-actions { flex-direction: column; align-items: stretch; }
 }
 
+/* Loop page: "Cancel Loop" in the header (LoopPage.tsx). In a narrow window, the question wraps and the buttons keep their size. */
+.loop-cancel-confirm { display: inline-flex; align-items: center; gap: var(--spacing-2); font-size: 13px; text-align: right; }
+.loop-cancel-confirm .ev-btn { flex: none; }
+
 /* Loop page: Results section (ResultsSection.tsx) */
 .results-wrap { overflow-x: auto; margin-top: var(--spacing-4); }
 .results-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 18px; }

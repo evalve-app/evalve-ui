@@ -1,4 +1,5 @@
 import { listAgents, listEvaluators, listSessionNodes, listWorkers } from "../api/client";
+import { getLoop } from "../api/evalve";
 import { agentOwnSettings } from "./sessionNodes";
 
 // Queries that more than one page uses. Every caller takes its options from
@@ -20,3 +21,11 @@ export const agentOwnSettingsQuery = (sessionId: string) => ({
 // The live workers.
 // API: GET /api/v1/workers
 export const workersQuery = () => ({ queryKey: ["workers"], queryFn: listWorkers });
+
+// One backend Loop. The Loop page reads it, and "Cancel Loop" puts its answer here.
+// API: GET /evalve/v1/loops/{loop_id}
+export const loopQuery = (loopId: string) => ({ queryKey: ["evalve-loop", loopId], queryFn: () => getLoop(loopId) });
+
+// The start of the key of each Loop list (LoopListTab.tsx). After "Cancel
+// Loop", each list with this start reads its data again.
+export const LOOP_LISTS_KEY = ["evalve-loops"];

@@ -470,8 +470,9 @@ export type ResultsRow = {
   backend: ResultsRowBackend | null;
 };
 
-const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Stopping", canceled: "Stopped", failed: "Failed", completed: "Completed" };
-const runStatus = (status: string) => RUN_STATUS[status] ?? status;
+const RUN_STATUS: Record<string, string> = { running: "Running", canceling: "Canceling", canceled: "Canceled", failed: "Failed", completed: "Completed" };
+// The word that the dashboard shows for the status of a Run (see "Canceled" in GLOSSARY.md).
+export const runStatus = (status: string) => RUN_STATUS[status] ?? status;
 
 // The result of one run: a run passed when each case passed every gating evaluator in it.
 function runResult(run: RunReplays): LapResult {
