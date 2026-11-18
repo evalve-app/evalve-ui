@@ -4,26 +4,41 @@ import { Alert } from "../../../design-system/components";
 import { useLoopMode } from "../../../lib/loopMode";
 import { experimentName } from "../../../lib/loops";
 import { CompareCard, LapGrid, Legend } from "./LapViews";
+import { useBackendLoop } from "./useBackendLoop";
+import type { LoopResults } from "./useLoopResults";
 import { useSkillLoop } from "./useSkillLoop";
+
+// The compare page of a Skill Loop, at skill-loop/:slug/compare.
+export function SkillLoopComparePage() {
+  const { agentId = "", slug = "" } = useParams();
+  const loop = useSkillLoop(agentId, slug, { lapLimit: 200 });
+  const mvp = useLoopMode() === "mvp";
+  return <LoopCompare agentId={agentId} loop={loop} mvp={mvp} back={{ to: `/agents/${agentId}/skill-loop/${slug}`, label: slug }} />;
+}
+
+// The compare page of a backend Loop, at loop/:loopId/compare. A backend Loop has the MVP view only.
+export function LoopComparePage() {
+  const { agentId = "", loopId = "" } = useParams();
+  const loop = useBackendLoop(loopId, { lapLimit: 200 });
+  return <LoopCompare agentId={agentId} loop={loop} mvp back={{ to: `/agents/${agentId}/loop/${loopId}`, label: loop.loop?.name ?? loopId }} />;
+}
 
 // The laps picked on the loop page, side by side: their rows from the grid,
 // then what changed between each lap and the next one picked.
-export function LoopComparePage() {
-  const { agentId = "", slug = "" } = useParams();
+function LoopCompare({ agentId, loop, mvp, back }: { agentId: string; loop: LoopResults; mvp: boolean; back: { to: string; label: string } }) {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const loop = useSkillLoop(agentId, slug, { lapLimit: 200 });
   const wanted = (params.get("laps") ?? "").split(",").map(Number).filter(Number.isFinite);
   const laps = loop.laps.filter((l) => wanted.includes(l.lap));
   const pairs = laps.slice(1).map((b, i) => [laps[i], b] as const);
-  const single = useLoopMode() === "mvp" && laps.every((l) => l.runs.length <= 1);
+  const single = mvp && laps.every((l) => l.runs.length <= 1);
 
   return (
     <div className="tab-page">
       <div className="detail-header">
-        <button type="button" className="back-link" onClick={() => navigate(`/agents/${agentId}/skill-loop/${slug}`)}>
+        <button type="button" className="back-link" onClick={() => navigate(back.to)}>
           <ArrowLeft size={14} aria-hidden />
-          {slug}
+          {back.label}
         </button>
         <h2 className="detail-title sans">Compare experiments: {laps.map((l) => experimentName(l.lap, "short")).join(", ")}</h2>
       </div>
@@ -51,10 +66,10 @@ export function LoopComparePage() {
               </div>
               <Legend single={single} />
             </div>
-            <LapGrid laps={laps} cases={loop.cases} c={loop.criteria} winnerLap={loop.winnerLap} />
+            <LapGrid laps={laps} cases={loop.cases} c={loop.criteria} winnerLap={loop.winnerLap} view={mvp ? "mvp" : "post"} />
           </div>
           {pairs.map(([a, b]) => (
-            <CompareCard key={`${a.lap}-${b.lap}`} a={a} b={b} cases={loop.cases} agentId={agentId} />
+            <CompareCard key={`${a.lap}-${b.lap}`} a={a} b={b} cases={loop.cases} agentId={agentId} view={mvp ? "mvp" : "post"} />
           ))}
         </>
       ) : null}

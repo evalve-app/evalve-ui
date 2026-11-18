@@ -2,6 +2,12 @@
   "src/api/client.ts": {
     "baseline session": 1
   },
+  "src/lib/backendLoops.test.ts": {
+    "winner": 4
+  },
+  "src/lib/backendLoops.ts": {
+    "winner": 2
+  },
   "src/lib/cellTarget.test.ts": {
     "trial": 7
   },
@@ -86,8 +92,8 @@
   "src/pages/agent/loop/LoopComparePage.tsx": {
     "winner": 2
   },
-  "src/pages/agent/loop/LoopListTab.tsx": {
-    "iteration": 1
+  "src/pages/agent/loop/LoopPage.tsx": {
+    "winner": 1
   },
   "src/pages/agent/loop/NewLoopPage.tsx": {
     "regression": 4,

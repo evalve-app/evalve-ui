@@ -70,10 +70,11 @@ export type LoopResultsInput = {
   criteria: Criteria | null;
   gatingEvaluators: string[] | undefined; // the evaluator names that gate; all binary evaluators when undefined
   outcome: LoopOutcome;
+  pollMs?: number | false; // how often the runs load again; a Skill Loop does not poll
 };
 
 // The results of the experiments of one Loop, from Kitaru.
-export function useLoopResults({ experiments, experimentsPending, experimentsError, lapLimit, criteria: c, gatingEvaluators: gateNames, outcome }: LoopResultsInput): LoopResults {
+export function useLoopResults({ experiments, experimentsPending, experimentsError, lapLimit, criteria: c, gatingEvaluators: gateNames, outcome, pollMs = false }: LoopResultsInput): LoopResults {
   const shown = experiments.slice(-lapLimit);
   const ids = shown.map((l) => l.experiment.id);
 
@@ -81,6 +82,7 @@ export function useLoopResults({ experiments, experimentsPending, experimentsErr
     queryKey: ["experiment-runs", ids],
     queryFn: () => listExperimentRuns(ids),
     enabled: ids.length > 0,
+    refetchInterval: pollMs,
   });
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);

@@ -78,7 +78,7 @@ export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin"
 export class UnauthorizedError extends Error {}
 
 // Kitaru errors look like {"detail": "Field 'number' is not filterable"}.
-function errorDetail(error: unknown): string | null {
+export function errorDetail(error: unknown): string | null {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
   return typeof detail === "string" ? detail : null;
 }
@@ -123,6 +123,11 @@ export async function getCurrentAccount(): Promise<Account> {
   if (response.status === 401) throw new UnauthorizedError("Not signed in.");
   if (!data) throw new Error(`Could not load your account (${response.status}).`);
   return data;
+}
+
+// Another account, by id. The Loop pages show its name for the Loop owner.
+export async function getAccount(accountId: string): Promise<Account> {
+  return unwrap(api.GET("/api/v1/accounts/{account_id}", { params: { path: { account_id: accountId } } }), "the account");
 }
 
 export async function listAgents(): Promise<Agent[]> {
