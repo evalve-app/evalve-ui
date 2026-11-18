@@ -252,12 +252,20 @@ export function newestRunStatus(runs: Pick<ExperimentRun, "created" | "status">[
   return runs.reduce<(typeof runs)[number] | undefined>((newest, run) => (!newest || run.created > newest.created ? run : newest), undefined)?.status;
 }
 
-// True while the experiments and the runs on the page can be old because the
-// sign-in ended. A request that got a 401 waits for the new sign-in, and its
-// answer comes some time after that sign-in. `waited` is the value of the
-// render before. `fetching`: a request for the experiments or the runs has no answer yet.
-export function loopReadWaits(waited: boolean, signInEnded: boolean, fetching: boolean): boolean {
-  return signInEnded || (waited && fetching);
+// `waits`: the experiments and the runs on the page can be old because the
+// sign-in ended. `quiet`: the value that the quiet rule uses.
+export type LoopQuiet = { waits: boolean; quiet: boolean };
+
+// The quiet value of a loop after the sign-in ends. A request that got a 401
+// waits for the new sign-in, and its answer comes some time after that sign-in.
+// Until then the page read no new activity, so the loop keeps the quiet value
+// that it had: a Stopped loop stays Stopped, and a Running loop does not become
+// Stopped or Failed. `prev` is the value of the render before. `fetching`: a
+// request for the experiments or the runs has no answer yet. `quietNow`: the
+// quiet rule on the data of the page.
+export function loopQuiet(prev: LoopQuiet, signInEnded: boolean, fetching: boolean, quietNow: boolean): LoopQuiet {
+  const waits = signInEnded || (prev.waits && fetching);
+  return { waits, quiet: waits ? prev.quiet : quietNow };
 }
 
 export function shouldPollLoopRuns(

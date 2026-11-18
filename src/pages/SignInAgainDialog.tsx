@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { signInGate, type Account } from "../api/client";
+import { signInGate } from "../api/client";
+import { Button } from "../design-system/components";
+import { useSignOut } from "../lib/useSignOut";
 import { SignInForm } from "./SignInForm";
 
 // Opens when the server refuses a request of a signed-in person: the sign-in
@@ -10,6 +12,7 @@ export function SignInAgainDialog() {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const queryClient = useQueryClient();
+  const signOut = useSignOut();
   const open = useSyncExternalStore(signInGate.subscribe, signInGate.state) === "ended";
 
   // A native <dialog> gives focus trapping, and makes the page below inert.
@@ -20,13 +23,12 @@ export function SignInAgainDialog() {
     if (!open && d.open) d.close();
   }, [open]);
 
-  // The top bar shows the account, so it must show the account of the new
-  // sign-in. For a different account, each page loads again from the start.
+  // Reads the account of the new sign-in. The same account keeps the page as
+  // it is. A different account gets a new page with no data and no state of
+  // the account before: src/lib/accountChange.ts removes the data, and the key
+  // on <main> in App.tsx starts the page again.
   async function onSignedIn() {
-    const before = queryClient.getQueryData<Account>(["me"])?.id;
     await queryClient.refetchQueries({ queryKey: ["me"] });
-    const after = queryClient.getQueryData<Account>(["me"])?.id;
-    if (before && after && after !== before) await queryClient.resetQueries({ predicate: (query) => query.queryKey[0] !== "me" });
   }
 
   return (
@@ -51,6 +53,12 @@ export function SignInAgainDialog() {
       </div>
       {/* Only while open, so that the closed dialog does not keep the password. */}
       {open ? <SignInForm onSignedIn={onSignedIn} /> : null}
+      {/* The page below is inert, so the account menu is out of reach. */}
+      <div className="sign-in-again-out">
+        <Button variant="ghost" onClick={signOut}>
+          Sign out
+        </Button>
+      </div>
     </dialog>
   );
 }

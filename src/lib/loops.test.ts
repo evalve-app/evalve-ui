@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopReadWaits, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopQuiet, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -260,20 +260,32 @@ describe("the status of the newest run of a loop", () => {
   });
 });
 
-describe("loopReadWaits", () => {
-  it("waits while the sign-in is ended, with or without a request", () => {
-    expect(loopReadWaits(false, true, false)).toBe(true);
-    expect(loopReadWaits(false, true, true)).toBe(true);
-    expect(loopReadWaits(true, true, false)).toBe(true);
+describe("loopQuiet", () => {
+  const signedIn = { waits: false, quiet: false };
+
+  it("uses the quiet rule for a signed-in person, with or without a request", () => {
+    expect(loopQuiet(signedIn, false, false, true)).toEqual({ waits: false, quiet: true });
+    expect(loopQuiet(signedIn, false, true, true)).toEqual({ waits: false, quiet: true });
+    expect(loopQuiet({ waits: false, quiet: true }, false, true, false)).toEqual({ waits: false, quiet: false });
   });
 
-  it("waits after the new sign-in until the request that waited gets its answer", () => {
-    expect(loopReadWaits(true, false, true)).toBe(true);
-    expect(loopReadWaits(true, false, false)).toBe(false);
+  it("keeps a loop that is not quiet as it is while the sign-in is ended, so Running does not become Stopped or Failed", () => {
+    expect(loopQuiet({ waits: false, quiet: false }, true, true, true)).toEqual({ waits: true, quiet: false });
+    expect(loopQuiet({ waits: true, quiet: false }, true, false, true)).toEqual({ waits: true, quiet: false });
   });
 
-  it("does not wait for a usual request of a signed-in person", () => {
-    expect(loopReadWaits(false, false, true)).toBe(false);
-    expect(loopReadWaits(false, false, false)).toBe(false);
+  it("keeps a quiet loop quiet while the sign-in is ended, so Stopped does not become Running", () => {
+    expect(loopQuiet({ waits: false, quiet: true }, true, false, false)).toEqual({ waits: true, quiet: true });
+    expect(loopQuiet({ waits: true, quiet: true }, true, true, false)).toEqual({ waits: true, quiet: true });
+  });
+
+  it("keeps the value after the new sign-in until the request that waited gets its answer", () => {
+    expect(loopQuiet({ waits: true, quiet: false }, false, true, true)).toEqual({ waits: true, quiet: false });
+    expect(loopQuiet({ waits: true, quiet: true }, false, true, false)).toEqual({ waits: true, quiet: true });
+  });
+
+  it("uses the quiet rule again when the answer is on the page", () => {
+    expect(loopQuiet({ waits: true, quiet: false }, false, false, true)).toEqual({ waits: false, quiet: true });
+    expect(loopQuiet({ waits: true, quiet: true }, false, false, false)).toEqual({ waits: false, quiet: false });
   });
 });

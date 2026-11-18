@@ -98,7 +98,7 @@ The page shows the header, then the setup card, then three sections in one colum
 ## Things that will trip you up
 
 - **Every API call needs the CSRF header.** `src/api/client.ts` adds it for you. A raw `fetch` without it gets a 401.
-- **The sign-in ends after 1 hour.** A "Sign in again" dialog opens over the page, and the page keeps its state. A read that got a 401 waits, and continues after the sign-in. A call that changes data ("Run again", "Approve device", "Create key", "Revoke") is not sent again: do the action again. The logic is in `src/lib/signInGate.ts`.
+- **The sign-in ends after 1 hour.** A "Sign in again" dialog opens over the page, and the page keeps its state. The dialog also has "Sign out". A sign-in with a different account starts the page again with no data and no state of the account before. A read that got a 401 waits, and continues after the sign-in. A call that changes data ("Run again", "Approve device", "Create key", "Revoke") is not sent again: do the action again. The logic is in `src/lib/signInGate.ts`.
 - **"Run again" costs money.** It replays the whole cohort and calls the model. It has not been clicked yet.
 - **Session number is not searchable on the server.** A `#371` search filters the rows already loaded.
 - **Empty states have a preview switch.** Account menu (top right) → "Preview empty states". A pill in the top bar shows when it's on.

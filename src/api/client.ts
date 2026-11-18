@@ -102,8 +102,12 @@ export async function login(username: string, password: string) {
 export async function logout() {
   // Signed out first, so that a 401 here does not open the "Sign in again" dialog.
   signInGate.signedOut();
-  await api.POST("/api/v1/logout");
-  writeCsrf(null);
+  try {
+    await api.POST("/api/v1/logout");
+  } finally {
+    // Also when the server does not answer: without the token, the server refuses each call.
+    writeCsrf(null);
+  }
 }
 
 export async function getCurrentAccount(): Promise<Account> {

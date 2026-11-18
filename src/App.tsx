@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from "react";
-import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, Navigate, Outlet, Route, Routes, useLocation } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { EyeOff, LogOut } from "lucide-react";
-import { getCurrentAccount, logout, UnauthorizedError } from "./api/client";
+import { getCurrentAccount, UnauthorizedError } from "./api/client";
 import { Alert, Avatar, EvalveLogo, Switch } from "./design-system/components";
 import { useEmptyPreview } from "./lib/emptyPreview";
 import { useDismiss } from "./lib/useDismiss";
+import { useSignOut } from "./lib/useSignOut";
 import { LoginPage } from "./pages/LoginPage";
 import { SignInAgainDialog } from "./pages/SignInAgainDialog";
 import { AgentsPage } from "./pages/AgentsPage";
@@ -120,7 +121,9 @@ function SignedInLayout() {
           <AccountMenu name={me.data.name} />
         </div>
       </header>
-      <main className="app-main">
+      {/* The key starts the page again for a different account (a sign-in in the
+          "Sign in again" dialog), so no state of the account before stays. */}
+      <main className="app-main" key={me.data.id}>
         <Outlet />
       </main>
     </div>
@@ -130,16 +133,9 @@ function SignedInLayout() {
 function AccountMenu({ name }: { name: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const signOut = useSignOut();
 
   useDismiss(ref, open, useCallback(() => setOpen(false), []));
-
-  async function signOut() {
-    await logout();
-    queryClient.clear();
-    navigate("/login", { replace: true });
-  }
 
   return (
     <div className="account-menu" ref={ref}>
