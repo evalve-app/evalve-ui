@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { ApiError, getExperiment, type Experiment } from "../../../api/client";
-import { getLoop, type LoopDetail } from "../../../api/evalve";
+import type { LoopDetail } from "../../../api/evalve";
 import { backendSetup, detailOutcome, gatingEvaluatorNames, LOOP_POLL_MS } from "../../../lib/backendLoops";
 import { lapSummary, type EvalveSetup } from "../../../lib/loops";
 import type { LoopOutcome } from "../../../lib/loopStatus";
+import { loopQuery } from "../../../lib/queries";
 import { useLoopResults, type LoopExperiment, type LoopResults } from "./useLoopResults";
 
 // A backend Loop: what the Evalve backend says about it, and its results from Kitaru.
@@ -31,11 +32,12 @@ function combineExperiments(results: UseQueryResult<Experiment>[]) {
 // are the Kitaru experiments that the backend names; their runs and results
 // come from Kitaru. While the Loop runs, the page polls the backend and the runs.
 // A status call of the Loop owner also moves the Loop: that is the design of the Loop API.
-export function useBackendLoop(loopId: string, opts: { lapLimit: number }): BackendLoopData {
+// `pollPaused` stops the poll of the backend: the status call of the Loop owner
+// takes the Loop lock, which a cancel call also needs (see useCancelLoop.ts).
+export function useBackendLoop(loopId: string, opts: { lapLimit: number; pollPaused?: boolean }): BackendLoopData {
   const detail = useQuery({
-    queryKey: ["evalve-loop", loopId],
-    queryFn: () => getLoop(loopId),
-    refetchInterval: (q) => (q.state.data?.status === "running" ? LOOP_POLL_MS : false),
+    ...loopQuery(loopId),
+    refetchInterval: (q) => (!opts.pollPaused && q.state.data?.status === "running" ? LOOP_POLL_MS : false),
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
   });
   const loop = detail.data ?? null;

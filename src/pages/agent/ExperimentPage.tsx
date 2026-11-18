@@ -19,6 +19,7 @@ import { versionLabel } from "../../lib/cohorts";
 import { useCohorts } from "../../lib/useCohorts";
 import { formatDateTime, formatDuration, formatRelative, formatTime } from "../../lib/format";
 import { caseName, changedFields, passCounts, toolPolicyLabel } from "../../lib/experiments";
+import { runStatus } from "../../lib/loopResults";
 import { Delta } from "./PassRate";
 
 // One experiment: its runs on the left, the selected run's results on the right.
@@ -188,7 +189,7 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
       <div className="run-head">
         <div className="run-head-title">
           <h3>Run #{run.number}</h3>
-          <StatusLabel status={runStatusWord(run.status)} />
+          <StatusLabel status={runStatus(run.status)} />
         </div>
         <dl className="run-meta">
           <div>
@@ -395,13 +396,6 @@ function ConfigCard({ experiment }: { experiment: Experiment }) {
   );
 }
 
-function runStatusWord(status: ExperimentRun["status"]) {
-  if (status === "running") return "Running";
-  if (status === "canceling") return "Stopping";
-  if (status === "canceled") return "Stopped";
-  if (status === "failed") return "Failed";
-  return "Completed";
-}
 
 // "support-desk-v1-baseline · baseline-2026-11-10" for a cohort version id.
 function useCohortVersionLabel(agentId: string, cohortVersionId: string) {

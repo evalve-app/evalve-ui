@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoopDetail, LoopListItem } from "../api/evalve";
-import { backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
+import { backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopEndedAt, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
 import type { SkillLoopRow } from "./loops";
 
 const item = (over: Partial<LoopListItem> = {}): LoopListItem => ({
@@ -57,6 +57,16 @@ describe("the outcome of a backend Loop", () => {
     expect(detailOutcome({ ...base, status: "completed", outcome: "passed", winner: { experiment: 1, experiment_id: "e1", override: {}, change: "x" } })).toMatchObject({ title: "Experiment 1 passed", winnerLap: 1 });
     const waiting = { ...base, next: { action: "needs_change" }, needs: { idle_deadline: "2026-11-03T10:00:00Z" } } as unknown as LoopDetail;
     expect(detailOutcome(waiting)).toEqual({ kind: "running", title: "Waits for a change", idleDeadline: "2026-11-03T10:00:00Z" });
+  });
+});
+
+describe("the end time of a backend Loop", () => {
+  it.each(["completed", "cancelled", "failed"] as const)("is the time of the last update for a Loop with the status %s", (status) => {
+    expect(loopEndedAt({ status, updated_at: "2026-11-18T14:58:00Z" })).toBe("2026-11-18T14:58:00Z");
+  });
+
+  it("is null while the Loop runs", () => {
+    expect(loopEndedAt({ status: "running", updated_at: "2026-11-18T14:58:00Z" })).toBeNull();
   });
 });
 

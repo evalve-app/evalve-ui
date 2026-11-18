@@ -58,3 +58,10 @@ export async function getBackendVersion(): Promise<string> {
 export async function getLoop(loopId: string): Promise<LoopDetail> {
   return unwrap(evalve.GET("/evalve/v1/loops/{loop_id}", { params: { path: { loop_id: loopId } } }));
 }
+
+// Cancels a running Loop of the caller. The answer is the Loop after the
+// cancel. A Loop that ended before the cancel arrived answers 200 with its real
+// status. A 503 is a usual answer: see `cancelTriesAgain` in src/lib/loopCancel.ts.
+export async function cancelLoop(loopId: string): Promise<LoopDetail> {
+  return unwrap(evalve.POST("/evalve/v1/loops/{loop_id}/cancel", { params: { path: { loop_id: loopId } } }));
+}

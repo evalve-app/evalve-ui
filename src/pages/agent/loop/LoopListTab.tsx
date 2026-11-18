@@ -9,6 +9,7 @@ import { loopListRows, loopPollInterval, type LoopRow } from "../../../lib/backe
 import { formatRelative } from "../../../lib/format";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
 import { skillLoopRows } from "../../../lib/loops";
+import { LOOP_LISTS_KEY } from "../../../lib/queries";
 import { LoopStatus } from "./LoopStatus";
 import { useOwnerLabel, useViewerAccountId } from "./useOwnerLabel";
 
@@ -26,7 +27,7 @@ export function LoopListTab() {
   const ownerAccountId = onlyMine && viewer ? viewer : undefined;
 
   const loops = useInfiniteQuery({
-    queryKey: ["evalve-loops", agentId, ownerAccountId ?? null],
+    queryKey: [...LOOP_LISTS_KEY, agentId, ownerAccountId ?? null],
     queryFn: ({ pageParam }) => listLoops(agentId, { ownerAccountId, cursor: pageParam ?? undefined }),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_cursor,

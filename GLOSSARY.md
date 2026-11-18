@@ -164,3 +164,4 @@ _Avoid_: Account page, profile, preferences
 - "Trial" is a phase of a Run (see Phase), never a whole Run.
 - Say "round" or "iteration" only to name a server experiment, or in the `Round N:` line of the loop protocol (`docs/loop-contract.md`).
 - Do not call the Control Experiment a "baseline lap", "baseline audit" or "control group".
+- "Canceled" is also the word for a Run that Kitaru canceled, and "Canceling" is the word while Kitaru cancels it. Do not say "Stopped" or "Stopping" for a Run.

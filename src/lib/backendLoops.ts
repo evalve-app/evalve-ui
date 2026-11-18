@@ -41,6 +41,13 @@ export function listItemOutcome(item: LoopListItem): LoopOutcome {
   });
 }
 
+// The time at which a backend Loop ended, for the "Ended" line of the Loop
+// page. Null while the Loop runs. The backend sets `updated_at` in the same
+// write that ends the Loop.
+export function loopEndedAt(loop: Pick<LoopDetail, "status" | "updated_at">): string | null {
+  return loop.status === "running" ? null : loop.updated_at;
+}
+
 // The name of the Loop owner. "You" for the viewer's own Loop. Before the
 // name loads, and when Kitaru refuses the call or has no such account, the
 // first 8 characters of the account id.
