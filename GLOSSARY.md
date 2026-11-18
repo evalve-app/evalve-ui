@@ -64,7 +64,7 @@ _Avoid_: Flaky, unstable
 ### Loops
 
 **Loop**:
-An ordered collection of Experiments on one agent and one cohort version, which starts with the Control Experiment and stops when an Experiment passes or a limit is reached.
+An ordered collection of Experiments on one agent and one cohort version, which starts with the Control Experiment and stops when an Experiment passes or a limit is reached. Each Experiment after the Control Experiment tests one change and has a number, from 1.
 
 **Loop owner**:
 The Kitaru account that started a Loop.
@@ -83,20 +83,28 @@ The state of a Loop that the dashboard shows: Running, Completed, Canceled, or F
 _Avoid_: Stopped
 
 **Outcome**:
-The reason for which a Loop reached its end state. The dashboard shows it as text next to the Loop status, for example "Experiment 2 passed", "Budget reached" or "Canceled by the Loop owner". The Evalve backend gives the outcome of a backend Loop.
-_Avoid_: result, end reason
+The reason for which a Loop reached its end state. The dashboard shows it as text next to the Loop status, for example "Experiment 2 passed", "Budget reached" or "Canceled by the Loop owner". The Evalve backend gives the outcome of a backend Loop. A Loop gets its outcome when it leaves Running.
+_Avoid_: result, end reason, stop reason
+
+**Running**:
+The Loop has not ended. A Loop that waits for the coding agent to send the next change is still Running.
+_Avoid_: Needs change (as a status)
 
 **Completed**:
-The Loop reached an end: an Experiment passed, or a limit was reached. A completed Loop passed or did not pass.
+The Loop reached an end: an Experiment passed, or a limit was reached. A completed Loop passed or did not pass. Its outcome says which end it reached.
 _Avoid_: Finished, stopped, failed (for a loop that did not pass)
 
 **Canceled**:
-The Loop owner canceled the Loop.
-_Avoid_: Stopped
+The Loop owner, or the coding agent of the Loop owner, canceled the Loop on purpose.
+_Avoid_: Cancelled, stopped
 
 **Failed**:
-The Loop ended with an error. The backend gives the reason.
+The Loop ended with an error and cannot continue, for example after two incomplete runs in a row. The backend gives the reason.
 _Avoid_: "Failed" for a loop that did not pass
+
+**Idle**:
+The outcome of a Loop that waited for a change longer than its idle limit. An idle Loop is Completed.
+_Avoid_: Stopped, timed out
 
 **Control Experiment**:
 Experiment 0 of a Loop, which tests the agent with no change.
@@ -125,8 +133,8 @@ The AI assistant on a Teammate's machine that calls the Evalve MCP. "Agent" alon
 _Avoid_: agent (alone), client
 
 **Evalve MCP**:
-The local tool server through which a coding agent runs Loops on the Evalve backend.
-_Avoid_: Loop MCP, MCP server (alone), Kitaru MCP
+The local tool server through which a coding agent runs Loops on the Evalve backend: it starts them, follows them, and reads their results. It is separate from the Kitaru MCP, which works with Kitaru's own records.
+_Avoid_: Loop MCP, MCP server (alone), Kitaru MCP, Evalve server
 
 **Handoff prompt**:
 Text that the app writes for a person to paste into a coding agent. The app creates nothing; the coding agent does the work.

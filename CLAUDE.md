@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live in GitHub Issues on evalve-app/evalve-ui (`gh` CLI). See `docs/agents/issue-tracker.md`.
+Work lives in Shortcut, workspace `team-4-1`: epic → story (the spec) → sub-tasks (the tickets). Use the Shortcut MCP connector, not GitHub issues. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
