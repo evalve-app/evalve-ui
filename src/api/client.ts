@@ -78,7 +78,7 @@ export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin"
 export class UnauthorizedError extends Error {}
 
 // Kitaru errors look like {"detail": "Field 'number' is not filterable"}.
-function errorDetail(error: unknown): string | null {
+export function errorDetail(error: unknown): string | null {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
   return typeof detail === "string" ? detail : null;
 }

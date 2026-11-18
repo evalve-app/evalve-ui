@@ -13,7 +13,7 @@ npm run dev
 
 Then open http://localhost:5173 and sign in with your Kitaru account.
 
-The dev server forwards every `/api` request to the Kitaru server, and every `/evalve` request to the Evalve backend on the same host, so the browser sees one site. The server address defaults to the team demo deploy. To use another one, copy `.env.example` to `.env` and change `KITARU_URL`.
+The dev server forwards every `/api` request to the Kitaru server, and every `/evalve` request to the Evalve backend on the same host, so the browser sees one site. The server address defaults to the team demo deploy. To use another one, copy `.env.example` to `.env` and change `KITARU_URL`. To use a different Evalve backend, such as one on `localhost:8100`, set `EVALVE_URL`.
 
 ## What's where
 
