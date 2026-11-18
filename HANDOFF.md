@@ -45,12 +45,13 @@ A deployed copy exists at `https://dashboard.34-196-198-190.sslip.io`, but it on
 | Evaluators | `/evaluators` | Read-only list of all evaluators: name, description, scope (one agent or all agents), latest version. Click a column header to sort. A row opens nothing. "New evaluator" gives a handoff prompt; it does not create anything |
 | Workers | `/workers` | Read-only list of the live workers (the server leaves out workers that stopped sending heartbeats): status, claims, platform, last seen. Reloads every 15 s. Click a column header to sort. A row opens nothing |
 | Jobs | `/jobs` | Read-only list of the 50 newest jobs: kind, status, created, duration, first line of the error. Filter by status or by experiment run id. Open a row to see why a job failed: the traceback and the failing task. Reloads every 15 s. Nothing cancels a job |
+| Settings | `/settings` | The API keys of the signed-in person: name, status, created, last used. "Create key" makes a key and shows its value one time, with "Copy key". "Revoke" asks one time, then deletes the key. Not tested yet with a real key |
 
 **Placeholders:** none. Every route in the nav has its page.
 
 **CLI login page:** `/devices/verify` is built. Alyssa needs it before the app can replace the Kitaru UI, so tell her. It is not tested yet with a real `kitaru login`.
 
-The app is almost read-only. The only calls that change anything are sign in, sign out, "Approve device" on the CLI login page, and "Run again" on an experiment.
+The app is almost read-only. The only calls that change anything are sign in, sign out, "Approve device" on the CLI login page, "Run again" on an experiment, and "Create key" and "Revoke" on the Settings page.
 
 ## The Loop tab
 
