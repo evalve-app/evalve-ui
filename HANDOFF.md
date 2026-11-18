@@ -55,7 +55,7 @@ The app is almost read-only. The only calls that change anything are sign in, si
 
 ## The Loop tab
 
-**The dashboard never runs a loop. It only reads one.** Loops are run by a coding agent using the `kitaru-loop` skill (https://github.com/alyssa43/loop-skills). The full contract is in [docs/loop-contract.md](docs/loop-contract.md). The short version:
+**The dashboard never runs a loop. It only reads one.** Loops are run by a coding agent using the `kitaru-loop` skill (https://github.com/evalve-app/loop-skills). The full contract is in [docs/loop-contract.md](docs/loop-contract.md). The short version:
 
 - **A loop is a set of experiments** named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The UI calls a round an "experiment". Round 0 is the control experiment, with no change. Each later experiment makes one change. The code names an experiment in a loop `lap`.
 - **The New Loop page does not start a Loop.** It produces a handoff prompt with the Loop parameters. You paste it into a coding agent in the agent's project, and the coding agent starts the Loop on the Evalve backend with the Evalve MCP (`evalve_loop_start`). The page reads the backend for three things: the version for the install command (`GET /evalve/health`), the name check, and the wait for the new Loop (`GET /evalve/v1/loops`).
@@ -134,7 +134,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 
 - A real one-run-per-experiment (MVP) loop. None exists on the server yet.
 - The three sections of the loop page with real data. They were checked in a browser only with a mock API.
-- The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the runner source (release 0.1.0). The card was checked in a browser only with a mock API.
+- The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the retired runner, kept at the loop-skills tag `evalve-loop-0.1.0`. The card was checked in a browser only with a mock API.
 - "Run again" on an experiment.
 - The "Sign in again" dialog with the Kitaru server. It was checked in a browser only with a mock API, because the Kitaru server did not answer.
 - Session page: a failed session, a running session, and agents not built on openai-agents. Anything it can't read as text falls back to raw JSON.

@@ -30,14 +30,13 @@ The dev server forwards every `/api` request to the Kitaru server, and every `/e
 | `src/lib/` | Shared logic with no UI: loop rules, formatting, diffing, reading session steps |
 | `scripts/deploy-dashboard.sh` | Builds the app and installs it on the Evalve EC2 server |
 | `docs/kitaru-ui-route-map.md` | Which API calls each page of Kitaru's own UI makes |
-| `docs/loop-contract.md` | How the Loop tab reads a loop from what the kitaru-loop skill leaves on the server |
+| `docs/loop-contract.md` | How the dashboard reads a Skill Loop from what a loop skill left on Kitaru. Frozen |
 
 ## Updating generated files
 
 - **New Kitaru version:** replace `openapi.json` with the server's `/openapi.json`, then run `npm run gen:api`.
 - **New backend version:** download `openapi.json` from the backend's GitHub release (`gh release download v<X> -R evalve-app/evalve-backend -p openapi.json -O evalve-openapi.json --clobber`), then run `npm run gen:evalve-api`. Use a tagged release, not a live server.
 - **New design tokens:** replace `src/design-system/tokens.json`, then run `npm run gen:tokens`.
-- **New Evalve Loop release:** run `node scripts/package-loop-release.mjs ../loop-skills/evalve-loop <version>` from a reviewed skills checkout. The script packages the public release files and pins their checksums in the New Loop prompt. Keep the previous version directories in `public/skills/evalve-loop/` so existing prompts can still fetch them.
 
 ## Release
 
