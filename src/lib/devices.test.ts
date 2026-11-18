@@ -27,9 +27,9 @@ describe("deviceLoadError", () => {
 });
 
 describe("deviceApproveError", () => {
-  it("tells a person whose sign-in ended to sign in again, and then to approve the device", () => {
+  it("tells a person whose sign-in ended to approve the device after the new sign-in", () => {
     expect(deviceApproveError({ status: 401, detail: "Not authenticated" })).toBe(
-      "The device was not approved, because your sign-in ended. Sign in again, and then approve the device.",
+      "The device was not approved, because your sign-in ended. Approve the device after you sign in.",
     );
   });
 

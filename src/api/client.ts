@@ -431,8 +431,9 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 
 // Creates an API key for the signed-in account. The answer carries the key
 // value one time. Does not use `unwrap`, because the page chooses its text
-// from the status (409 is a name that a key has already). A 401 throws an
-// ApiError with status 401, and the page tells the person to sign in again.
+// from the status (409 is a name that a key has already). A 401 opens the
+// "Sign in again" dialog and throws an ApiError with status 401. The call is
+// not sent again: the page tells the person to create the key after the sign-in.
 export async function createApiKey(name: string): Promise<IssuedApiKey> {
   return unwrapOrApiError(api.POST("/api/v1/api-keys", { body: { name } }));
 }
@@ -440,8 +441,9 @@ export async function createApiKey(name: string): Promise<IssuedApiKey> {
 // Deletes an API key, so that it cannot sign in again. The page calls this
 // "revoke". Does not use `unwrap`, because a success (204) has no body, and
 // because the page chooses its text from the status (404 is a key that is
-// gone). A 401 throws an ApiError with status 401, and the page tells the
-// person to sign in again.
+// gone). A 401 opens the "Sign in again" dialog and throws an ApiError with
+// status 401. The call is not sent again: the page tells the person to revoke
+// the key after the sign-in.
 export async function deleteApiKey(apiKeyId: string): Promise<void> {
   const { error, response } = await api.DELETE("/api/v1/api-keys/{api_key_id}", { params: { path: { api_key_id: apiKeyId } } });
   if (!response.ok) throw new ApiError(response.status, errorDetail(error));
