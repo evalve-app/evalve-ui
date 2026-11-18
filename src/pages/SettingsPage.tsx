@@ -39,7 +39,8 @@ export function SettingsPage() {
     gcTime: 0,
     onSuccess: () => {
       setName("");
-      return queryClient.invalidateQueries({ queryKey: API_KEYS_KEY });
+      // Not returned: the value must show at once, not after the list loads again.
+      void queryClient.invalidateQueries({ queryKey: API_KEYS_KEY });
     },
   });
   const revocation = useMutation({
