@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { ApiError, getExperiment, type Experiment } from "../../../api/client";
 import type { LoopDetail } from "../../../api/evalve";
-import { backendSetup, detailOutcome, gatingEvaluatorNames, LOOP_POLL_MS } from "../../../lib/backendLoops";
+import { backendExperiments, backendSetup, detailOutcome, gatingEvaluatorNames, LOOP_POLL_MS, type BackendExperiment } from "../../../lib/backendLoops";
 import { lapSummary, type EvalveSetup } from "../../../lib/loops";
 import type { LoopOutcome } from "../../../lib/loopStatus";
 import { loopQuery } from "../../../lib/queries";
@@ -13,6 +13,9 @@ export type BackendLoopData = LoopResults & {
   loop: LoopDetail | null; // null until the backend answers, and for a Loop that does not exist
   setup: EvalveSetup | null;
   notFound: boolean; // the backend has no Loop with this id
+  // The Experiments of the page, newest `lapLimit` of them, as the backend knows
+  // them. The Results table has a row for each, also before Kitaru has its experiment.
+  backendExperiments: BackendExperiment[];
 };
 
 const NO_OUTCOME: LoopOutcome = { kind: "running", title: null, idleDeadline: null };
@@ -67,16 +70,19 @@ export function useBackendLoop(loopId: string, opts: { lapLimit: number; pollPau
     combine: combineExperiments,
   });
 
+  // The page counts each Experiment of the backend, with a Kitaru experiment or not.
+  const page = useMemo(() => [...(loop?.experiments ?? [])].sort((a, b) => a.number - b.number).slice(-opts.lapLimit), [loop?.experiments, opts.lapLimit]);
   const ordered = useMemo<LoopExperiment[]>(
     () =>
-      (loop?.experiments ?? [])
+      page
         .flatMap((e) => {
           const experiment = e.experiment_id ? experiments.byId.get(e.experiment_id) : undefined;
           return experiment ? [{ lap: e.number, experiment, summary: e.number === 0 ? lapSummary(null, 0) : e.change }] : [];
         })
         .sort((a, b) => a.lap - b.lap),
-    [loop?.experiments, experiments.byId],
+    [page, experiments.byId],
   );
+  const rows = useMemo(() => backendExperiments(page), [page]);
 
   const outcome = useMemo(() => (loop ? detailOutcome(loop) : NO_OUTCOME), [loop]);
   const gatingEvaluators = useMemo(() => (loop ? gatingEvaluatorNames(loop.setup) : undefined), [loop]);
@@ -101,5 +107,6 @@ export function useBackendLoop(loopId: string, opts: { lapLimit: number; pollPau
     loop,
     setup: loop ? backendSetup(loop.setup) : null,
     notFound,
+    backendExperiments: rows,
   };
 }

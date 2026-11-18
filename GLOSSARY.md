@@ -50,6 +50,15 @@ _Avoid_: Round, lap, candidate
 One replay of each session in the cohort version, with a score from each selected evaluator.
 _Avoid_: attempt
 
+**Green**:
+A Run that finished, in which each case passed every gating evaluator.
+
+**Red**:
+A Run that finished and was fully scored, in which one case or more failed a gating evaluator.
+
+**Incomplete**:
+A Run that could not be fully scored: it did not finish, or a case has no result from a gating evaluator.
+
 **Phase**:
 The role of a run inside an experiment: screen, trial, or confirmation.
 

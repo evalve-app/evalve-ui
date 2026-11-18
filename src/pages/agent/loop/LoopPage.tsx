@@ -38,7 +38,7 @@ export function LoopPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   // The poll of the Loop owner takes the Loop lock, which the cancel needs. No poll while the cancel is in progress.
   const real = useBackendLoop(loopId, { lapLimit, pollPaused: cancel.isPending });
-  const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false } : real;
+  const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false, backendExperiments: [] } : real;
   const detail = loop.loop;
   const completed = detail?.status === "completed";
   // False when the Loop ends, so the button, the question and the alert go away together.
@@ -109,9 +109,9 @@ export function LoopPage() {
 
       {detail ? <LoopSetupCard agentId={agentId} loop={loop} detail={detail} /> : null}
 
-      {loop.laps.length > 0 ? (
+      {loop.backendExperiments.length > 0 ? (
         <>
-          <ResultsSection loop={loop} onShowOlder={() => setLapLimit(lapLimit + LAP_PAGE)} />
+          <ResultsSection loop={loop} backend={loop.backendExperiments} onShowOlder={() => setLapLimit(lapLimit + LAP_PAGE)} />
           {/* A Canceled or Failed Loop shows the Results table only. */}
           {completed ? (
             <>

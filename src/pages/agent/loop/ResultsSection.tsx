@@ -1,9 +1,10 @@
 import { Fragment, useState, type SyntheticEvent } from "react";
-import { Link } from "react-router";
+import { Link, useParams } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "../../../design-system/components";
+import type { BackendExperiment } from "../../../lib/backendLoops";
 import { experimentName } from "../../../lib/loops";
-import { resultsTable, type ResultsCell, type ResultsRow } from "../../../lib/loopResults";
+import { resultsTable, type LapResult, type ResultsCell, type ResultsRow, type ResultsRowBackend } from "../../../lib/loopResults";
 import { LAP_PAGE } from "./LapViews";
 import type { LoopResults } from "./useLoopResults";
 
@@ -11,13 +12,21 @@ import type { LoopResults } from "./useLoopResults";
 // A table with one row for each lap and one column for each gating evaluator.
 // An open row shows one row for each completed run of the lap, in the same columns.
 // The view model (`resultsTable`) makes the rows. This component only lays them out.
-export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onShowOlder: () => void }) {
+// A backend Loop gives `backend`: each row then shows the change and the Runs of its Experiment.
+export function ResultsSection({ loop, backend, onShowOlder }: { loop: LoopResults; backend?: BackendExperiment[]; onShowOlder: () => void }) {
+  const { agentId = "" } = useParams();
   const [open, setOpen] = useState<number[]>([]); // the laps whose rows are open; all closed at first
-  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.criteria, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount, outcome: loop.outcome });
+  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.criteria, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount, outcome: loop.outcome, backend });
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
   // With no results in any lap, one column holds the text of each lap.
   const resultColumns = table.evaluators.length || 1;
-  const evaluatorCells = (list: (ResultsCell | null)[]) => list.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>);
+  // A run row of a backend Loop can open before any lap has results: it then fills the one column also.
+  const evaluatorCells = (list: (ResultsCell | null)[]) =>
+    table.evaluators.length ? (
+      list.map((cell, i) => <td key={table.evaluators[i]}>{cell ? <EvaluatorCell cell={cell} /> : <span className="muted">—</span>}</td>)
+    ) : (
+      <td className="muted">—</td>
+    );
 
   return (
     <section className="panel" aria-label="Results">
@@ -36,9 +45,9 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onSho
         ))}
         <span>One square is one case.</span>
       </div>
-      {loop.totalLaps > loop.laps.length ? (
+      {loop.totalLaps > table.rows.length ? (
         <button type="button" className="text-button older" onClick={onShowOlder}>
-          Show {Math.min(LAP_PAGE, loop.totalLaps - loop.laps.length)} older experiments
+          Show {Math.min(LAP_PAGE, loop.totalLaps - table.rows.length)} older experiments
         </button>
       ) : null}
       <div className="results-wrap">
@@ -64,13 +73,14 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onSho
           <tbody>
             {table.rows.map((row) => {
               const hasResults = row.noResults == null;
-              const isOpen = hasResults && open.includes(row.lap);
+              const canOpen = row.runs.length > 0;
+              const isOpen = canOpen && open.includes(row.lap);
               const runIds = row.runs.map((r) => `results-lap-${row.lap}-run-${r.run}`);
               return (
                 <Fragment key={row.lap}>
                   <tr>
                     <td className="rs-experiment">
-                      <ExperimentName id={`results-lap-${row.lap}-summary`} name={row.name} summary={row.summary} />
+                      {row.backend ? <BackendExperimentName agentId={agentId} name={row.name} backend={row.backend} /> : <ExperimentName id={`results-lap-${row.lap}-summary`} name={row.name} summary={row.summary} />}
                       {row.winning ? (
                         <span className="winner-mark" role="img" aria-label="Winning experiment" title="Winning experiment">
                           ★
@@ -88,9 +98,12 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onSho
                     <td>
                       <Badge variant="neutral">{row.status}</Badge>
                     </td>
-                    <td>{row.result ? <LapResultBadge result={row.result} /> : hasResults ? <span className="muted">—</span> : null}</td>
                     <td>
-                      {hasResults ? (
+                      {row.result ? <LapResultBadge result={row.result} /> : hasResults ? <span className="muted">—</span> : null}
+                      {row.backend?.verdicts.length ? <RunVerdicts verdicts={row.backend.verdicts} /> : null}
+                    </td>
+                    <td>
+                      {canOpen ? (
                         <button type="button" className="text-button rs-toggle" aria-expanded={isOpen} aria-controls={runIds.join(" ")} aria-label={`${isOpen ? "Hide" : "Show"} runs of ${experimentName(row.lap, "inline")}`} onClick={() => toggle(row.lap)}>
                           {isOpen ? "Hide runs" : "Show runs"}
                           <ChevronDown size={14} aria-hidden className={isOpen ? "chev open" : "chev"} />
@@ -109,6 +122,7 @@ export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onSho
                           </td>
                           <td>
                             <LapResultBadge result={run.result} />
+                            {run.detail ? <p className="rs-run-detail">{run.detail}</p> : null}
                           </td>
                           <td />
                         </tr>
@@ -145,6 +159,39 @@ function ExperimentName({ id, name, summary }: { id: string; name: string; summa
         {summary}
       </span>
     </span>
+  );
+}
+
+// The name of a backend Experiment, a link to its Kitaru experiment once there
+// is one, then the kind of its override and the reason for its change.
+function BackendExperimentName({ agentId, name, backend }: { agentId: string; name: string; backend: ResultsRowBackend }) {
+  return (
+    <div className="rs-backend-name">
+      {backend.experimentId ? (
+        <Link to={`/agents/${agentId}/experiments/${backend.experimentId}`} className="inline-link">
+          {name}
+        </Link>
+      ) : (
+        <span>{name}</span>
+      )}
+      {backend.kind ? (
+        <span className="rs-kind" title={backend.kindTitle ?? undefined}>
+          {backend.kind}
+        </span>
+      ) : null}
+      <span className="rs-change">{backend.change}</span>
+    </div>
+  );
+}
+
+// One badge for each Run of a backend Experiment, oldest first.
+function RunVerdicts({ verdicts }: { verdicts: LapResult[] }) {
+  return (
+    <div className="rs-verdicts" aria-label="Runs">
+      {verdicts.map((v, i) => (
+        <LapResultBadge key={i} result={v} />
+      ))}
+    </div>
   );
 }
 
