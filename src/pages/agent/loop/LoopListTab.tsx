@@ -3,38 +3,29 @@ import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Repeat2 } from "lucide-react";
 import { listExperiments } from "../../../api/client";
-import { Alert, Button, StatusLabel } from "../../../design-system/components";
-import { formatPercent, formatRelative } from "../../../lib/format";
+import { Alert, Badge, Button } from "../../../design-system/components";
+import { formatRelative } from "../../../lib/format";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
-import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
-import { passRate } from "../../../lib/loopRules";
-import { CHANGE_FIELD_LABELS, groupLoops, loopStatusLabel, type LoopOutcome } from "../../../lib/loops";
-import { useLoop, type Lap } from "./useLoop";
+import { skillLoopRows, type SkillLoopRow } from "../../../lib/loops";
+import { LoopStatus } from "./LoopStatus";
 
-// Every loop for this agent. A loop is the experiments the kitaru-loop skill
+// Every Loop of this agent. A Skill Loop is the experiments that a loop skill
 // named `<prefix>-round-N`, or `<prefix>-iteration-N` from 1 (docs/loop-contract.md).
+// The list reads the experiments of the agent once, and a row makes no request of its own.
 export function LoopListTab() {
   const { agentId = "" } = useParams();
   const navigate = useNavigate();
   const experiments = useQuery({ queryKey: ["experiments", agentId], queryFn: () => listExperiments(agentId) });
   const preview = useEmptyPreview().on;
-  const mvp = useLoopMode() === "mvp";
-  const slugs = useMemo(() => {
-    const loops = groupLoops(experiments.data ?? []);
-    const newest = (s: string) => Math.max(...loops.get(s)!.map((l) => Date.parse(l.experiment.created)));
-    return preview ? [] : [...loops.keys()].sort((a, b) => newest(b) - newest(a));
-  }, [experiments.data, preview]);
+  const rows = useMemo(() => (preview ? [] : skillLoopRows(experiments.data ?? [])), [experiments.data, preview]);
 
   return (
     <div className="tab-page">
       <div className="toolbar">
         <div className="toolbar-left">
-          <p className="toolbar-intro">
-            {mvp ? "Change one thing per experiment and replay the cohort until every case passes the required number of times in a row." : "Change one thing per experiment, replay the cohort several times, and stop only when the result holds up on fresh trials."}
-          </p>
+          <p className="toolbar-intro">Change one thing per experiment and replay the cohort until every case passes the required number of times in a row.</p>
         </div>
         <div className="toolbar-right">
-          <LoopModeToggle />
           <Button variant="outline" icon={RefreshCw} onClick={() => experiments.refetch()} disabled={experiments.isFetching}>
             Refresh
           </Button>
@@ -50,7 +41,7 @@ export function LoopListTab() {
         </Alert>
       ) : null}
 
-      {experiments.isSuccess && slugs.length === 0 ? (
+      {experiments.isSuccess && rows.length === 0 ? (
         <div className="empty-state">
           <Repeat2 size={24} aria-hidden />
           <p className="empty-title">No loops yet</p>
@@ -61,22 +52,22 @@ export function LoopListTab() {
         </div>
       ) : null}
 
-      {slugs.length > 0 ? (
+      {rows.length > 0 ? (
         <div className="table-card">
           <table className="data-table">
             <thead>
               <tr>
                 <th className="fill">Loop</th>
+                <th>Loop owner</th>
                 <th>Status</th>
-                <th className="num">Changes tried</th>
-                <th>{mvp ? "Pass rate, control → highest" : "Mean pass^k, control → highest"}</th>
-                <th>May change</th>
-                <th>Last run</th>
+                <th className="num">Experiments tried</th>
+                <th>Spend</th>
+                <th>Updated</th>
               </tr>
             </thead>
             <tbody>
-              {slugs.map((slug) => (
-                <LoopRow key={slug} agentId={agentId} slug={slug} mvp={mvp} onOpen={() => navigate(slug)} />
+              {rows.map((row) => (
+                <SkillLoopListRow key={row.slug} row={row} onOpen={() => navigate(`/agents/${agentId}/skill-loop/${row.slug}`)} />
               ))}
             </tbody>
           </table>
@@ -86,58 +77,26 @@ export function LoopListTab() {
   );
 }
 
-function LoopRow({ agentId, slug, mvp, onOpen }: { agentId: string; slug: string; mvp: boolean; onOpen: () => void }) {
-  const loop = useLoop(agentId, slug, { lapLimit: 20 });
-  const score = (l: Lap) => (mvp ? passRate(l.cases) : l.meanPassK);
-  const show = (v: number) => (mvp ? formatPercent(v) : v.toFixed(2));
-  const lap0 = loop.laps.find((l) => l.lap === 0);
-  const base = lap0 ? score(lap0) : null;
-  const best = loop.laps.reduce<number | null>((m, l) => {
-    const v = score(l);
-    return v != null && (m == null || v > m) ? v : m;
-  }, null);
-  const last = loop.laps[loop.laps.length - 1];
-  const lastRun = last?.runs[last.runs.length - 1];
-
+// A Skill Loop has no Loop owner and no spend on the Evalve backend, so those cells stay empty.
+function SkillLoopListRow({ row, onOpen }: { row: SkillLoopRow; onOpen: () => void }) {
   return (
     <tr className="clickable-row" tabIndex={0} onClick={onOpen} onKeyDown={(e) => e.key === "Enter" && onOpen()}>
       <td className="fill shrink">
         <div className="exp-cell">
-          <span className="exp-name" title={slug}>{slug}</span>
-          {loop.hypothesis ? <span className="exp-desc">{loop.hypothesis}</span> : null}
+          <span className="loop-name-row">
+            <span className="exp-name" title={row.slug}>{row.slug}</span>
+            <Badge variant="neutral">Skill Loop</Badge>
+          </span>
+          {row.hypothesis ? <span className="exp-desc">{row.hypothesis}</span> : null}
         </div>
       </td>
-      <td>{loop.isLoading && loop.outcome.kind === "running" ? <span className="muted">…</span> : <LoopStatus outcome={loop.outcome} />}</td>
-      <td className="num mono">{Math.max(loop.totalLaps - 1, 0)}</td>
+      <td />
       <td>
-        {base != null && best != null ? (
-          <span className="rate-pair">
-            <span className="mono">{show(base)}</span>
-            <span className="muted">→</span>
-            <span className="mono">{show(best)}</span>
-          </span>
-        ) : (
-          <span className="muted">{loop.isLoading ? "…" : "—"}</span>
-        )}
+        <LoopStatus outcome={row.outcome} withText />
       </td>
-      <td>
-        {loop.settings ? (
-          <span className="chip-row">
-            {loop.settings.allowed_changes.map((f) => (
-              <span key={f} className="change-chip">
-                {CHANGE_FIELD_LABELS[f] ?? f}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-      <td className="muted">{last ? formatRelative(lastRun?.created ?? last.experiment.created) : "—"}</td>
+      <td className="num mono">{row.experimentsTried}</td>
+      <td />
+      <td className="muted">{formatRelative(row.updatedAt)}</td>
     </tr>
   );
-}
-
-export function LoopStatus({ outcome }: { outcome: LoopOutcome }) {
-  return <StatusLabel {...loopStatusLabel(outcome)} />;
 }

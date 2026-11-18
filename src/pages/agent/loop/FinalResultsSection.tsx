@@ -1,11 +1,11 @@
 import { Alert, Badge } from "../../../design-system/components";
 import { finalResults } from "../../../lib/loopResults";
-import type { LoopData } from "./useLoop";
+import type { LoopResults } from "./useLoopResults";
 
 // The Final results section of the loop page (MVP view): if the loop passed.
 // It shows only for a completed loop. The loop results view model makes all
 // the text and the numbers, and this component lays them out.
-export function FinalResultsSection({ loop }: { loop: LoopData }) {
+export function FinalResultsSection({ loop }: { loop: LoopResults }) {
   const r = finalResults(loop);
   if (!r) return null;
   return (

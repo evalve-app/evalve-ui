@@ -1,6 +1,11 @@
-# How the dashboard reads a Loop from Kitaru
+# How the dashboard reads a Skill Loop from Kitaru
 
-Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skill ([loop-skills](https://github.com/alyssa43/loop-skills)). The dashboard only reads what the skill leaves on the Kitaru server. It never creates experiments or runs for a loop.
+The dashboard shows two kinds of Loop:
+
+- **A backend Loop.** The Evalve backend owns it and keeps its status, outcome, owner and spend. The dashboard shows what the backend says and calculates no Loop status (`src/lib/loopStatus.ts`).
+- **A Skill Loop.** A loop skill (`kitaru-loop`, `experiment-loop`, or the retired `evalve-loop`) ran it on a Teammate's machine against Kitaru, with no state on the Evalve backend. The dashboard shows it read-only at `skill-loop/:slug`.
+
+This page is about Skill Loops. Kitaru has no idea what a loop is. The source of truth is the loop skill ([loop-skills](https://github.com/alyssa43/loop-skills)). The dashboard only reads what the skill leaves on the Kitaru server. It never creates experiments or runs for a loop.
 
 ## What the skill writes
 
@@ -16,31 +21,22 @@ Kitaru has no idea what a loop is. The source of truth is the `kitaru-loop` skil
 - **Run phases**, from run order, the same way the skill does: round 0 runs are all trials. In later rounds run 1 is the screen (when `screen_first` is on), runs up to n are trials, and the next n are confirmation.
 - **pass^k per case**, `C(c,k)/C(n,k)`, and the mean across the cohort on the selection trials.
 - **The gate**: per-case floor, cohort target, no regression against round 0.
-- **The loop status** is one of five. The server keeps no loop status, so the dashboard calculates it, in this order:
-  1. **Completed**, when the runner published a stop result.
-  2. **Running**, when a run is active.
-  3. **Completed**, when a stop rule of the skill fires.
-  4. **Canceled**, when a person canceled the newest run.
-  5. **Running**, when the loop had activity in the last 10 minutes. Activity is a new experiment, a new run, or the end of a run.
-  6. **Failed**, when the newest run failed. **Stopped**, in all other cases.
+- **The status of a Skill Loop** is **Completed** when the `evalve-loop` runner published an end state in its `Evalve result` line (see below). Each other Skill Loop shows **No result**, in a muted tone. "No result" is not a Loop status. The dashboard calculates no Loop status, so it applies no stop rule of the skill and no time rule, and a Skill Loop page does not poll.
 
-  The 10-minute rule has this reason: the runner publishes only `"running"` or a stop result. When the runner exits with an error, or the coding agent stops, the published result stays `"running"`. Without the rule, that loop shows Running with no time limit. Stopped and Failed go back to Running when a new run starts. The time comes from the browser clock.
-
-This logic is a port of `gate`, `round_score`, `plateau_check` and `decide` from the skill's `loop.py`, in `src/lib/loopRules.ts`. If one changes, change the other.
+The scores are a port of `gate` and `round_score` from the skill's `loop.py`, in `src/lib/loopRules.ts`. If one changes, change the other.
 
 ## What the dashboard can't see
 
-- **Legacy metric gates and budget stops.** They need costs the dashboard doesn't load. Legacy runs with these limits need a published result to report completion.
-- **A loop with no settings line.** The page lists its experiments and results. It uses the archived outcomes for `day-30-refunds` and the original `support-desk-demo` loop in `KNOWN_LOOPS` in `src/lib/loops.ts`. Published metadata takes precedence when available.
+- **The outcome of a Skill Loop with no `Evalve result` line.** A Loop of the `kitaru-loop` skill publishes no result, so it shows No result. The page lists its experiments and results.
 - **Evidence files** (`sessions/kitaru-loop/`, `results.md`). They stay on the machine that ran the loop.
 
 ## MVP and Post-MVP views
 
-The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the control experiment. The dashboard reads the runner's result to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning experiment.
+The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the control experiment. The dashboard reads the runner's end state to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning experiment.
 
 The `Evalve loop:` line of the control experiment also carries the setup of the loop: `name`, `agent_version_id`, `cohort_version_id`, `evaluators`, `allowed_changes`, `allowed_models`, `required_consecutive_greens`, `max_attempts` and `budget_usd`. `evaluators` is a list of strings in `name@version` form, and `budget_usd` is a decimal string (`description` in the runner's `loop.py`). `parseEvalveLoop` in `src/lib/loops.ts` reads these fields, and the setup card of the loop page shows them.
 
-The Loop tab remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The New loop form starts in MVP and has its own version switch.
+The Skill Loop page remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The MVP and Post-MVP views and their toggle are for Skill Loops only. A backend Loop shows the MVP view. The New loop form starts in MVP and has its own version switch.
 
 - **Post-MVP** shows the skill's full rules: several trials per experiment, mean pass^k, the gate, and confirmation.
 - **MVP** shows a plain pass rate and one Passed / Not passed result per experiment. On the loop page, the pass rate of an experiment is the share of cases that passed each gating evaluator in the first completed run of the experiment. The compare page uses the share of case runs that passed over every run of the experiment.

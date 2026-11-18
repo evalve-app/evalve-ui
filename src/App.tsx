@@ -25,7 +25,7 @@ import { ExperimentsTab } from "./pages/agent/ExperimentsTab";
 import { ExperimentPage } from "./pages/agent/ExperimentPage";
 import { LoopListTab } from "./pages/agent/loop/LoopListTab";
 import { NewLoopPage } from "./pages/agent/loop/NewLoopPage";
-import { LoopPage } from "./pages/agent/loop/LoopPage";
+import { SkillLoopPage } from "./pages/agent/loop/SkillLoopPage";
 import { LoopComparePage } from "./pages/agent/loop/LoopComparePage";
 
 const NAV = [
@@ -61,8 +61,11 @@ function AppRoutes() {
           <Route path="experiments/:experimentId" element={<ExperimentPage />} />
           <Route path="loop" element={<LoopListTab />} />
           <Route path="loop/new" element={<NewLoopPage />} />
-          <Route path="loop/:slug" element={<LoopPage />} />
+          {/* Until the Loop page reads the Evalve backend, loop/:slug still opens a Skill Loop. */}
+          <Route path="loop/:slug" element={<SkillLoopPage />} />
           <Route path="loop/:slug/compare" element={<LoopComparePage />} />
+          <Route path="skill-loop/:slug" element={<SkillLoopPage />} />
+          <Route path="skill-loop/:slug/compare" element={<LoopComparePage />} />
         </Route>
         <Route path="/sessions/:sessionId" element={<SessionPage />} />
         <Route path="/devices/verify" element={<ApproveDevicePage />} />

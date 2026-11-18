@@ -9,7 +9,7 @@ import { useLoopMode } from "../../../lib/loopMode";
 import { passRate, type Gate } from "../../../lib/loopRules";
 import { CHANGE_FIELD_LABELS, experimentName, type Criteria } from "../../../lib/loops";
 import { CaseCell, type CellState } from "./CaseCell";
-import type { CaseInfo, Lap, LoopData } from "./useLoop";
+import type { CaseInfo, Lap, LoopResults } from "./useLoopResults";
 
 // The lap views of the Post-MVP view of the loop page (the lap grid panel, the
 // stat tiles, the trend line) and of the compare page (the lap grid, the
@@ -35,7 +35,7 @@ export function useScore() {
 }
 
 // The lap grid in its panel, with the compare checkboxes and the control that shows older experiments. Post-MVP view only.
-export function LapPanel({ loop, selected, onToggle, onCompare, onShowOlder }: { loop: LoopData; selected: number[]; onToggle: (lap: number) => void; onCompare: () => void; onShowOlder: () => void }) {
+export function LapPanel({ loop, selected, onToggle, onCompare, onShowOlder }: { loop: LoopResults; selected: number[]; onToggle: (lap: number) => void; onCompare: () => void; onShowOlder: () => void }) {
   return (
     <div className="panel lap-panel">
       <div className="panel-head">
@@ -55,14 +55,14 @@ export function LapPanel({ loop, selected, onToggle, onCompare, onShowOlder }: {
           Show {Math.min(LAP_PAGE, loop.totalLaps - loop.laps.length)} older experiments
         </button>
       ) : null}
-      <LapGrid laps={loop.laps} cases={loop.cases} selected={selected} onToggle={onToggle} c={loop.settings?.criteria ?? null} winnerLap={loop.winnerLap} />
+      <LapGrid laps={loop.laps} cases={loop.cases} selected={selected} onToggle={onToggle} c={loop.criteria} winnerLap={loop.winnerLap} />
     </div>
   );
 }
 
 // The four stat tiles and the trend line, on mean pass^k. Post-MVP view only.
-export function LoopStats({ loop }: { loop: LoopData }) {
-  const c = loop.settings?.criteria ?? null;
+export function LoopStats({ loop }: { loop: LoopResults }) {
+  const c = loop.criteria;
   const base = loop.laps.find((l) => l.lap === 0) ?? null;
   const rated = loop.laps.filter((l) => l.meanPassK != null);
   const best = rated.reduce<Lap | null>((m, l) => (m == null || l.meanPassK! > m.meanPassK! ? l : m), null);

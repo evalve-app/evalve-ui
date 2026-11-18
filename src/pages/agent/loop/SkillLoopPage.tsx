@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { Alert, Button } from "../../../design-system/components";
+import { Alert, Badge, Button } from "../../../design-system/components";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
 import { LoopModeToggle, useLoopMode } from "../../../lib/loopMode";
 import { findSetupCohort, setupFields } from "../../../lib/loopSetup";
@@ -11,26 +11,27 @@ import { useCohorts } from "../../../lib/useCohorts";
 import { AgentDiffSection } from "./AgentDiffSection";
 import { FinalResultsSection } from "./FinalResultsSection";
 import { LAP_PAGE, LapPanel, LoopStats } from "./LapViews";
-import { LoopStatus } from "./LoopListTab";
 import { ResultsSection } from "./ResultsSection";
+import { LoopStatus } from "./LoopStatus";
 import { SetupCard } from "./SetupCard";
-import { useLoop, type LoopData } from "./useLoop";
+import { useSkillLoop, type SkillLoopData } from "./useSkillLoop";
 
-// One loop. Post-MVP reads it the way the kitaru-loop skill scores it: mean
+// One Skill Loop, read-only. Post-MVP reads it the way the kitaru-loop skill scores it: mean
 // pass^k per lap, the gate on each lap's selection trials, and confirmation on
 // fresh trials. MVP shows the setup card of the loop, then the same laps in
-// three sections: Results, Final results, and Agent diff.
-export function LoopPage() {
+// three sections: Results, Final results, and Agent diff. The Post-MVP view and
+// the mode toggle are for Skill Loops only.
+export function SkillLoopPage() {
   const { agentId = "", slug = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [lapLimit, setLapLimit] = useState(LAP_PAGE);
   const preview = useEmptyPreview().on;
-  const real = useLoop(agentId, slug, { lapLimit });
-  const loop = preview ? { ...real, laps: [], totalLaps: 0, running: false, winnerLap: null, isLoading: false } : real;
+  const real = useSkillLoop(agentId, slug, { lapLimit });
+  const loop = preview ? { ...real, laps: [], totalLaps: 0, winnerLap: null, isLoading: false } : real;
   const [selected, setSelected] = useState<number[]>([]);
 
-  const c = loop.settings?.criteria ?? null;
+  const c = loop.criteria;
   const mvp = useLoopMode() === "mvp";
   // A loop that ran with the full rules, looked at in the MVP view.
   const fullRules = !!c && (c.trials_per_round > 1 || c.k > 1);
@@ -52,7 +53,8 @@ export function LoopPage() {
           <div className="detail-title-block">
             <div className="title-with-status">
               <h2 className="detail-title">{slug}</h2>
-              {loop.totalLaps > 0 && (!loop.isLoading || loop.outcome.kind !== "running") ? <LoopStatus outcome={loop.outcome} /> : null}
+              {loop.totalLaps > 0 ? <LoopStatus outcome={loop.outcome} /> : null}
+              <Badge variant="neutral">Skill Loop</Badge>
             </div>
             {/* In the MVP view, the setup card shows the hypothesis. */}
             {loop.hypothesis && !mvp ? <p className="detail-description">{loop.hypothesis}</p> : null}
@@ -86,7 +88,7 @@ export function LoopPage() {
 
       {!loop.isLoading && loop.totalLaps > 0 && !c && !loop.isEvalveLoop && loop.outcome.kind !== "completed" ? (
         <Alert variant="warning" title="This loop's rules aren't on the server">
-          The dashboard needs the "Loop settings" line of the control experiment to calculate pass^k and apply the stop rules. The project's kitaru-loop.json has the rules.
+          The dashboard needs the "Loop settings" line of the control experiment to calculate pass^k and the gate. The project's kitaru-loop.json has the rules.
         </Alert>
       ) : null}
 
@@ -121,7 +123,7 @@ export function LoopPage() {
 
 // The read-only setup card of the loop. It gets the name and the version of
 // the cohort from the cohorts of the agent.
-function LoopSetupCard({ agentId, loop }: { agentId: string; loop: LoopData }) {
+function LoopSetupCard({ agentId, loop }: { agentId: string; loop: SkillLoopData }) {
   const { cohorts, versionsByCohort } = useCohorts(agentId);
   const cohort = findSetupCohort(cohorts.data ?? [], versionsByCohort, loop.cohortVersionId);
   return <SetupCard fields={setupFields({ slug: loop.slug, hypothesis: loop.hypothesis, evalve: loop.evalveSetup, settings: loop.settings, cohort })} />;

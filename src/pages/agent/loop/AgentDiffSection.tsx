@@ -5,13 +5,13 @@ import { Check, Copy } from "lucide-react";
 import { Alert, Badge, Button } from "../../../design-system/components";
 import { agentDiff, type AgentDiffCopy } from "../../../lib/loopResults";
 import { agentOwnSettingsQuery } from "../../../lib/queries";
-import type { LoopData } from "./useLoop";
+import type { LoopResults } from "./useLoopResults";
 
 // The Agent diff section of the loop page (MVP view): what change to apply to
 // the agent. It shows only for a loop with a winning lap. The "before" prompt
 // comes from the recorded session of the first case of the cohort, with its own query, so
 // the other sections do not wait for it. All text comes from `agentDiff`.
-export function AgentDiffSection({ loop }: { loop: LoopData }) {
+export function AgentDiffSection({ loop }: { loop: LoopResults }) {
   const firstCase = loop.firstCohortCase;
   const hasWinningLap = loop.winnerLap != null;
   const own = useQuery({ ...agentOwnSettingsQuery(firstCase?.id ?? ""), enabled: hasWinningLap && !!firstCase });

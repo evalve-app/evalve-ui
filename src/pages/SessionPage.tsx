@@ -106,7 +106,7 @@ export function SessionPage() {
                   <>
                     {" "}
                     ({experimentName(round.lap, "inline")} of loop{" "}
-                    <Link to={`/agents/${agentId}/loop/${round.slug}`} className="inline-link mono">
+                    <Link to={`/agents/${agentId}/skill-loop/${round.slug}`} className="inline-link mono">
                       {round.slug}
                     </Link>
                     )

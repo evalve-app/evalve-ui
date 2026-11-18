@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOOP_QUIET_MS, experimentName, knownLegacyLoop, lapSummary, lastLoopActivity, loopQuiet, loopStatusLabel, newestRunStatus, parseEvalveLoop, parseRoundName, parseSettings, resolveLoopOutcome, shouldPollLoopRuns } from "./loops";
+import type { Experiment } from "../api/client";
+import { experimentName, lapSummary, parseEvalveLoop, parseRoundName, parseSettings, skillLoopOutcome, skillLoopRows } from "./loops";
 
 describe("parseRoundName", () => {
   it("reads round and lap names as the lap number", () => {
@@ -44,115 +45,37 @@ describe("lapSummary", () => {
   });
 });
 
-describe("loop status", () => {
+describe("the outcome of a Skill Loop", () => {
   const baseline = 'Round 0: Unchanged baseline\nEvalve loop: {"schema_version":1,"loop_id":"loop-id","lap":0,"required_consecutive_greens":2}';
   const read = (result: Record<string, unknown>) => parseEvalveLoop(
     `${baseline}\nEvalve result: ${JSON.stringify({ schema_version: 1, loop_id: "loop-id", ...result })}`,
   );
 
-  it("uses the published winner even while the run query still shows activity", () => {
-    const evalve = read({ status: "stop_success", winner_lap: 1 });
-    expect(resolveLoopOutcome(evalve, null, true, "running", false)).toEqual({
+  it("shows Completed with the published winning experiment", () => {
+    expect(skillLoopOutcome(read({ status: "stop_success", winner_lap: 1 }))).toEqual({
       kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed",
       detail: "Every case passed in 2 consecutive runs.",
     });
   });
 
   it("says that the control passed when lap zero is the winning experiment", () => {
-    const evalve = read({ status: "stop_success", winner_lap: 0 });
-    expect(resolveLoopOutcome(evalve, null, false, "completed", false)).toEqual({
+    expect(skillLoopOutcome(read({ status: "stop_success", winner_lap: 0 }))).toEqual({
       kind: "completed", passed: true, winnerLap: 0, title: "The control passed",
       detail: "The agent met the target with no change.",
     });
   });
 
-  it("uses the archived completion only for the original support-desk baseline", () => {
-    const known = knownLegacyLoop("support-desk-demo", "01a1c733-f326-70af-af44-7e9bc55cb10a");
-    expect(resolveLoopOutcome(null, known?.outcome ?? null, false, "completed", false)).toMatchObject({
-      kind: "completed", passed: true, winnerLap: 1,
-    });
-    expect(knownLegacyLoop("support-desk-demo", "different-baseline")).toBeUndefined();
-  });
-
-  it.each(["stop_attempt_cap", "stop_budget"])("completes without a winner on %s", (status) => {
-    const evalve = read({ status, reason: "The configured limit was reached." });
-    expect(resolveLoopOutcome(evalve, null, false, "completed", false)).toMatchObject({
+  it.each(["stop_attempt_cap", "stop_budget"])("completes without a winning experiment on %s", (status) => {
+    expect(skillLoopOutcome(read({ status, reason: "The configured limit was reached." }))).toMatchObject({
       kind: "completed", passed: false, winnerLap: null, title: "No experiment passed", detail: "The configured limit was reached.",
     });
   });
 
-  it("uses Canceled for a canceled latest replay and Running for a resumed loop", () => {
-    const evalve = read({ status: "running" });
-    expect(resolveLoopOutcome(evalve, null, false, "canceled", false)).toEqual({ kind: "canceled" });
-    expect(resolveLoopOutcome(evalve, null, true, "running", false)).toEqual({ kind: "running" });
-  });
-
-  it("waits for the runner's terminal result when the loop is between replays", () => {
-    expect(resolveLoopOutcome(parseEvalveLoop(baseline), null, false, "completed", false)).toEqual({ kind: "running" });
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, "completed", false)).toEqual({ kind: "running" });
-    expect(resolveLoopOutcome(null, null, false, "completed", false)).toEqual({ kind: "running" });
-  });
-
-  it("shows Stopped for a quiet loop with no stop result, when its newest run did not fail", () => {
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, "completed", true)).toEqual({ kind: "stopped" });
-    expect(resolveLoopOutcome(parseEvalveLoop(baseline), null, false, "completed", true)).toEqual({ kind: "stopped" });
-    // A loop with no run: the coding agent stopped before the first run.
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, undefined, true)).toEqual({ kind: "stopped" });
-  });
-
-  it("shows Failed for a quiet loop with no stop result, when its newest run failed", () => {
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, "failed", true)).toEqual({ kind: "failed" });
-  });
-
-  it("waits for the quiet time before it shows Failed", () => {
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, "failed", false)).toEqual({ kind: "running" });
-  });
-
-  it("applies the quiet rule to a loop of the kitaru-loop skill", () => {
-    expect(resolveLoopOutcome(null, null, false, "completed", true)).toEqual({ kind: "stopped" });
-    expect(resolveLoopOutcome(null, null, false, "failed", true)).toEqual({ kind: "failed" });
-  });
-
-  it("keeps a published stop result for a quiet loop", () => {
-    expect(resolveLoopOutcome(read({ status: "stop_success", winner_lap: 1 }), null, false, "failed", true)).toMatchObject({ kind: "completed", passed: true });
-    expect(resolveLoopOutcome(read({ status: "stop_budget" }), null, false, "failed", true)).toMatchObject({ kind: "completed", passed: false });
-  });
-
-  it("keeps Running for a loop with an active run, whatever the quiet value", () => {
-    expect(resolveLoopOutcome(read({ status: "running" }), null, true, "running", true)).toEqual({ kind: "running" });
-  });
-
-  it("keeps a legacy completion for a quiet loop", () => {
-    const known = knownLegacyLoop("day-30-refunds", undefined);
-    expect(resolveLoopOutcome(null, known?.outcome ?? null, false, "failed", true)).toMatchObject({ kind: "completed", passed: true });
-  });
-
-  it("keeps Canceled for a quiet loop", () => {
-    expect(resolveLoopOutcome(read({ status: "running" }), null, false, "canceled", true)).toEqual({ kind: "canceled" });
-  });
-
-  it("keeps polling a completed loop until its final replay arrives", () => {
-    const evalve = read({
-      status: "stop_success", winner_lap: 1,
-      laps: [{ experiment_id: "candidate", runs: [{ run_id: "first" }, { run_id: "final" }] }],
-    });
-    const first = { id: "first", status: "completed" as const };
-    const final = { id: "final", status: "completed" as const };
-    expect(resolveLoopOutcome(evalve, null, false, "completed", false)).toMatchObject({ kind: "completed" });
-    expect(shouldPollLoopRuns(evalve, ["candidate"], [first])).toBe(true);
-    expect(shouldPollLoopRuns(evalve, ["candidate"], [first, { ...final, status: "running" }])).toBe(true);
-    expect(shouldPollLoopRuns(evalve, ["candidate"], [first, final])).toBe(false);
-  });
-
-  it("ignores published replays from laps outside the current view", () => {
-    const evalve = read({
-      status: "stop_attempt_cap",
-      laps: [
-        { experiment_id: "older-lap", runs: [{ run_id: "older" }] },
-        { experiment_id: "visible-lap", runs: [{ run_id: "final" }] },
-      ],
-    });
-    expect(shouldPollLoopRuns(evalve, ["visible-lap"], [{ id: "final", status: "failed" }])).toBe(false);
+  it("shows No result with no published end state", () => {
+    expect(skillLoopOutcome(read({ status: "running" }))).toEqual({ kind: "no_result" });
+    expect(skillLoopOutcome(parseEvalveLoop(baseline))).toEqual({ kind: "no_result" });
+    // A Loop of the kitaru-loop skill, which publishes no result.
+    expect(skillLoopOutcome(null)).toEqual({ kind: "no_result" });
   });
 
   it("ignores malformed results and results for a different loop", () => {
@@ -208,84 +131,26 @@ describe("the setup of a loop in the loop settings line", () => {
   });
 });
 
-describe("the last activity of a loop", () => {
-  const at = (iso: string) => Date.parse(iso);
+describe("the rows of the Skill Loops in the Loop list", () => {
+  const experiment = (name: string, created: string, description: string | null = null) => ({ id: name, name, created, description }) as unknown as Experiment;
 
-  it("is the newest of each experiment created, each run created and each run ended_at", () => {
-    const experiments = [{ created: "2026-11-14T10:00:00Z" }, { created: "2026-11-14T10:20:00Z" }];
-    expect(lastLoopActivity(experiments, [])).toBe(at("2026-11-14T10:20:00Z"));
-    expect(lastLoopActivity(experiments, [{ created: "2026-11-14T10:30:00Z", ended_at: null }])).toBe(at("2026-11-14T10:30:00Z"));
-    expect(
-      lastLoopActivity(experiments, [
-        { created: "2026-11-14T10:30:00Z", ended_at: "2026-11-14T10:45:00Z" },
-        { created: "2026-11-14T10:40:00Z", ended_at: null },
-      ]),
-    ).toBe(at("2026-11-14T10:45:00Z"));
+  it("makes one row for each Skill Loop, newest first", () => {
+    const rows = skillLoopRows([
+      experiment("refunds-round-0", "2026-11-01T10:00:00Z", "Hypothesis: Refunds fail on day 30."),
+      experiment("refunds-round-1", "2026-11-03T10:00:00Z"),
+      experiment("greeting-round-0", "2026-11-02T10:00:00Z"),
+      experiment("not-a-loop", "2026-11-05T10:00:00Z"),
+    ]);
+    expect(rows.map((r) => r.slug)).toEqual(["refunds", "greeting"]);
+    expect(rows[0]).toEqual({ slug: "refunds", hypothesis: "Refunds fail on day 30.", experimentsTried: 1, outcome: { kind: "no_result" }, updatedAt: "2026-11-03T10:00:00Z" });
   });
 
-  it("ignores a value that does not parse, and is null with no value", () => {
-    expect(lastLoopActivity([{ created: "not a date" }, { created: "2026-11-14T10:00:00Z" }], [{ created: "", ended_at: "soon" }])).toBe(at("2026-11-14T10:00:00Z"));
-    expect(lastLoopActivity([{ created: "not a date" }], [])).toBeNull();
-    expect(lastLoopActivity([], [])).toBeNull();
+  it("shows Completed for a Skill Loop with a published end state", () => {
+    const control = 'Evalve loop: {"schema_version":1,"loop_id":"id","lap":0,"required_consecutive_greens":1}\nEvalve result: {"schema_version":1,"loop_id":"id","status":"stop_budget","reason":null}';
+    expect(skillLoopRows([experiment("budget-round-0", "2026-11-01T10:00:00Z", control)])[0].outcome).toMatchObject({ kind: "completed", passed: false });
   });
 
-  it("uses a quiet time of 10 minutes", () => {
-    expect(LOOP_QUIET_MS).toBe(600_000);
-  });
-});
-
-describe("the label of a loop status", () => {
-  const completed = { kind: "completed", winnerLap: null, title: "", detail: "" } as const;
-
-  it("gives the word and the tone of each loop status", () => {
-    expect(loopStatusLabel({ kind: "running" })).toEqual({ status: "Running", tone: "warning" });
-    expect(loopStatusLabel({ ...completed, passed: true })).toEqual({ status: "Completed", tone: "success" });
-    expect(loopStatusLabel({ ...completed, passed: false })).toEqual({ status: "Completed", tone: "muted" });
-    expect(loopStatusLabel({ kind: "canceled" })).toEqual({ status: "Canceled", tone: "muted" });
-    expect(loopStatusLabel({ kind: "stopped" })).toEqual({ status: "Stopped", tone: "muted" });
-    expect(loopStatusLabel({ kind: "failed" })).toEqual({ status: "Failed", tone: "destructive" });
-  });
-});
-
-describe("the status of the newest run of a loop", () => {
-  it("is the status of the run with the newest created time, in any list order", () => {
-    const old = { created: "2026-11-14T10:00:00Z", status: "completed" as const };
-    const newest = { created: "2026-11-14T11:00:00Z", status: "failed" as const };
-    expect(newestRunStatus([old, newest])).toBe("failed");
-    expect(newestRunStatus([newest, old])).toBe("failed");
-  });
-
-  it("is undefined for a loop with no run", () => {
-    expect(newestRunStatus([])).toBeUndefined();
-  });
-});
-
-describe("loopQuiet", () => {
-  const signedIn = { waits: false, quiet: false };
-
-  it("uses the quiet rule for a signed-in person, with or without a request", () => {
-    expect(loopQuiet(signedIn, false, false, true)).toEqual({ waits: false, quiet: true });
-    expect(loopQuiet(signedIn, false, true, true)).toEqual({ waits: false, quiet: true });
-    expect(loopQuiet({ waits: false, quiet: true }, false, true, false)).toEqual({ waits: false, quiet: false });
-  });
-
-  it("keeps a loop that is not quiet as it is while the sign-in is ended, so Running does not become Stopped or Failed", () => {
-    expect(loopQuiet({ waits: false, quiet: false }, true, true, true)).toEqual({ waits: true, quiet: false });
-    expect(loopQuiet({ waits: true, quiet: false }, true, false, true)).toEqual({ waits: true, quiet: false });
-  });
-
-  it("keeps a quiet loop quiet while the sign-in is ended, so Stopped does not become Running", () => {
-    expect(loopQuiet({ waits: false, quiet: true }, true, false, false)).toEqual({ waits: true, quiet: true });
-    expect(loopQuiet({ waits: true, quiet: true }, true, true, false)).toEqual({ waits: true, quiet: true });
-  });
-
-  it("keeps the value after the new sign-in until the request that waited gets its answer", () => {
-    expect(loopQuiet({ waits: true, quiet: false }, false, true, true)).toEqual({ waits: true, quiet: false });
-    expect(loopQuiet({ waits: true, quiet: true }, false, true, false)).toEqual({ waits: true, quiet: true });
-  });
-
-  it("uses the quiet rule again when the answer is on the page", () => {
-    expect(loopQuiet({ waits: true, quiet: false }, false, false, true)).toEqual({ waits: false, quiet: true });
-    expect(loopQuiet({ waits: true, quiet: true }, false, false, false)).toEqual({ waits: false, quiet: false });
+  it("does not take an Experiment of a backend Loop for a Skill Loop", () => {
+    expect(skillLoopRows([experiment("evalve-01JD8-exp-0", "2026-11-01T10:00:00Z"), experiment("evalve-01JD8-exp-1", "2026-11-02T10:00:00Z")])).toEqual([]);
   });
 });

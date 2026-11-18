@@ -5,12 +5,13 @@ import { getAgent } from "../../api/client";
 import { Alert } from "../../design-system/components";
 
 // Shared frame for every page of one agent: breadcrumb, identity, tabs.
-const TABS = [
+const TABS: { path: string; label: string; also?: string[] }[] = [
   { path: "sessions", label: "Sessions" },
   { path: "investigations", label: "Investigations" },
   { path: "cohorts", label: "Cohorts" },
   { path: "experiments", label: "Experiments" },
-  { path: "loop", label: "Loop" },
+  // A Skill Loop opens at skill-loop/:slug, and it belongs to the Loop tab too.
+  { path: "loop", label: "Loop", also: ["skill-loop"] },
 ];
 
 export function AgentLayout() {
@@ -47,7 +48,7 @@ export function AgentLayout() {
         <div className="subnav" role="tablist" aria-label="Agent sections">
           {TABS.map((t) => {
             const to = `/agents/${agentId}/${t.path}`;
-            const active = location.pathname.startsWith(to);
+            const active = [t.path, ...(t.also ?? [])].some((path) => location.pathname.startsWith(`/agents/${agentId}/${path}`));
             return (
               <Link key={t.path} to={to} role="tab" aria-selected={active} className="subnav-link">
                 {t.label}
