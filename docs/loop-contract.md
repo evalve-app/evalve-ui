@@ -1,11 +1,13 @@
 # How the dashboard reads a Skill Loop from Kitaru
 
+> **Frozen, read for Skill Loops only.** This page describes data that old loop skills left on Kitaru. No skill writes it any more: new Loops run on the Evalve backend. Don't add fields here. The `evalve-loop` source is kept at the loop-skills tag `evalve-loop-0.1.0`.
+
 The dashboard shows two kinds of Loop:
 
 - **A backend Loop.** The Evalve backend owns it and keeps its status, outcome, owner and spend. The dashboard shows what the backend says and calculates no Loop status (`src/lib/loopStatus.ts`).
 - **A Skill Loop.** A loop skill (`kitaru-loop`, `experiment-loop`, or the retired `evalve-loop`) ran it on a Teammate's machine against Kitaru, with no state on the Evalve backend. The dashboard shows it read-only at `skill-loop/:slug`.
 
-This page is about Skill Loops. Kitaru has no idea what a loop is. The source of truth is the loop skill ([loop-skills](https://github.com/alyssa43/loop-skills)). The dashboard only reads what the skill leaves on the Kitaru server. It never creates experiments or runs for a loop.
+This page is about Skill Loops. Kitaru has no idea what a loop is. The source of truth is the loop skill ([loop-skills](https://github.com/evalve-app/loop-skills)). The dashboard only reads what the skill leaves on the Kitaru server. It never creates experiments or runs for a loop.
 
 ## What the skill writes
 
@@ -35,6 +37,24 @@ The scores are a port of `gate` and `round_score` from the skill's `loop.py`, in
 The separate `evalve-loop` runner writes `Evalve loop: {json}` and `Evalve result: {json}` on the control experiment. The dashboard reads the runner's end state to show **Completed** for a winning streak, an attempt cap, or a budget stop. It uses `winner_lap` to mark the winning experiment.
 
 The `Evalve loop:` line of the control experiment also carries the setup of the loop: `name`, `agent_version_id`, `cohort_version_id`, `evaluators`, `allowed_changes`, `allowed_models`, `required_consecutive_greens`, `max_attempts` and `budget_usd`. `evaluators` is a list of strings in `name@version` form, and `budget_usd` is a decimal string (`description` in the runner's `loop.py`). `parseEvalveLoop` in `src/lib/loops.ts` reads these fields, and the setup card of the loop page shows them.
+
+Every experiment of the runner, not just the control experiment, has an `Evalve loop:` line with `schema_version: 1`, `loop_id` and `lap`. The dashboard trusts the line only when `schema_version` is 1, and reads the setup from lap 0.
+
+The runner rewrites one `Evalve result: {json}` line on the control experiment after each run it collects. It is the runner's own record of its decision.
+
+The dashboard reads these fields, and only when `schema_version` is 1 and `loop_id` matches the `Evalve loop:` line:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `running`, `stop_success`, `stop_attempt_cap` or `stop_budget` |
+| `winner_lap` | the winning lap when `status` is `stop_success`, otherwise null |
+| `reason` | why the loop stopped, or null. The page shows a default text when it is null |
+
+The line also carries fields the dashboard doesn't read:
+
+- `baseline_model` (nullable), the total `attempts`, and `recorded_cost_usd` and `accounted_cost_usd` as decimal strings.
+- `laps`, one entry per lap: `lap`, `change`, `experiment_id`, `attempts`, `green`, `red`, `incomplete`, `green_streak` and `runs`.
+- `runs`, one entry per run: `run_id`, `outcome` (`green`, `red` or `incomplete`), `passed`, `failed` and `unscored`.
 
 The Skill Loop page remembers the browser's preferred results view (`src/lib/loopMode.tsx`). The MVP and Post-MVP views and their toggle are for Skill Loops only. A backend Loop shows the MVP view. The New Loop page does not read it: it has one form, for a Loop that the coding agent starts on the Evalve backend with the Evalve MCP.
 

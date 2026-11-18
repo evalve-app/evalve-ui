@@ -1,17 +1,5 @@
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildEvalveLoopPrompt, type LoopParameters } from "./evalveLoopHandoff";
-import release from "./evalveLoopRelease.json";
-
-// The hosted files of the retired runner stay until sc-256 removes them. The handoff prompt does not name them.
-it("ships each public file at the checksum of the release", () => {
-  expect(Object.keys(release.files)).toEqual(["SKILL.md", "references/handoff.md", "scripts/loop.py"]);
-  for (const [name, checksum] of Object.entries(release.files)) {
-    const file = readFileSync(new URL(`../../public/skills/evalve-loop/${release.version}/${name}`, import.meta.url));
-    expect(createHash("sha256").update(file).digest("hex")).toBe(checksum);
-  }
-});
 
 describe("buildEvalveLoopPrompt", () => {
   const parameters: LoopParameters = {

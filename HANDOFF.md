@@ -134,7 +134,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 
 - A real one-run-per-experiment (MVP) loop. None exists on the server yet.
 - The three sections of the loop page with real data. They were checked in a browser only with a mock API.
-- The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the runner source (release 0.1.0). The card was checked in a browser only with a mock API.
+- The setup card with real data, and the shape of the `Evalve loop:` line on the server. The shape comes from the retired runner, kept at the loop-skills tag `evalve-loop-0.1.0`. The card was checked in a browser only with a mock API.
 - "Run again" on an experiment.
 - "Cancel Loop" with a real running Loop. It was checked in a browser only with a mock API. A real cancel needs a running Loop, which spends money, so a person must do it by hand.
 - The "Sign in again" dialog with the Kitaru server. It was checked in a browser only with a mock API, because the Kitaru server did not answer.
