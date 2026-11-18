@@ -117,6 +117,18 @@ _Avoid_: "prompt" alone for this meaning. "Prompt" alone is the system prompt of
 A computer on which the Kitaru CLI asks to sign in to the server. A person approves the device in the dashboard, and then the CLI gets a token for that account. Say "approve", not "verify" (the word in the server API).
 _Avoid_: Client, machine
 
+**API key**:
+A secret value that starts with `KITKEY_`. A coding agent sends it to sign in to the Kitaru server as the person who created the key. The Kitaru MCP and the Evalve MCP need one. The dashboard shows the value one time, when the person creates the key.
+_Avoid_: Token, secret, access key
+
+**Revoke**:
+To remove an API key for good, so that it cannot sign in again. The server API calls this "delete". An inactive key is different: the Kitaru API turned it off, and it can turn it on again.
+_Avoid_: Delete (in the UI), deactivate, disable
+
+**Settings**:
+The page where a signed-in person lists their API keys, creates a key, and revokes a key.
+_Avoid_: Account page, profile, preferences
+
 ## Flagged ambiguities
 
 - In the UI, "baseline" has one meaning: the "Baseline" row of the experiment grid, which scores the recorded session. Say "control experiment" for the experiment of a loop with no change, and "recorded session" for the session itself.
