@@ -58,19 +58,18 @@ The app is almost read-only. The only calls that change anything are sign in, si
 **The dashboard never runs a loop. It only reads one.** Loops are run by a coding agent using the `kitaru-loop` skill (https://github.com/alyssa43/loop-skills). The full contract is in [docs/loop-contract.md](docs/loop-contract.md). The short version:
 
 - **A loop is a set of experiments** named `<prefix>-round-0`, `<prefix>-round-1`, and so on. The UI calls a round an "experiment". Round 0 is the control experiment, with no change. Each later experiment makes one change. The code names an experiment in a loop `lap`.
-- **The New loop form does not submit anything.** It produces a prompt and a config. You paste the prompt into Claude Code in the agent's project, and the skill does the rest.
+- **The New Loop page does not start a Loop.** It produces a handoff prompt with the Loop parameters. You paste it into a coding agent in the agent's project, and the coding agent starts the Loop on the Evalve backend with the Evalve MCP (`evalve_loop_start`). The page reads the backend for three things: the version for the install command (`GET /evalve/health`), the name check, and the wait for the new Loop (`GET /evalve/v1/loops`).
 - **Five statuses:** Running, Completed, Canceled, Stopped, Failed. The dashboard calculates the status. A loop with no stop result and no activity for 10 minutes shows Failed if its newest run failed, and Stopped in all other cases.
 - **The rules live in two places:** the skill's `loop.py` and our port in `src/lib/loopRules.ts`. If one changes, change the other.
 
 ### MVP and Post-MVP switch
 
-The switch sits at the top right of the loop list and the loop page. It is saved per browser and starts on MVP. The New loop page has no switch. It reads the saved mode. It changes what is shown, not the data.
+The switch sits at the top right of the loop list and the loop page. It is saved per browser and starts on MVP. The New Loop page has no switch and does not read the saved mode: it has one form, for a Loop on the Evalve backend. The switch changes what is shown, not the data.
 
 | | MVP | Post-MVP |
 | --- | --- | --- |
 | Score | Plain pass rate | Mean pass^k |
 | Runs per experiment | 1 | Several trials, plus a confirmation round |
-| New loop form | The setup card in its editable state (`SetupCard.tsx`), with the same two columns and sections as on the loop page | One card with a row for each section: trials, k, floor, confirmation, screen first |
 | Loop page | The read-only setup card, then three sections: Results, Final results, Agent diff | Grid of experiments with compare checkboxes, four stat tiles, trend line |
 
 MVP uses the same skill with one trial per experiment and k = 1, so no second runner is needed.
@@ -120,7 +119,7 @@ Fonts, colors and the logo come from the Evalve Design System (`src/design-syste
 | --- | --- |
 | `src/App.tsx` | Routes and the top bar |
 | `src/api/client.ts` | Every Kitaru call the app makes |
-| `src/api/evalve.ts` | The client for the Evalve backend. No page calls it yet |
+| `src/api/evalve.ts` | The client for the Evalve backend. The Loop list and the Loop page read Loops with it, and the New Loop page reads the backend version and the Loop list |
 | `src/pages/` | One file per page; `agent/loop/` is the Loop tab |
 | `src/pages/agent/loop/useLoop.ts` | Loads one loop and works out the experiments of the loop (`laps`), scores and status |
 | `src/lib/signInGate.ts` | What a 401 does: the "Sign in again" dialog, and the reads that wait for the new sign-in |

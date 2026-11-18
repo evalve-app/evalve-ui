@@ -32,7 +32,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 
 ### Loop page: later work (out of scope of #16)
 
-- Start a loop from the dashboard: submit the New loop form, and the Approve, Run, and Cancel buttons from the hi-fi. Today the dashboard only reads a loop. The Approve and Cancel buttons are built as browser state (issue #42). The submit and the Run button are not built, because the server has no endpoint to start a loop.
+- Start a loop from the dashboard: submit the New loop form, and the Approve, Run, and Cancel buttons from the hi-fi. Today the dashboard only reads a loop. The Approve and Cancel buttons are built as browser state (issue #42). The submit and the Run button are not built: the coding agent starts the Loop with the Evalve MCP, because only the agent project has the tool policy, the evaluator parameters and the allowed models (sc-266).
 - ~~The setup card above the results.~~ Built, read-only (issue #40). The editable state on the New loop page is built (issue #41). The Approve flow is built (issue #42).
 - Give the Post-MVP view and the compare page the glossary words. They still show "regression" and "trials".
 - Cost in Final results. The server gives no cost for an experiment run.
@@ -49,7 +49,7 @@ Open work, in the order we planned it. The order follows what the Friday demo cl
 ## Not tested yet
 
 - The Settings page with the real server: the list of API keys, "Create key", "Copy key" and "Revoke". sc-240 checked them in a browser only with a mock API, because the Kitaru server did not answer. "Create key" and "Revoke" change data, so a person must check them by hand.
-- The Approve, Get prompt and Copy prompt states of the New loop page, and the change to the loop page when the control experiment exists. The screenshot script does not click, so a person must check them by hand (issue #42).
+- The Approve, Get prompt and Copy prompt states of the New loop page, and the change to the Loop page when the Loop of the viewer shows in the Evalve backend (sc-266). The screenshot script does not click, so a person must check them by hand (issue #42).
 - The setup card of the loop page with a real loop, and the `Evalve loop:` line of a real control experiment. Issue #40 checked the card only with a mock API, because the sign-in of the test account failed.
 - A real one-run-per-experiment (MVP) loop on the Loop pages.
 - The loop page in the MVP view (Results, Final results, Agent diff) with the real `day-30-refunds` loop. Issue #21 checked it only with a mock API, because the sign-in of the test account failed.
