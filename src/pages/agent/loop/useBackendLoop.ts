@@ -52,10 +52,16 @@ export function useBackendLoop(loopId: string, opts: { lapLimit: number }): Back
   }, [status, queryClient]);
 
   // Each Experiment by the id that the backend gives, not from the list of the
-  // agent's experiments: that list has only the first 200 of them.
+  // agent's experiments: that list has only the first 200 of them. While the
+  // Loop runs, a failed read tries again with the next poll, so that a short
+  // server or network problem does not leave an Experiment out.
   const experimentIds = (loop?.experiments ?? []).flatMap((e) => (e.experiment_id ? [e.experiment_id] : []));
   const experiments = useQueries({
-    queries: experimentIds.map((id) => ({ queryKey: ["experiment", id], queryFn: () => getExperiment(id) })),
+    queries: experimentIds.map((id) => ({
+      queryKey: ["experiment", id],
+      queryFn: () => getExperiment(id),
+      refetchInterval: (q: { state: { status: string } }) => (pollMs && q.state.status === "error" ? pollMs : false),
+    })),
     combine: combineExperiments,
   });
 
