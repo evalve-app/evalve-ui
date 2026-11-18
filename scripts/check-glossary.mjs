@@ -44,8 +44,8 @@ function sourceFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
-    // Generated from the server schema, so its words are the server's words.
-    if (entry.name === "schema.d.ts") return [];
+    // Generated from a server schema, so its words are the server's words.
+    if (entry.name === "schema.d.ts" || entry.name === "evalve-schema.d.ts") return [];
     return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 }

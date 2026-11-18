@@ -12,9 +12,9 @@ Rules for review. Each rule came from a review finding. Tooling covers types, te
 - `HANDOFF.md` agrees with the change: the "What's built" table, the placeholder list, and the sentence that lists the calls that change data.
 - `docs/todo.md`: a completed item is crossed out (`~~…~~`), not removed.
 
-## API client (`src/api/client.ts`)
+## API clients (`src/api/client.ts` for Kitaru, `src/api/evalve.ts` for the Evalve backend)
 
-- One function for each Kitaru call. Pages call these functions, not `api` directly.
+- One function for each call. Pages call these functions, not `api` or `evalve` directly.
 - A function goes through `unwrap`, so a 401 throws `UnauthorizedError`. A function that does not use `unwrap` has a comment that gives the reason and says what a 401 does.
 - A function that loads a list follows `next_cursor` to the end, or its comment states the limit.
 

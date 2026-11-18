@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "gen:api": "openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "gen:evalve-api": "openapi-typescript evalve-openapi.json -o src/api/evalve-schema.d.ts",
     "gen:tokens": "node scripts/build-tokens.mjs",
     "test": "vitest run",
     "lint": "eslint . && node scripts/check-glossary.mjs && node scripts/check-css-tokens.mjs",

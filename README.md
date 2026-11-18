@@ -13,7 +13,7 @@ npm run dev
 
 Then open http://localhost:5173 and sign in with your Kitaru account.
 
-The dev server forwards every `/api` request to the Kitaru server, so the browser sees one site. The server address defaults to the team demo deploy. To use another one, copy `.env.example` to `.env` and change `KITARU_URL`.
+The dev server forwards every `/api` request to the Kitaru server, and every `/evalve` request to the Evalve backend on the same host, so the browser sees one site. The server address defaults to the team demo deploy. To use another one, copy `.env.example` to `.env` and change `KITARU_URL`.
 
 ## What's where
 
@@ -22,6 +22,8 @@ The dev server forwards every `/api` request to the Kitaru server, so the browse
 | `src/App.tsx` | Routes, the top bar, and the signed-in check |
 | `src/api/client.ts` | The typed API client: login, the CSRF header on every call, and one function per Kitaru call the app makes |
 | `src/api/schema.d.ts` | TypeScript types for every Kitaru API route, generated from `openapi.json` |
+| `src/api/evalve.ts` | The typed client for the Evalve backend (`/evalve/v1`), with the same sign-in gate as the Kitaru client |
+| `src/api/evalve-schema.d.ts` | TypeScript types for every backend route, generated from `evalve-openapi.json` |
 | `src/design-system/` | The Evalve Design System: `tokens.json` (copied from the design system), `tokens.css` (generated), `components.css` and `components.tsx` |
 | `src/app.css` | Page layout styles. Uses design tokens only, no raw colors |
 | `src/pages/` | One file per page. `agent/` holds the tabs of one agent, `agent/loop/` holds the Loop tab |
@@ -33,6 +35,7 @@ The dev server forwards every `/api` request to the Kitaru server, so the browse
 ## Updating generated files
 
 - **New Kitaru version:** replace `openapi.json` with the server's `/openapi.json`, then run `npm run gen:api`.
+- **New backend version:** download `openapi.json` from the backend's GitHub release (`gh release download v<X> -R evalve-app/evalve-backend -p openapi.json -O evalve-openapi.json --clobber`), then run `npm run gen:evalve-api`. Use a tagged release, not a live server.
 - **New design tokens:** replace `src/design-system/tokens.json`, then run `npm run gen:tokens`.
 - **New Evalve Loop release:** run `node scripts/package-loop-release.mjs ../loop-skills/evalve-loop <version>` from a reviewed skills checkout. The script packages the public release files and pins their checksums in the New Loop prompt. Keep the previous version directories in `public/skills/evalve-loop/` so existing prompts can still fetch them.
 

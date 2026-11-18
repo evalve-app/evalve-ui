@@ -1,0 +1,2359 @@
+{
+  "components": {
+    "schemas": {
+      "Account": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Account",
+        "type": "object"
+      },
+      "ApiError": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ApiError",
+        "type": "object"
+      },
+      "CaseEvidence": {
+        "properties": {
+          "baseline_session_id": {
+            "title": "Baseline Session Id",
+            "type": "string"
+          },
+          "case": {
+            "title": "Case",
+            "type": "string"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "evaluations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EvaluationEvidence"
+            },
+            "title": "Evaluations",
+            "type": "object"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "replay_id": {
+            "title": "Replay Id",
+            "type": "string"
+          },
+          "replay_status": {
+            "title": "Replay Status",
+            "type": "string"
+          },
+          "reply": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "result_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Session Id"
+          },
+          "result_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Status"
+          }
+        },
+        "required": [
+          "case",
+          "baseline_session_id",
+          "replay_id",
+          "replay_status",
+          "result_session_id",
+          "result_status",
+          "error",
+          "passed",
+          "evaluations",
+          "reply",
+          "cost_usd"
+        ],
+        "title": "CaseEvidence",
+        "type": "object"
+      },
+      "EvaluationEvidence": {
+        "properties": {
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          }
+        },
+        "required": [
+          "id",
+          "passed",
+          "explanation"
+        ],
+        "title": "EvaluationEvidence",
+        "type": "object"
+      },
+      "Evaluator": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "ref": {
+            "minLength": 1,
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "Evaluator",
+        "type": "object"
+      },
+      "ExperimentAccepted": {
+        "properties": {
+          "experiment_id": {
+            "title": "Experiment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "experiment_id"
+        ],
+        "title": "ExperimentAccepted",
+        "type": "object"
+      },
+      "ExperimentSummary": {
+        "properties": {
+          "change": {
+            "title": "Change",
+            "type": "string"
+          },
+          "experiment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "override": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "enum": [
+                "system_prompt",
+                "model"
+              ]
+            },
+            "title": "Override",
+            "type": "object"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "number",
+          "name",
+          "experiment_id",
+          "override",
+          "change",
+          "runs"
+        ],
+        "title": "ExperimentSummary",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "LoopDetail": {
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiments": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentSummary"
+            },
+            "title": "Experiments",
+            "type": "array"
+          },
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NeedsChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoopNext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "passed",
+                  "already_passing",
+                  "max_runs",
+                  "budget_reached",
+                  "stopped_idle",
+                  "stopped_by_user",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "owner_account_id": {
+            "title": "Owner Account Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "runs": {
+            "$ref": "#/components/schemas/RunCount"
+          },
+          "setup": {
+            "$ref": "#/components/schemas/StartLoop-Output"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/Spend"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "winner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WinningChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "loop_id",
+          "name",
+          "slug",
+          "agent_id",
+          "owner_account_id",
+          "status",
+          "outcome",
+          "reason",
+          "created_at",
+          "updated_at",
+          "setup",
+          "next",
+          "needs",
+          "spend",
+          "runs",
+          "experiments",
+          "winner"
+        ],
+        "title": "LoopDetail",
+        "type": "object"
+      },
+      "LoopList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LoopListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "LoopList",
+        "type": "object"
+      },
+      "LoopListItem": {
+        "description": "One row of the Loop list. It has what the dashboard list shows, so the list needs no other call.",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiments": {
+            "description": "The number of Experiments of the Loop. The Control Experiment counts.",
+            "title": "Experiments",
+            "type": "integer"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "start_control",
+                  "resume_start",
+                  "collect",
+                  "replay",
+                  "retry",
+                  "needs_change",
+                  "stop_success",
+                  "stop_attempt_cap",
+                  "stop_budget",
+                  "stop_idle",
+                  "stop_incomplete"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The next action of a running Loop, as in the status call. Null for a Loop at an end state.",
+            "title": "Next Action"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "passed",
+                  "already_passing",
+                  "max_runs",
+                  "budget_reached",
+                  "stopped_idle",
+                  "stopped_by_user",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "owner_account_id": {
+            "title": "Owner Account Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/Spend"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loop_id",
+          "name",
+          "slug",
+          "agent_id",
+          "owner_account_id",
+          "status",
+          "outcome",
+          "reason",
+          "created_at",
+          "updated_at",
+          "hypothesis",
+          "experiments",
+          "spend",
+          "next_action"
+        ],
+        "title": "LoopListItem",
+        "type": "object"
+      },
+      "LoopNext": {
+        "properties": {
+          "accounted_cost_usd": {
+            "title": "Accounted Cost Usd",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "start_control",
+              "resume_start",
+              "collect",
+              "replay",
+              "retry",
+              "needs_change",
+              "stop_success",
+              "stop_attempt_cap",
+              "stop_budget",
+              "stop_idle",
+              "stop_incomplete"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "green_streak": {
+            "title": "Green Streak",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "recorded_cost_usd": {
+            "title": "Recorded Cost Usd",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "runs",
+          "recorded_cost_usd",
+          "accounted_cost_usd",
+          "green_streak"
+        ],
+        "title": "LoopNext",
+        "type": "object"
+      },
+      "LoopReport": {
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "passed",
+                  "already_passing",
+                  "max_runs",
+                  "budget_reached",
+                  "stopped_idle",
+                  "stopped_by_user",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "owner_account_id": {
+            "title": "Owner Account Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "runs": {
+            "$ref": "#/components/schemas/RunCount"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/Spend"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "winner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WinningChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "loop_id",
+          "name",
+          "slug",
+          "agent_id",
+          "owner_account_id",
+          "status",
+          "outcome",
+          "reason",
+          "created_at",
+          "updated_at",
+          "spend",
+          "runs",
+          "winner"
+        ],
+        "title": "LoopReport",
+        "type": "object"
+      },
+      "NeedsChange": {
+        "properties": {
+          "allowed_changes": {
+            "items": {
+              "enum": [
+                "system_prompt",
+                "model"
+              ],
+              "type": "string"
+            },
+            "title": "Allowed Changes",
+            "type": "array"
+          },
+          "allowed_models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Models",
+            "type": "array"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "integer"
+          },
+          "failed_cases": {
+            "items": {
+              "$ref": "#/components/schemas/CaseEvidence"
+            },
+            "title": "Failed Cases",
+            "type": "array"
+          },
+          "idle_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Deadline"
+          },
+          "overrides_tried": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "propertyNames": {
+                "enum": [
+                  "system_prompt",
+                  "model"
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Overrides Tried",
+            "type": "array"
+          }
+        },
+        "required": [
+          "experiment",
+          "allowed_changes",
+          "allowed_models",
+          "overrides_tried",
+          "failed_cases",
+          "idle_deadline"
+        ],
+        "title": "NeedsChange",
+        "type": "object"
+      },
+      "ProposeExperiment": {
+        "additionalProperties": false,
+        "properties": {
+          "change": {
+            "minLength": 1,
+            "title": "Change",
+            "type": "string"
+          },
+          "control_model": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Model"
+          },
+          "estimate_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Usd"
+          },
+          "experiment": {
+            "minimum": 1.0,
+            "title": "Experiment",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
+          }
+        },
+        "required": [
+          "experiment",
+          "change"
+        ],
+        "title": "ProposeExperiment",
+        "type": "object"
+      },
+      "ReplayPolicy": {
+        "additionalProperties": true,
+        "properties": {
+          "on_miss": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Miss"
+          },
+          "type": {
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ReplayPolicy",
+        "type": "object"
+      },
+      "RunCount": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "max"
+        ],
+        "title": "RunCount",
+        "type": "object"
+      },
+      "RunDetail": {
+        "properties": {
+          "agent_version_id": {
+            "title": "Agent Version Id",
+            "type": "string"
+          },
+          "cohort_version_id": {
+            "title": "Cohort Version Id",
+            "type": "string"
+          },
+          "collected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collected At"
+          },
+          "estimated_cost_usd": {
+            "title": "Estimated Cost Usd",
+            "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CaseEvidence"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "experiment_number": {
+            "title": "Experiment Number",
+            "type": "integer"
+          },
+          "failed_cases": {
+            "items": {
+              "$ref": "#/components/schemas/CaseEvidence"
+            },
+            "title": "Failed Cases",
+            "type": "array"
+          },
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "submit_started_at": {
+            "format": "date-time",
+            "title": "Submit Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "run_id",
+          "cohort_version_id",
+          "agent_version_id",
+          "estimated_cost_usd",
+          "submit_started_at",
+          "collected_at",
+          "result",
+          "loop_id",
+          "experiment_number",
+          "evidence",
+          "failed_cases"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunResult": {
+        "properties": {
+          "cost_incomplete": {
+            "title": "Cost Incomplete",
+            "type": "boolean"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "missing_session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Session Ids",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "red",
+              "green",
+              "incomplete"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "recorded_cost_usd": {
+            "title": "Recorded Cost Usd",
+            "type": "string"
+          },
+          "run_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Error"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_status": {
+            "title": "Run Status",
+            "type": "string"
+          },
+          "unscored": {
+            "title": "Unscored",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "run_status",
+          "outcome",
+          "passed",
+          "failed",
+          "unscored",
+          "missing_session_ids",
+          "recorded_cost_usd",
+          "cost_incomplete"
+        ],
+        "title": "RunResult",
+        "type": "object"
+      },
+      "RunSummary": {
+        "properties": {
+          "agent_version_id": {
+            "title": "Agent Version Id",
+            "type": "string"
+          },
+          "cohort_version_id": {
+            "title": "Cohort Version Id",
+            "type": "string"
+          },
+          "collected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collected At"
+          },
+          "estimated_cost_usd": {
+            "title": "Estimated Cost Usd",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "submit_started_at": {
+            "format": "date-time",
+            "title": "Submit Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "run_id",
+          "cohort_version_id",
+          "agent_version_id",
+          "estimated_cost_usd",
+          "submit_started_at",
+          "collected_at",
+          "result"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
+      "Spend": {
+        "properties": {
+          "accounted_usd": {
+            "title": "Accounted Usd",
+            "type": "string"
+          },
+          "budget_usd": {
+            "title": "Budget Usd",
+            "type": "string"
+          },
+          "recorded_usd": {
+            "title": "Recorded Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recorded_usd",
+          "accounted_usd",
+          "budget_usd"
+        ],
+        "title": "Spend",
+        "type": "object"
+      },
+      "StartLoop-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Version"
+          },
+          "allow_live_tools": {
+            "default": false,
+            "title": "Allow Live Tools",
+            "type": "boolean"
+          },
+          "allowed_changes": {
+            "items": {
+              "enum": [
+                "system_prompt",
+                "model"
+              ],
+              "type": "string"
+            },
+            "title": "Allowed Changes",
+            "type": "array"
+          },
+          "allowed_models": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Allowed Models",
+            "type": "array"
+          },
+          "budget_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Budget Usd"
+          },
+          "cohort_version_id": {
+            "minLength": 1,
+            "title": "Cohort Version Id",
+            "type": "string"
+          },
+          "control_estimate_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Estimate Usd"
+          },
+          "control_model": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Model"
+          },
+          "control_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Prompt"
+          },
+          "evaluators": {
+            "items": {
+              "$ref": "#/components/schemas/Evaluator"
+            },
+            "title": "Evaluators",
+            "type": "array"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "max_runs": {
+            "title": "Max Runs",
+            "type": "integer"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "required_consecutive_greens": {
+            "title": "Required Consecutive Greens",
+            "type": "integer"
+          },
+          "tool_policy": {
+            "$ref": "#/components/schemas/ToolPolicy"
+          }
+        },
+        "required": [
+          "name",
+          "cohort_version_id",
+          "evaluators",
+          "tool_policy",
+          "allowed_changes",
+          "allowed_models",
+          "required_consecutive_greens",
+          "max_runs",
+          "budget_usd"
+        ],
+        "title": "StartLoop",
+        "type": "object"
+      },
+      "StartLoop-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Version"
+          },
+          "allow_live_tools": {
+            "default": false,
+            "title": "Allow Live Tools",
+            "type": "boolean"
+          },
+          "allowed_changes": {
+            "items": {
+              "enum": [
+                "system_prompt",
+                "model"
+              ],
+              "type": "string"
+            },
+            "title": "Allowed Changes",
+            "type": "array"
+          },
+          "allowed_models": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Allowed Models",
+            "type": "array"
+          },
+          "budget_usd": {
+            "title": "Budget Usd",
+            "type": "string"
+          },
+          "cohort_version_id": {
+            "minLength": 1,
+            "title": "Cohort Version Id",
+            "type": "string"
+          },
+          "control_estimate_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Estimate Usd"
+          },
+          "control_model": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Model"
+          },
+          "control_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Prompt"
+          },
+          "evaluators": {
+            "items": {
+              "$ref": "#/components/schemas/Evaluator"
+            },
+            "title": "Evaluators",
+            "type": "array"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "max_runs": {
+            "title": "Max Runs",
+            "type": "integer"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "required_consecutive_greens": {
+            "title": "Required Consecutive Greens",
+            "type": "integer"
+          },
+          "tool_policy": {
+            "$ref": "#/components/schemas/ToolPolicy"
+          }
+        },
+        "required": [
+          "name",
+          "cohort_version_id",
+          "evaluators",
+          "tool_policy",
+          "allowed_changes",
+          "allowed_models",
+          "required_consecutive_greens",
+          "max_runs",
+          "budget_usd"
+        ],
+        "title": "StartLoop",
+        "type": "object"
+      },
+      "ToolPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/ReplayPolicy"
+          },
+          "tools": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReplayPolicy"
+            },
+            "title": "Tools",
+            "type": "object"
+          }
+        },
+        "required": [
+          "default"
+        ],
+        "title": "ToolPolicy",
+        "type": "object"
+      },
+      "WinningChange": {
+        "properties": {
+          "change": {
+            "title": "Change",
+            "type": "string"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "integer"
+          },
+          "experiment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment Id"
+          },
+          "override": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "enum": [
+                "system_prompt",
+                "model"
+              ]
+            },
+            "title": "Override",
+            "type": "object"
+          }
+        },
+        "required": [
+          "experiment",
+          "experiment_id",
+          "override",
+          "change"
+        ],
+        "title": "WinningChange",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "CsrfToken": {
+        "description": "The csrf_token of the Kitaru login answer. Kitaru checks it on every request.",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "type": "apiKey"
+      },
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "SessionCookie": {
+        "description": "The dashboard session cookie of Kitaru. A deployment can change the name with EVALVE_SESSION_COOKIE_NAME, and an empty name turns this way to sign in off.",
+        "in": "cookie",
+        "name": "evalve_session",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Evalve backend",
+    "version": "0.2.2"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/evalve/health": {
+      "get": {
+        "description": "Unauthenticated. Says whether the backend can reach its database, and which build is running.\n\nA deployment reads `image` to confirm that the exact image it asked for is the one serving.",
+        "operationId": "health_evalve_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/evalve/v1/loops": {
+      "get": {
+        "description": "List Loops across the deployment, newest first.\n\nThe list reads the Loop store only. It makes no Kitaru call apart from the identity check, and\nit does not move a Loop.",
+        "operationId": "list_loops_evalve_v1_loops_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "running",
+                    "completed",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Filter by the Loop owner's Kitaru account ID.",
+            "in": "query",
+            "name": "owner_account_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by the Loop owner's Kitaru account ID.",
+              "title": "Owner Account Id"
+            }
+          },
+          {
+            "description": "Filter by the Kitaru agent ID of the Loop.",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by the Kitaru agent ID of the Loop.",
+              "title": "Agent Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "List Loops",
+        "tags": [
+          "Loops"
+        ]
+      },
+      "post": {
+        "description": "Validate setup and start the Control Experiment. Repeat safely with the same key.",
+        "operationId": "start_loop_evalve_v1_loops_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartLoop-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopDetail"
+                }
+              }
+            },
+            "description": "Start request replayed"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Start Loop",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/loops/{loop_id}": {
+      "get": {
+        "description": "Read saved status. The owner can also advance a running Loop.",
+        "operationId": "loop_status_evalve_v1_loops__loop_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "title": "Loop Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Loop Status",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/loops/{loop_id}/cancel": {
+      "post": {
+        "description": "Cancel a Loop that belongs to the caller. A terminal Loop stays terminal.",
+        "operationId": "cancel_loop_evalve_v1_loops__loop_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "title": "Loop Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Cancel Loop",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/loops/{loop_id}/experiments": {
+      "post": {
+        "description": "Accept one proposed change and start the Experiment's first Run.",
+        "operationId": "propose_experiment_evalve_v1_loops__loop_id__experiments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "title": "Loop Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeExperiment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Propose Experiment",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/loops/{loop_id}/experiments/{experiment}/runs/{run}": {
+      "get": {
+        "description": "Read the evidence collected for one Run.",
+        "operationId": "run_evidence_evalve_v1_loops__loop_id__experiments__experiment__runs__run__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "title": "Loop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "experiment",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Experiment",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Run",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Run Evidence",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/loops/{loop_id}/report": {
+      "get": {
+        "description": "Read the final outcome and winning change after a Loop ends.",
+        "operationId": "final_report_evalve_v1_loops__loop_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "title": "Loop Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Final Report",
+        "tags": [
+          "Loops"
+        ]
+      }
+    },
+    "/evalve/v1/me": {
+      "get": {
+        "description": "The Kitaru account that the caller's credential belongs to.",
+        "operationId": "me_evalve_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "CsrfToken": [],
+            "SessionCookie": []
+          }
+        ],
+        "summary": "Me"
+      }
+    }
+  }
+}
