@@ -1,16 +1,17 @@
-// How evalve reads a Loop from Kitaru. The source of truth is the kitaru-loop
-// skill (github.com/alyssa43/loop-skills); see docs/loop-contract.md.
+// How the dashboard reads a Skill Loop from Kitaru: a Loop that a loop skill
+// ran on a Teammate's machine, with no state on the Evalve backend. The
+// dashboard shows it read-only; see docs/loop-contract.md.
 //
-// - A loop is the set of experiments named `<prefix>-round-0`, `-round-1`, …
+// - A Skill Loop is the set of experiments named `<prefix>-round-0`, `-round-1`, …
 //   (the skill's own naming; it finds its state by these names too).
-// - Round 0 is the baseline audit. Each later round makes one change, stored
+// - Round 0 is the control experiment. Each later round makes one change, stored
 //   as the experiment's override.
 // - The loop's rules live in the skill's kitaru-loop.json. The skill copies
-//   them into round 0's description as one line, `Loop settings: {json}`, so
-//   the dashboard can apply the same gate.
+//   them into round 0's description as one line, `Loop settings: {json}`.
 // The UI calls a round an "experiment", and the first round the "control experiment".
 // The code calls a round a `lap`.
 import type { Experiment, ExperimentRun } from "../api/client";
+import type { LoopOutcome } from "./loopStatus";
 
 export type ChangeField = "system_prompt" | "model" | "model_params";
 
@@ -104,45 +105,11 @@ export function parseSettings(description: string | null | undefined): LoopSetti
   }
 }
 
-export type LoopOutcome =
-  | { kind: "running" }
-  | { kind: "completed"; passed: boolean; winnerLap: number | null; title: string; detail: string }
-  | { kind: "canceled" }
-  | { kind: "stopped" }
-  | { kind: "failed" };
-
-type CompletedLoop = Extract<LoopOutcome, { kind: "completed" }>;
-type KnownLoop = { baselineExperimentId?: string; settings?: LoopSettings; outcome: CompletedLoop };
-
-// The archived reports record the outcome of demo loops that predate server metadata.
-const KNOWN_LOOPS: Record<string, KnownLoop> = {
-  "day-30-refunds": {
-    settings: {
-      name: "Day-30 refunds",
-      criteria: { trials_per_round: 5, k: 3, screen_first: true, per_case_floor: "allow_one_miss", cohort_target_mean_pass_k: 0.9, no_regression: true, confirmation_round: true, max_rounds: 4, budget_usd: 1.0, plateau_patience: 2 },
-      allowed_changes: ["system_prompt", "model"],
-      allowed_models: ["gpt-4.1-mini", "gpt-4.1", "gpt-5-mini"],
-      gate_evaluators: ["support-desk-action-correct"],
-    },
-    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "It met every check across 5 runs, then met them again on 5 fresh runs." },
-  },
-  "support-desk-demo": {
-    baselineExperimentId: "01a1c733-f326-70af-af44-7e9bc55cb10a",
-    outcome: { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "All 20 cases passed in two consecutive runs." },
-  },
-};
-
-export function knownLegacyLoop(slug: string, baselineExperimentId: string | undefined): KnownLoop | undefined {
-  const known = KNOWN_LOOPS[slug];
-  return known?.baselineExperimentId && known.baselineExperimentId !== baselineExperimentId ? undefined : known;
-}
-
 type EvalveResult =
   | { status: "running" }
   | { status: "stop_success"; winnerLap: number }
   | { status: "stop_attempt_cap" | "stop_budget"; reason: string | null };
 
-type PublishedRun = { experimentId: string; runId: string };
 // The setup of a loop, as the runner writes it in the loop settings line of
 // the control experiment (`description` in its loop.py). A field is null when
 // the line does not carry it in the shape that the runner writes.
@@ -157,23 +124,10 @@ export type EvalveSetup = {
   maxAttempts: number | null; // the cap on the total number of runs
   budgetUsd: string | null; // a decimal string, such as "5.00"
 };
-type EvalveLoop = { requiredGreens: number; setup: EvalveSetup; result: EvalveResult | null; publishedRuns: PublishedRun[] };
+type EvalveLoop = { requiredGreens: number; setup: EvalveSetup; result: EvalveResult | null };
 
 const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
 const textList = (value: unknown): string[] | null => (Array.isArray(value) && value.every((x) => typeof x === "string") ? value : null);
-
-function parsePublishedRuns(laps: unknown): PublishedRun[] {
-  if (!Array.isArray(laps)) return [];
-  return laps.flatMap((lap: unknown) => {
-    if (!lap || typeof lap !== "object" || !("experiment_id" in lap) || !("runs" in lap)) return [];
-    const experimentId = lap.experiment_id;
-    if (typeof experimentId !== "string" || !Array.isArray(lap.runs)) return [];
-    return lap.runs.flatMap((run: unknown) => {
-      if (!run || typeof run !== "object" || !("run_id" in run) || typeof run.run_id !== "string") return [];
-      return [{ experimentId, runId: run.run_id }];
-    });
-  });
-}
 
 function descriptionRecord(description: string, prefix: string): Record<string, unknown> | null {
   const line = description.split("\n").find((line) => line.startsWith(prefix));
@@ -224,63 +178,11 @@ export function parseEvalveLoop(description: string | null | undefined): EvalveL
       budgetUsd: text(settings.budget_usd),
     },
     result,
-    publishedRuns: result && result.status !== "running" ? parsePublishedRuns(saved?.laps) : [],
   };
 }
 
 export function isActiveRun(run: Pick<ExperimentRun, "status">): boolean {
   return run.status === "running" || run.status === "canceling";
-}
-
-// A loop with no stop result and no activity for this time shows Stopped or Failed.
-export const LOOP_QUIET_MS = 10 * 60 * 1000;
-
-// The time of the newest activity of a loop, in ms: the newest of each
-// experiment `created`, each run `created` and each run `ended_at`. Null when no value parses.
-export function lastLoopActivity(
-  experiments: Pick<Experiment, "created">[],
-  runs: Pick<ExperimentRun, "created" | "ended_at">[],
-): number | null {
-  const times = [...experiments.map((e) => e.created), ...runs.flatMap((r) => [r.created, r.ended_at])]
-    .map((value) => (value ? Date.parse(value) : NaN))
-    .filter((time) => !Number.isNaN(time));
-  return times.length ? Math.max(...times) : null;
-}
-
-// The status of the run with the newest `created` time. Undefined with no run.
-export function newestRunStatus(runs: Pick<ExperimentRun, "created" | "status">[]): ExperimentRun["status"] | undefined {
-  return runs.reduce<(typeof runs)[number] | undefined>((newest, run) => (!newest || run.created > newest.created ? run : newest), undefined)?.status;
-}
-
-// `waits`: the experiments and the runs on the page can be old because the
-// sign-in ended. `quiet`: the value that the quiet rule uses.
-export type LoopQuiet = { waits: boolean; quiet: boolean };
-
-// The quiet value of a loop after the sign-in ends. A request that got a 401
-// waits for the new sign-in, and its answer comes some time after that sign-in.
-// Until then the page read no new activity, so the loop keeps the quiet value
-// that it had: a Stopped loop stays Stopped, and a Running loop does not become
-// Stopped or Failed. `prev` is the value of the render before. `fetching`: a
-// request for the experiments or the runs has no answer yet. `quietNow`: the
-// quiet rule on the data of the page.
-export function loopQuiet(prev: LoopQuiet, signInEnded: boolean, fetching: boolean, quietNow: boolean): LoopQuiet {
-  const waits = signInEnded || (prev.waits && fetching);
-  return { waits, quiet: waits ? prev.quiet : quietNow };
-}
-
-export function shouldPollLoopRuns(
-  evalve: EvalveLoop | null,
-  experimentIds: string[],
-  cachedRuns: Pick<ExperimentRun, "id" | "status">[],
-): boolean {
-  if (cachedRuns.some(isActiveRun)) return true;
-  if (!evalve) return false;
-  if (!evalve.result || evalve.result.status === "running") return true;
-
-  // The experiment description and run list update independently. A terminal
-  // description can arrive before the query has seen the final replay.
-  const cachedIds = new Set(cachedRuns.map((run) => run.id));
-  return evalve.publishedRuns.some(({ experimentId, runId }) => experimentIds.includes(experimentId) && !cachedIds.has(runId));
 }
 
 // The name that the UI shows for lap `lap`. Lap 0 is the control experiment,
@@ -297,17 +199,13 @@ export function passedTitle(lap: number): string {
   return lap === 0 ? "The control passed" : `${experimentName(lap)} passed`;
 }
 
-const CONTROL_PASSED_DETAIL = "The agent met the target with no change.";
+export const CONTROL_PASSED_DETAIL = "The agent met the target with no change.";
 export const NO_EXPERIMENT_PASSED = "No experiment passed";
 
-export function resolveLoopOutcome(
-  evalve: EvalveLoop | null,
-  legacyCompletion: CompletedLoop | null,
-  active: boolean,
-  latestStatus: ExperimentRun["status"] | undefined,
-  // The loop has no active run, and no new experiment or run for LOOP_QUIET_MS.
-  quiet: boolean,
-): LoopOutcome {
+// A Skill Loop shows Completed when the `evalve-loop` runner published an end
+// state in its `Evalve result` line. Each other Skill Loop shows "No result":
+// the dashboard calculates no Loop status.
+export function skillLoopOutcome(evalve: EvalveLoop | null): LoopOutcome {
   const result = evalve?.result;
   if (evalve && result?.status === "stop_success") {
     const greens = evalve.requiredGreens;
@@ -324,22 +222,7 @@ export function resolveLoopOutcome(
       detail: result.reason ?? (result.status === "stop_budget" ? "The loop reached its replay budget." : "The loop reached its replay attempt cap."),
     };
   }
-  if (active) return { kind: "running" };
-  if (legacyCompletion) return legacyCompletion;
-  if (latestStatus === "canceled") return { kind: "canceled" };
-  // The runner publishes no result when it exits with an error or when the
-  // coding agent stops. Without this rule, that loop shows Running with no time limit.
-  if (!quiet) return { kind: "running" };
-  return latestStatus === "failed" ? { kind: "failed" } : { kind: "stopped" };
-}
-
-// The word and the dot tone that the UI shows for a loop status.
-export function loopStatusLabel(outcome: LoopOutcome): { status: string; tone: "success" | "warning" | "destructive" | "muted" } {
-  if (outcome.kind === "running") return { status: "Running", tone: "warning" };
-  if (outcome.kind === "completed") return { status: "Completed", tone: outcome.passed ? "success" : "muted" };
-  if (outcome.kind === "failed") return { status: "Failed", tone: "destructive" };
-  if (outcome.kind === "stopped") return { status: "Stopped", tone: "muted" };
-  return { status: "Canceled", tone: "muted" };
+  return { kind: "no_result" };
 }
 
 // The one-line change a lap made: the skill writes "Round N: <change> Hypothesis: …".
@@ -356,4 +239,30 @@ export function lapSummary(description: string | null | undefined, lap: number) 
 export function loopHypothesis(description: string | null | undefined) {
   const m = description?.match(/Hypothesis:\s*([^\n]*)/i);
   return m ? m[1].trim() : "";
+}
+
+// One row of the Loop list for each Skill Loop, newest first. A row makes no
+// request of its own: all of it comes from the experiments of the agent.
+export type SkillLoopRow = {
+  slug: string;
+  hypothesis: string;
+  experimentsTried: number; // the experiments after the control experiment
+  outcome: LoopOutcome;
+  updatedAt: string; // the `created` time of the newest experiment
+};
+
+export function skillLoopRows(experiments: Experiment[]): SkillLoopRow[] {
+  return [...groupLoops(experiments)]
+    .map(([slug, laps]): SkillLoopRow => {
+      const control = laps.find((l) => l.lap === 0)?.experiment;
+      const newest = laps.reduce((a, b) => (Date.parse(b.experiment.created) > Date.parse(a.experiment.created) ? b : a));
+      return {
+        slug,
+        hypothesis: loopHypothesis(control?.description ?? newest.experiment.description),
+        experimentsTried: Math.max(laps.length - 1, 0),
+        outcome: skillLoopOutcome(parseEvalveLoop(control?.description)),
+        updatedAt: newest.experiment.created,
+      };
+    })
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }

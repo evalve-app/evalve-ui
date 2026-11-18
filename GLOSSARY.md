@@ -70,27 +70,32 @@ An ordered collection of Experiments on one agent and one cohort version, which 
 The Kitaru account that started a Loop.
 _Avoid_: owner (alone), creator
 
+**Skill Loop**:
+A Loop that a loop skill ran on a Teammate's machine against Kitaru, with no state on the Evalve backend. The Evalve dashboard shows it read-only.
+_Avoid_: legacy Loop, old Loop, local Loop
+
 **Evalve backend**:
 The Evalve service that owns the Loop rules and keeps the state of each Loop.
 _Avoid_: Loop API, Loop state API, server
 
 **Loop status**:
-The state of a loop that the dashboard shows: Running, Completed, Canceled, Stopped, or Failed. The server keeps no loop status. The dashboard calculates it.
+The state of a Loop that the dashboard shows: Running, Completed, Canceled, or Failed. The Evalve backend keeps the status of a backend Loop, and the dashboard shows it. The dashboard calculates no Loop status. A Skill Loop shows Completed, or "No result", which is not a Loop status.
+_Avoid_: Stopped
+
+**Outcome**:
+The reason for which a Loop reached its end state. The dashboard shows it as text next to the Loop status, for example "Experiment 2 passed", "Budget reached" or "Canceled by the Loop owner". The Evalve backend gives the outcome of a backend Loop.
+_Avoid_: result, end reason
 
 **Completed**:
-The loop reached a stop rule. A completed loop passed or did not pass.
+The Loop reached an end: an Experiment passed, or a limit was reached. A completed Loop passed or did not pass.
 _Avoid_: Finished, stopped, failed (for a loop that did not pass)
 
 **Canceled**:
-A person canceled the newest run of the loop, and the loop has no stop result.
+The Loop owner canceled the Loop.
 _Avoid_: Stopped
 
-**Stopped**:
-The loop has no stop result and no activity for 10 minutes, and its newest run did not fail. The status goes back to Running if a new run starts.
-_Avoid_: Stopped early, canceled, timed out
-
 **Failed**:
-The loop has no stop result and no activity for 10 minutes, and its newest run failed. The status goes back to Running if a new run starts.
+The Loop ended with an error. The backend gives the reason.
 _Avoid_: "Failed" for a loop that did not pass
 
 **Control Experiment**:

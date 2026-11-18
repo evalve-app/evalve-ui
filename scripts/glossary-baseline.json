@@ -28,7 +28,7 @@
     "regression": 1,
     "regressed": 4,
     "baseline session": 1,
-    "trial": 12
+    "trial": 2
   },
   "src/lib/loopSetup.test.ts": {
     "round 0": 2,
@@ -38,21 +38,26 @@
   "src/lib/loopSetup.ts": {
     "gate evaluator": 1
   },
+  "src/lib/loopStatus.test.ts": {
+    "winner": 3
+  },
+  "src/lib/loopStatus.ts": {
+    "winner": 3
+  },
   "src/lib/loops.test.ts": {
-    "winner": 13,
-    "round 0": 5,
+    "winner": 7,
+    "round 0": 8,
     "iteration": 7,
     "trial": 1,
     "gate evaluator": 2
   },
   "src/lib/loops.ts": {
-    "winner": 13,
-    "regression": 3,
-    "baseline audit": 1,
+    "winner": 10,
+    "regression": 2,
     "round 0": 4,
     "iteration": 5,
-    "trial": 3,
-    "gate evaluator": 2
+    "trial": 2,
+    "gate evaluator": 1
   },
   "src/pages/SessionPage.tsx": {
     "baseline session": 2
@@ -82,14 +87,7 @@
     "winner": 2
   },
   "src/pages/agent/loop/LoopListTab.tsx": {
-    "iteration": 1,
-    "trial": 1
-  },
-  "src/pages/agent/loop/LoopPage.tsx": {
-    "winner": 1,
-    "regression": 2,
-    "round 0": 1,
-    "trial": 7
+    "iteration": 1
   },
   "src/pages/agent/loop/NewLoopPage.tsx": {
     "regression": 4,
@@ -100,11 +98,19 @@
   "src/pages/agent/loop/ResultsSection.tsx": {
     "winner": 3
   },
-  "src/pages/agent/loop/useLoop.ts": {
-    "winner": 6,
-    "round 0": 2,
+  "src/pages/agent/loop/SkillLoopPage.tsx": {
+    "winner": 1,
+    "regression": 2,
+    "round 0": 1,
+    "trial": 7
+  },
+  "src/pages/agent/loop/useLoopResults.ts": {
+    "winner": 3,
+    "round 0": 1,
+    "trial": 11
+  },
+  "src/pages/agent/loop/useSkillLoop.ts": {
     "iteration": 1,
-    "trial": 17,
     "gate evaluator": 1
   }
 }

@@ -4,7 +4,7 @@ import { Alert } from "../../../design-system/components";
 import { useLoopMode } from "../../../lib/loopMode";
 import { experimentName } from "../../../lib/loops";
 import { CompareCard, LapGrid, Legend } from "./LapViews";
-import { useLoop } from "./useLoop";
+import { useSkillLoop } from "./useSkillLoop";
 
 // The laps picked on the loop page, side by side: their rows from the grid,
 // then what changed between each lap and the next one picked.
@@ -12,7 +12,7 @@ export function LoopComparePage() {
   const { agentId = "", slug = "" } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const loop = useLoop(agentId, slug, { lapLimit: 200 });
+  const loop = useSkillLoop(agentId, slug, { lapLimit: 200 });
   const wanted = (params.get("laps") ?? "").split(",").map(Number).filter(Number.isFinite);
   const laps = loop.laps.filter((l) => wanted.includes(l.lap));
   const pairs = laps.slice(1).map((b, i) => [laps[i], b] as const);
@@ -21,7 +21,7 @@ export function LoopComparePage() {
   return (
     <div className="tab-page">
       <div className="detail-header">
-        <button type="button" className="back-link" onClick={() => navigate(`/agents/${agentId}/loop/${slug}`)}>
+        <button type="button" className="back-link" onClick={() => navigate(`/agents/${agentId}/skill-loop/${slug}`)}>
           <ArrowLeft size={14} aria-hidden />
           {slug}
         </button>
@@ -51,7 +51,7 @@ export function LoopComparePage() {
               </div>
               <Legend single={single} />
             </div>
-            <LapGrid laps={laps} cases={loop.cases} c={loop.settings?.criteria ?? null} winnerLap={loop.winnerLap} />
+            <LapGrid laps={laps} cases={loop.cases} c={loop.criteria} winnerLap={loop.winnerLap} />
           </div>
           {pairs.map(([a, b]) => (
             <CompareCard key={`${a.lap}-${b.lap}`} a={a} b={b} cases={loop.cases} agentId={agentId} />

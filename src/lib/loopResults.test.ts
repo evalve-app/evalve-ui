@@ -309,7 +309,7 @@ describe("resultsTable", () => {
     confirmationGate: null,
     ...over,
   });
-  const loop = (laps: ResultsLap[], over: Partial<Parameters<typeof resultsTable>[0]> = {}) => ({ laps, cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running" } as const, ...over });
+  const loop = (laps: ResultsLap[], over: Partial<Parameters<typeof resultsTable>[0]> = {}) => ({ laps, cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running", title: null, idleDeadline: null } as const, ...over });
 
   it("has one column for each gating evaluator, and one row for each lap from the baseline lap on", () => {
     const table = resultsTable(loop([lap(0), lap(1)]));
@@ -385,12 +385,12 @@ describe("resultsTable", () => {
     const running = { running: true, runs: [{ status: "running" }], runReplays: [] };
     const completed = { kind: "completed", passed: true, winnerLap: 1, title: "Experiment 1 passed", detail: "" } as const;
     expect(resultsTable(loop([lap(0), lap(1), lap(2, running)], { outcome: completed })).state).toBe("loop finished");
-    expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled" } })).state).toBe("loop canceled");
+    expect(resultsTable(loop([lap(0)], { outcome: { kind: "canceled", title: null } })).state).toBe("loop canceled");
   });
 
-  it("says that a quiet loop with no stop result stopped or failed", () => {
-    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "stopped" } })).state).toBe("loop stopped");
-    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "failed" } })).state).toBe("loop failed");
+  it("says that a loop failed, and that a Skill Loop with no result has no result", () => {
+    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "failed", title: null } })).state).toBe("loop failed");
+    expect(resultsTable(loop([lap(0), lap(1)], { outcome: { kind: "no_result" } })).state).toBe("no result");
   });
 
   it("names the status words that an experiment and a run can show, for the footer", () => {
@@ -635,18 +635,18 @@ describe("finalResults", () => {
     finalLap(1, { "action-correct": [1, 1, 1, 0] }, { runs: [{ started_at: "2026-01-01T10:04:00Z", ended_at: "2026-01-01T10:08:00Z" }] }),
     finalLap(2, { "action-correct": [1, 1, 1, 1] }, { runs: [{ started_at: "2026-01-01T10:09:00Z", ended_at: "2026-01-01T10:12:05Z" }, { started_at: "2026-01-01T10:09:30Z", ended_at: null }] }),
   ];
-  const passedLoop: FinalResultsLoop = { outcome: passed, laps, totalLaps: 3, settings: { criteria } };
+  const passedLoop: FinalResultsLoop = { outcome: passed, laps, totalLaps: 3, criteria };
   // The first two laps in a loop that did not pass: lap 1 has the highest pass rate.
   const notPassedLoop: FinalResultsLoop = {
     outcome: notPassed,
     laps: [laps[0], laps[1], finalLap(2, { "action-correct": [1, 0, 1, 0] })],
     totalLaps: 3,
-    settings: { criteria },
+    criteria,
   };
 
   it("gives no section for a running loop and a canceled loop", () => {
-    expect(finalResults({ ...passedLoop, outcome: { kind: "running" } })).toBeNull();
-    expect(finalResults({ ...passedLoop, outcome: { kind: "canceled" } })).toBeNull();
+    expect(finalResults({ ...passedLoop, outcome: { kind: "running", title: null, idleDeadline: null } })).toBeNull();
+    expect(finalResults({ ...passedLoop, outcome: { kind: "canceled", title: null } })).toBeNull();
   });
 
   it("gives no section for a loop with no laps", () => {
@@ -748,7 +748,7 @@ describe("finalResults", () => {
   });
 
   it("gives no limit on the Laps card for a loop with no settings", () => {
-    expect(finalResults({ ...passedLoop, settings: null })!.cards[2]).toEqual({ label: "Experiments", value: "2", sub: "after the control experiment" });
+    expect(finalResults({ ...passedLoop, criteria: null })!.cards[2]).toEqual({ label: "Experiments", value: "2", sub: "after the control experiment" });
   });
 
   it("says that the agent was not changed, and points to the diff only for a loop that passed", () => {
@@ -842,7 +842,7 @@ describe("a required evaluator that gave no result", () => {
 
   it("gives the case no result in the Results section, and its column no squares", () => {
     const lap = { lap: 0, summary: "", running: false, screenGreen: null, selectionGate: null, confirmationGate: null, runs: [{ status: "completed" }], runReplays: [{ run: 1, status: "completed", unscored: [], evaluatorReplays: lists }] } as unknown as ResultsLap;
-    const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running" } }).rows[0];
+    const row = resultsTable({ laps: [lap], cases, criteria: null, winnerLap: null, cohortCaseCount: 3, outcome: { kind: "running", title: null, idleDeadline: null } }).rows[0];
     expect(row.noResults).toBeNull();
     expect(row.cells.map((c) => c?.evaluator ?? null)).toEqual(["action-correct", null]);
     expect(row.runs.map((r) => r.result.label)).toEqual(["No result"]);

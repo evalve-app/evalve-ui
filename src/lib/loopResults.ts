@@ -7,7 +7,8 @@ import type { CellRun } from "./cellTarget";
 import { diffLines, type DiffLine } from "./diff";
 import { formatLongDuration, formatPercent } from "./format";
 import type { Gate } from "./loopRules";
-import { experimentName, isGating, type Criteria, type LoopOutcome } from "./loops";
+import { experimentName, isGating, type Criteria } from "./loops";
+import type { LoopOutcome } from "./loopStatus";
 
 // One case of the loop's cohort: the id of its recorded session, and its name.
 export type CaseInfo = { id: string; name: string };
@@ -565,10 +566,10 @@ const LEGEND_SEVERAL_RUNS: ResultsTable["legend"] = [
 function loopState(laps: ResultsLap[], outcome: LoopOutcome): string {
   if (outcome.kind === "completed") return "loop finished";
   if (outcome.kind === "canceled") return "loop canceled";
-  if (outcome.kind === "stopped") return "loop stopped";
   if (outcome.kind === "failed") return "loop failed";
   const running = [...laps].reverse().find((l) => l.running);
-  if (!running) return "loop running…";
+  // A Skill Loop with no result has no Loop status, only its runs.
+  if (!running) return outcome.kind === "no_result" ? "no result" : "loop running…";
   return `${running.lap === 0 ? "control experiment" : experimentName(running.lap, "inline")} running…`;
 }
 
@@ -621,7 +622,7 @@ export type FinalResultsLoop = {
     evaluatorReplays: EvaluatorReplays[];
   }[];
   totalLaps: number;
-  settings: { criteria: Pick<Criteria, "max_rounds"> } | null;
+  criteria: Pick<Criteria, "max_rounds"> | null;
 };
 
 export type FinalResults = {
@@ -682,7 +683,7 @@ export function finalResults(loop: FinalResultsLoop): FinalResults | null {
   }
   // When the control experiment is in use, there is no second experiment to name.
   if (inUse && gotWorse != null) cards.push({ label: "Got worse", value: String(gotWorse), sub: inUse.lap.lap === 0 ? `of ${inUse.passes.size} cases` : `of ${inUse.passes.size} cases, control experiment to ${experimentName(inUse.lap.lap, "inline")}` });
-  cards.push({ label: "Experiments", value: String(Math.max(loop.totalLaps - 1, 0)), sub: loop.settings ? `after the control experiment · limit ${loop.settings.criteria.max_rounds}` : "after the control experiment" });
+  cards.push({ label: "Experiments", value: String(Math.max(loop.totalLaps - 1, 0)), sub: loop.criteria ? `after the control experiment · limit ${loop.criteria.max_rounds}` : "after the control experiment" });
 
   return {
     badge: outcome.passed ? { label: "Passed", tone: "success" } : { label: "Not passed", tone: "neutral" },

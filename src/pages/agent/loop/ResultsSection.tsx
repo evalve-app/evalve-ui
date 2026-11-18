@@ -5,15 +5,15 @@ import { Badge } from "../../../design-system/components";
 import { experimentName } from "../../../lib/loops";
 import { resultsTable, type ResultsCell, type ResultsRow } from "../../../lib/loopResults";
 import { LAP_PAGE } from "./LapViews";
-import type { LoopData } from "./useLoop";
+import type { LoopResults } from "./useLoopResults";
 
 // The Results section of the loop page (MVP view): what occurred in each lap.
 // A table with one row for each lap and one column for each gating evaluator.
 // An open row shows one row for each completed run of the lap, in the same columns.
 // The view model (`resultsTable`) makes the rows. This component only lays them out.
-export function ResultsSection({ loop, onShowOlder }: { loop: LoopData; onShowOlder: () => void }) {
+export function ResultsSection({ loop, onShowOlder }: { loop: LoopResults; onShowOlder: () => void }) {
   const [open, setOpen] = useState<number[]>([]); // the laps whose rows are open; all closed at first
-  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.settings?.criteria ?? null, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount, outcome: loop.outcome });
+  const table = resultsTable({ laps: loop.laps, cases: loop.cases, criteria: loop.criteria, winnerLap: loop.winnerLap, cohortCaseCount: loop.cohortCaseCount, outcome: loop.outcome });
   const toggle = (lap: number) => setOpen((cur) => (cur.includes(lap) ? cur.filter((x) => x !== lap) : [...cur, lap]));
   // With no results in any lap, one column holds the text of each lap.
   const resultColumns = table.evaluators.length || 1;

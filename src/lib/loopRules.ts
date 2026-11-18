@@ -1,7 +1,7 @@
-// The kitaru-loop skill's stop rule, ported from scripts/loop.py (gate,
-// round_score, plateau_check, decide) so the dashboard reaches the same
-// verdict as `loop.py next`. Keep the two in step. Not ported: metric
-// thresholds and the budget stop, which need data the dashboard doesn't load.
+// The kitaru-loop skill's scores, ported from scripts/loop.py (gate,
+// round_score) so the result views show the same numbers as the skill. Keep
+// the two in step. The dashboard calculates no Loop status, so the stop rule
+// of the skill (plateau_check, decide) is not here.
 import type { Criteria } from "./loops";
 
 export type CaseStat = { c: number; n: number }; // passes, scored trials
@@ -84,67 +84,4 @@ export function gate(c: Criteria, stats: Stats, baseline: Stats | null): Gate {
   out.belowTarget = (out.meanPassK ?? 0) < c.cohort_target_mean_pass_k;
   out.met = out.belowFloor.length === 0 && out.regressed.length === 0 && !out.belowTarget;
   return out;
-}
-
-// What the rules need to know about one lap.
-export type LapFacts = {
-  lap: number;
-  hasRuns: boolean;
-  screenGreen: boolean | null; // first run: every case passed (null when not screened or not scored yet)
-  firstRunPasses: number | null;
-  selectionTrials: number;
-  confirmationTrials: number;
-  selectionGate: Gate | null;
-  confirmationGate: Gate | null;
-};
-
-export type Decision =
-  | { action: "stop_success"; lap: number; confirmed: boolean }
-  | { action: "stop_plateau"; lap: number; bestLap: number; patience: number }
-  | { action: "stop_cap"; lap: number }
-  | { action: "continue"; lap: number; phase: "trial" | "screen" | "confirmation" }
-  | { action: "start"; lap: number };
-
-function plateau(c: Criteria, laps: LapFacts[]) {
-  const scored = laps.filter((l) => l.lap >= 1 && l.firstRunPasses != null);
-  if (scored.length === 0 || c.plateau_patience == null) return null;
-  const score = (l: LapFacts): [number, number] => [l.firstRunPasses!, l.selectionGate && !l.selectionGate.incomplete ? (l.selectionGate.meanPassK ?? -1) : -1];
-  const better = (a: [number, number], b: [number, number]) => a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]);
-  let best = score(scored[0]);
-  let bestLap = scored[0].lap;
-  let without = 0;
-  for (const l of scored.slice(1)) {
-    const s = score(l);
-    if (better(s, best)) {
-      best = s;
-      bestLap = l.lap;
-      without = 0;
-    } else without += 1;
-  }
-  return without >= c.plateau_patience ? { bestLap, patience: c.plateau_patience } : null;
-}
-
-export function decide(c: Criteria, laps: LapFacts[]): Decision {
-  const n = c.trials_per_round;
-  const base = laps.find((l) => l.lap === 0);
-  if (!base) return { action: "start", lap: 0 };
-  if (base.selectionTrials < n) return { action: "continue", lap: 0, phase: "trial" };
-  const last = laps[laps.length - 1];
-  if (last.lap === 0) return { action: "start", lap: 1 };
-
-  const next = (): Decision => {
-    const p = plateau(c, laps);
-    if (p) return { action: "stop_plateau", lap: last.lap, ...p };
-    if (last.lap + 1 > c.max_rounds) return { action: "stop_cap", lap: last.lap };
-    return { action: "start", lap: last.lap + 1 };
-  };
-
-  if (!last.hasRuns) return { action: "continue", lap: last.lap, phase: c.screen_first ? "screen" : "trial" };
-  if (last.screenGreen === false) return next();
-  if (last.selectionTrials < n) return { action: "continue", lap: last.lap, phase: "trial" };
-  if (!last.selectionGate?.met) return next();
-  if (!c.confirmation_round) return { action: "stop_success", lap: last.lap, confirmed: false };
-  if (last.confirmationTrials < n) return { action: "continue", lap: last.lap, phase: "confirmation" };
-  if (last.confirmationGate?.met) return { action: "stop_success", lap: last.lap, confirmed: true };
-  return next();
 }

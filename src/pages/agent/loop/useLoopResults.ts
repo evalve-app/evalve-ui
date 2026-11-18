@@ -1,21 +1,19 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   getRunAggregates,
   listCohortSessions,
   listExperimentRuns,
-  listExperiments,
   listRunReplays,
-  signInGate,
   type Experiment,
   type ExperimentRun,
 } from "../../../api/client";
 import { cellTarget, type CellRun, type CellTarget, type Phase } from "../../../lib/cellTarget";
 import { caseName } from "../../../lib/experiments";
 import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunCell, type RunReplays } from "../../../lib/loopResults";
-import { caseStats, decide, gate, meanPassK, type Decision, type Gate, type LapFacts, type Stats } from "../../../lib/loopRules";
-import { signInBlocks } from "../../../lib/signInGate";
-import { LOOP_QUIET_MS, NO_EXPERIMENT_PASSED, experimentName, groupLoops, isActiveRun, knownLegacyLoop, lapSummary, lastLoopActivity, loopHypothesis, loopQuiet, newestRunStatus, parseEvalveLoop, parseSettings, passedTitle, resolveLoopOutcome, shouldPollLoopRuns, type EvalveSetup, type LoopOutcome, type LoopSettings } from "../../../lib/loops";
+import { caseStats, gate, meanPassK, type Gate, type Stats } from "../../../lib/loopRules";
+import { isActiveRun, type Criteria } from "../../../lib/loops";
+import type { LoopOutcome } from "../../../lib/loopStatus";
 
 export type { CaseInfo };
 
@@ -43,94 +41,53 @@ export type Lap = {
   confirmationGate: Gate | null;
 };
 
-export type LoopData = {
-  slug: string;
-  settings: LoopSettings | null;
-  isEvalveLoop: boolean;
-  evalveSetup: EvalveSetup | null; // the setup in the loop settings line of the runner; null for a loop that the old skill made
-  cohortVersionId: string | null; // the cohort version of the setup, or of the newest run; null until one of them loads
-  hypothesis: string;
+// What the result sections of a Loop show, the same for each kind of Loop:
+// the experiments and their runs, the cases, and the outcome. The status and
+// the outcome come from the caller. These results only show them.
+export type LoopResults = {
   laps: Lap[];
   totalLaps: number;
   cases: CaseInfo[];
+  cohortVersionId: string | null; // the cohort version of the newest run; null until the runs load
   cohortCaseCount: number | null; // cases in the cohort; null until the cohort loads
   firstCohortCase: CaseInfo | null; // the first case of the cohort, in case order; null until the cohort loads
   cohortFailed: boolean; // the cohort request failed, so the two values above stay null
-  running: boolean;
-  winnerLap: number | null;
-  decision: Decision | null;
+  criteria: Criteria | null; // the rules of the Post-MVP view; null for a Loop with no such rules
   outcome: LoopOutcome;
+  winnerLap: number | null;
   isLoading: boolean;
   error: Error | null;
 };
 
-// Everything the Loop pages need for one loop. A loop is the experiments named
-// `<slug>-round-N` (or `<slug>-iteration-N`, counted from 1). `lapLimit` caps how many of the newest laps are loaded,
-// since every run costs two requests.
-export function useLoop(agentId: string, slug: string, opts: { lapLimit: number }): LoopData {
-  const experiments = useQuery({
-    queryKey: ["experiments", agentId],
-    queryFn: () => listExperiments(agentId),
-    refetchInterval: (q) => {
-      // The runner publishes the result after it collects the settled replay.
-      const baseline = q.state.data?.find((e) => e.name === `${slug}-round-0`);
-      const evalve = parseEvalveLoop(baseline?.description);
-      return evalve && (!evalve.result || evalve.result.status === "running") ? 4000 : false;
-    },
-  });
+// One experiment of a Loop, in lap order. `summary` is the change that it made.
+export type LoopExperiment = { lap: number; experiment: Experiment; summary: string };
 
-  const ordered = useMemo(() => groupLoops(experiments.data ?? []).get(slug) ?? [], [experiments.data, slug]);
-  const round0 = ordered.find((l) => l.lap === 0)?.experiment;
-  const evalve = useMemo(() => parseEvalveLoop(round0?.description), [round0?.description]);
-  const shown = ordered.slice(-opts.lapLimit);
+export type LoopResultsInput = {
+  experiments: LoopExperiment[]; // every experiment of the Loop, in lap order
+  experimentsPending: boolean;
+  experimentsError: Error | null;
+  lapLimit: number; // how many of the newest laps load, since every run costs two requests
+  criteria: Criteria | null;
+  gatingEvaluators: string[] | undefined; // the evaluator names that gate; all binary evaluators when undefined
+  outcome: LoopOutcome;
+};
+
+// The results of the experiments of one Loop, from Kitaru.
+export function useLoopResults({ experiments, experimentsPending, experimentsError, lapLimit, criteria: c, gatingEvaluators: gateNames, outcome }: LoopResultsInput): LoopResults {
+  const shown = experiments.slice(-lapLimit);
   const ids = shown.map((l) => l.experiment.id);
 
   const runs = useQuery({
     queryKey: ["experiment-runs", ids],
     queryFn: () => listExperimentRuns(ids),
     enabled: ids.length > 0,
-    refetchInterval: (q) => (shouldPollLoopRuns(evalve, ids, q.state.data ?? []) ? 4000 : false),
   });
-
-  // The runs of the experiments outside the lap limit. Only the loop status reads
-  // them: a person can start a run on an older experiment, and the status is for the whole loop.
-  const olderIds = ordered.slice(0, -opts.lapLimit).map((l) => l.experiment.id);
-  const olderRuns = useQuery({
-    queryKey: ["experiment-runs", olderIds],
-    queryFn: () => listExperimentRuns(olderIds),
-    enabled: olderIds.length > 0,
-    refetchInterval: (q) => (shouldPollLoopRuns(evalve, olderIds, q.state.data ?? []) ? 4000 : false),
-  });
-  const loopRuns = useMemo(() => [...(runs.data ?? []), ...(olderRuns.data ?? [])], [runs.data, olderRuns.data]);
-
-  // The quiet rule: a loop with no stop result shows Stopped or Failed after
-  // LOOP_QUIET_MS with no activity. The time comes from the browser clock.
-  // A failed runs request is not a loaded one: an active run can exist.
-  const runsLoaded = !experiments.isPending && (ids.length === 0 || runs.isSuccess) && (olderIds.length === 0 || olderRuns.isSuccess);
-  const lastActivity = useMemo(() => lastLoopActivity(ordered.map((l) => l.experiment), loopRuns), [ordered, loopRuns]);
-  const [now, setNow] = useState(() => Date.now());
-  const quietAt = lastActivity == null ? null : lastActivity + LOOP_QUIET_MS;
-  // Not quiet while the runs load: an active run or a newer run can be in the answer.
-  const quietNow = runsLoaded && quietAt != null && now >= quietAt;
-  // After the sign-in ends, a request waits and the runs on the page get old.
-  // The loop keeps its quiet value until the answer comes (see `loopQuiet`).
-  const signInEnded = signInBlocks(useSyncExternalStore(signInGate.subscribe, signInGate.state));
-  const [quietState, setQuietState] = useState({ waits: false, quiet: false });
-  const nextQuiet = loopQuiet(quietState, signInEnded, experiments.isFetching || runs.isFetching || olderRuns.isFetching, quietNow);
-  if (nextQuiet.waits !== quietState.waits || nextQuiet.quiet !== quietState.quiet) setQuietState(nextQuiet);
-  const quiet = nextQuiet.quiet;
-  useEffect(() => {
-    if (quietAt == null || now >= quietAt) return;
-    // The timer changes the row at the end of the quiet time, with no data change.
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(quietAt - Date.now(), 0));
-    return () => clearTimeout(timer);
-  }, [quietAt, now]);
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);
   const aggs = useQueries({ queries: scored.map((r) => ({ queryKey: ["aggregates", r.id, r.status], queryFn: () => getRunAggregates(r.id) })) });
   const reps = useQueries({ queries: scored.map((r) => ({ queryKey: ["replays", r.id, r.status], queryFn: () => listRunReplays(r.id) })) });
 
-  const cohortVersionId = runs.data?.[0]?.cohort_version_id;
+  const cohortVersionId = runs.data?.[0]?.cohort_version_id ?? null;
   const baseline = useQuery({
     queryKey: ["cohort-sessions", cohortVersionId],
     queryFn: () => listCohortSessions(cohortVersionId!),
@@ -142,13 +99,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
   // A failed request for the results of a run. The totals of its experiment are not complete then.
   const resultsError = [...aggs, ...reps].find((q) => q.error)?.error ?? null;
 
-  return useMemo<LoopData>(() => {
-    const legacySettings = parseSettings(round0?.description);
-    const known = evalve || legacySettings ? undefined : knownLegacyLoop(slug, round0?.id);
-    const settings = legacySettings ?? known?.settings ?? null;
-    const c = settings?.criteria ?? null;
-    const gateNames = settings?.gate_evaluators;
-
+  return useMemo<LoopResults>(() => {
     // Per run: did each case pass every required evaluator? Null: the run has no score for the case.
     const runCases = new Map<string, Map<string, boolean | null>>();
     // Per run: the names of the required evaluators.
@@ -168,7 +119,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
     const tally = (list: ExperimentRun[]): Stats => caseStats(list.flatMap((run) => runCases.get(run.id) ?? []));
 
     let baseStats: Stats | null = null;
-    const laps: Lap[] = shown.map(({ experiment, lap }) => {
+    const laps: Lap[] = shown.map(({ experiment, lap, summary }) => {
       const lapRuns = (runs.data ?? []).filter((r) => r.experiment_id === experiment.id).sort((a, b) => a.number - b.number);
       const done = lapRuns.filter((r) => runCases.has(r.id));
       // Phases follow the skill: round 0 is all trials; later rounds are
@@ -187,7 +138,7 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       return {
         lap,
         experiment,
-        summary: lapSummary(experiment.description, lap),
+        summary,
         runs: lapRuns,
         phases,
         running: lapRuns.some(isActiveRun),
@@ -240,58 +191,20 @@ export function useLoop(agentId: string, slug: string, opts: { lapLimit: number 
       l.evaluatorReplays = l.runReplays[0]?.evaluatorReplays ?? [];
     }
 
-    const running = laps.some((l) => l.running);
-    const facts: LapFacts[] = laps.map((l) => ({
-      lap: l.lap,
-      hasRuns: l.runs.length > 0,
-      screenGreen: l.screenGreen,
-      firstRunPasses: l.firstRunPasses,
-      selectionTrials: l.selectionTrials,
-      confirmationTrials: l.confirmationTrials,
-      selectionGate: l.selectionGate,
-      confirmationGate: l.confirmationGate,
-    }));
-    const loading = experiments.isPending || (ids.length > 0 && runs.isPending) || runCases.size < scored.length;
-    const decision = !evalve && c && !loading && laps.length ? decide(c, facts) : null;
-
-    let legacyCompletion = known?.outcome ?? null;
-    if (!legacyCompletion && c && decision?.action === "stop_success")
-      legacyCompletion = {
-        kind: "completed",
-        passed: true,
-        winnerLap: decision.lap,
-        title: passedTitle(decision.lap),
-        detail: `It met every check across ${c.trials_per_round} runs${decision.confirmed ? `, then met them again on ${c.trials_per_round} fresh runs` : ""}.`,
-      };
-    else if (!legacyCompletion && decision?.action === "stop_plateau")
-      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop stopped because ${decision.patience} experiments in a row did no better than ${experimentName(decision.bestLap, "inline")}.` };
-    else if (!legacyCompletion && c && decision?.action === "stop_cap")
-      legacyCompletion = { kind: "completed", passed: false, winnerLap: null, title: NO_EXPERIMENT_PASSED, detail: `The loop ran all ${c.max_rounds} experiments it was allowed after the control.` };
-    // A loop of the skill gets its completion from the run results. Until they
-    // load, the loop is not quiet, so that Stopped does not show before Completed.
-    const completionPending = !evalve && !!c && loading;
-    const outcome = resolveLoopOutcome(evalve, legacyCompletion, loopRuns.some(isActiveRun), newestRunStatus(loopRuns), quiet && !completionPending);
-
     return {
-      slug,
-      settings,
-      isEvalveLoop: !!evalve,
-      evalveSetup: evalve?.setup ?? null,
-      cohortVersionId: evalve?.setup.cohortVersionId ?? cohortVersionId ?? null,
-      hypothesis: loopHypothesis(round0?.description),
       laps,
-      totalLaps: ordered.length,
+      totalLaps: experiments.length,
       cases,
+      cohortVersionId,
       cohortCaseCount: baseline.data?.length ?? null,
       firstCohortCase,
       cohortFailed: baseline.isError,
-      running,
-      winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
-      decision,
+      criteria: c,
       outcome,
-      isLoading: loading,
-      error: (experiments.error ?? runs.error ?? olderRuns.error ?? resultsError) as Error | null,
+      winnerLap: outcome.kind === "completed" ? outcome.winnerLap : null,
+      isLoading: experimentsPending || (ids.length > 0 && runs.isPending) || runCases.size < scored.length,
+      error: (experimentsError ?? runs.error ?? resultsError) as Error | null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiments.data, runs.data, loopRuns, baseline.data, baseline.isError, scored, resultsKey, slug, evalve, quiet]);
+  }, [experiments, experimentsPending, experimentsError, runs.data, runs.isPending, runs.error, baseline.data, baseline.isError, scored, resultsKey, c, gateNames, outcome]);
 }
