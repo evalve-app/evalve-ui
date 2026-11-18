@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backendVersion, budgetLimitText, nameInUse, startedLoop, type ListedLoop } from "./newLoop";
+import { backendVersion, budgetLimitText, liveBackendVersion, nameInUse, startedLoop, type ListedLoop } from "./newLoop";
 
 const loop = (over: Partial<ListedLoop> = {}): ListedLoop => ({ loop_id: "loop-1", slug: "day-30-refunds", agent_id: "agent-1", status: "running", ...over });
 
@@ -19,6 +19,20 @@ describe("backendVersion", () => {
     expect(backendVersion(200, { version: 2 })).toBeNull();
     expect(backendVersion(200, { version: "" })).toBeNull();
     expect(backendVersion(200, { version: '0.2.2" && curl example.com' })).toBeNull();
+  });
+});
+
+describe("liveBackendVersion", () => {
+  it("gives the version of the newest health call", () => {
+    expect(liveBackendVersion("0.2.2", null)).toBe("0.2.2");
+  });
+
+  it("gives null for the version of an older answer when a later call failed", () => {
+    expect(liveBackendVersion("0.2.2", new Error("Could not reach the Evalve backend."))).toBeNull();
+  });
+
+  it("gives null while there is no answer", () => {
+    expect(liveBackendVersion(undefined, null)).toBeNull();
   });
 });
 
@@ -54,6 +68,11 @@ describe("startedLoop", () => {
   it("ignores a Loop of a different agent or with a different name", () => {
     const loops = [loop({ loop_id: "a", agent_id: "agent-2" }), loop({ loop_id: "b", slug: "other" })];
     expect(startedLoop(loops, { ...wanted, seenIds: new Set() })).toBeNull();
+  });
+
+  it("does not open a Loop that started and ended before Approve, when the read at Approve has it", () => {
+    const loops = [loop({ loop_id: "ended-while-editing", status: "completed" })];
+    expect(startedLoop(loops, { ...wanted, seenIds: new Set(["ended-while-editing"]) })).toBeNull();
   });
 
   it("takes only a running Loop when the Loops at Approve are not known", () => {

@@ -10,7 +10,7 @@ import { versionLabel } from "../../../lib/cohorts";
 import { buildEvalveLoopPrompt } from "../../../lib/evalveLoopHandoff";
 import { approveButtons, nextApproveState, type ApproveAction, type ApproveState } from "../../../lib/loopApprove";
 import { cohortVersionText, setupRuleProblems, type SetupValues } from "../../../lib/loopSetup";
-import { budgetLimitText, nameInUse, startedLoop } from "../../../lib/newLoop";
+import { budgetLimitText, liveBackendVersion, nameInUse, startedLoop } from "../../../lib/newLoop";
 import { useCohorts } from "../../../lib/useCohorts";
 import { CHANGE_FIELD_LABELS, slugify } from "../../../lib/loops";
 import { SetupCard } from "./SetupCard";
@@ -61,12 +61,19 @@ export function NewLoopPage() {
   // a later answer cannot put a value in the handoff prompt that the person did not approve.
   // - `evaluators`: the evaluators with their versions.
   // - `version`: the backend version.
-  // - `seenIds`: the Loops of the viewer. Null when the page did not have them (see `startedLoop`).
+  // - `seenIds`: the Loops of the viewer, from a read at the time of Approve. Null until that read answers, and
+  //   when it fails (see `startedLoop`).
   const [approved, setApproved] = useState<{ evaluators: typeof liveEvaluators; version: string; seenIds: ReadonlySet<string> | null } | null>(null);
   const agentEvaluators = approved?.evaluators ?? liveEvaluators;
-  const backendVersion = approved?.version ?? health.data;
-  // The number of the current approval. Cancel starts a new number, and a clipboard write of an older number changes nothing.
+  // Before Approve, only the answer of the newest health call counts: the query keeps the version of an older
+  // answer when a later call fails.
+  const liveVersion = liveBackendVersion(health.data, health.error);
+  const backendVersion = approved?.version ?? liveVersion;
+  // The number of the current approval. Cancel starts a new number, and a clipboard write or a read of the Loops
+  // of an older number changes nothing.
   const approvalNumber = useRef(0);
+  // True after the copy of the current approval: from then on, the coding agent can have started the Loop.
+  const copiedRef = useRef(false);
   const recent = useMemo(() => [...(experiments.data ?? [])].sort((a, b) => b.created.localeCompare(a.created))[0], [experiments.data]);
 
   const [name, setName] = useState("");
@@ -143,14 +150,26 @@ export function NewLoopPage() {
   const hasProblem = problems.length > 0;
   const buttons = approveButtons(approval, { hasProblem });
   const act = (action: ApproveAction) => setApproval((state) => nextApproveState(state, action, { hasProblem }));
-  function approve() {
-    if (!buttons.approve || !health.data) return;
-    setApproved({ evaluators: liveEvaluators, version: health.data, seenIds: myLoops.data ? new Set(myLoops.data.map((loop) => loop.loop_id)) : null });
+  async function approve() {
+    if (!buttons.approve || !liveVersion) return;
+    const mine = approvalNumber.current;
+    copiedRef.current = false;
+    // The Loops of the viewer are not known yet: the list that the page has can be old (see `startedLoop`).
+    setApproved({ evaluators: liveEvaluators, version: liveVersion, seenIds: null });
     act("approve");
+    // Reads the Loops of the viewer at the time of Approve. A Loop that started and ended while the person
+    // filled the setup is then a Loop that the page saw, not the new Loop.
+    if (!myId) return;
+    const fresh = await myLoops.refetch();
+    // Not after Cancel. Not after the copy: the answer could have the new Loop, and the page would not open it.
+    if (mine !== approvalNumber.current || copiedRef.current || fresh.error || !fresh.data) return;
+    const seenIds = new Set(fresh.data.map((loop) => loop.loop_id));
+    setApproved((current) => current && { ...current, seenIds });
   }
   function cancelApproval() {
     if (!buttons.cancel) return;
     approvalNumber.current += 1;
+    copiedRef.current = false;
     setApproved(null);
     setCopyFailed(false);
     act("cancel");
@@ -169,6 +188,7 @@ export function NewLoopPage() {
     if (mine !== approvalNumber.current) return;
     setCopyFailed(failed);
     if (failed) return;
+    copiedRef.current = true;
     act("copyPrompt");
   }
 
@@ -181,6 +201,14 @@ export function NewLoopPage() {
   }, [startedId, navigate, agentId]);
   // The page cannot see the new Loop while one of these requests fails.
   const waitError = me.error ?? myLoops.error;
+
+  // "Get prompt" shows the handoff prompt below the setup card, which can be below the window. The page moves to it.
+  const handoffPanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (approval !== "prompt") return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    handoffPanel.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  }, [approval]);
 
   const budgetLimit = budgetLimitText(budget);
   const builtInToggle =
@@ -240,7 +268,7 @@ export function NewLoopPage() {
         </div>
       </div>
       {approval === "prompt" || approval === "copied" ? (
-        <div className="panel handoff-panel">
+        <div className="panel handoff-panel" ref={handoffPanel}>
           <div className={approval === "copied" ? "handoff-body dimmed" : "handoff-body"}>
             <h2 className="section-title">Start the Loop</h2>
             <ol className="steps">

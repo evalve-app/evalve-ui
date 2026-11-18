@@ -19,6 +19,14 @@ export function backendVersion(status: number, body: unknown): string | null {
   return typeof version === "string" && VERSION.test(version) ? version : null;
 }
 
+// The backend version that the page can use before Approve, from the query of
+// `GET /evalve/health`. The query keeps the version of an older answer when a
+// later call fails, so a version with an error is not usable: the backend can
+// be down now.
+export function liveBackendVersion(version: string | undefined, error: unknown): string | null {
+  return version && !error ? version : null;
+}
+
 // Is a Loop with this name running on the agent? The backend refuses a second
 // one with 409. This check is advice only: the 409 is the rule. The agent id
 // is compared here too, because a backend before 0.2.2 ignores the `agent_id`
@@ -31,8 +39,9 @@ export function nameInUse(loops: ListedLoop[], agentId: string, slug: string): b
 // Loops of the viewer. Null while there is none.
 // - `seenIds`: the Loops of the viewer at the time of Approve. A Loop that
 //   ended frees its name, so an older Loop can have the same name, and it is
-//   not the new Loop. Null when the page did not have the Loops at that time:
-//   then only a running Loop is the new Loop.
+//   not the new Loop. The page reads them again at Approve, because a Loop can
+//   start and end while the person fills the setup. Null when that read has no
+//   answer: then only a running Loop is the new Loop.
 export function startedLoop<L extends ListedLoop>(loops: L[], { agentId, slug, seenIds }: { agentId: string; slug: string; seenIds: ReadonlySet<string> | null }): L | null {
   if (!slug) return null;
   return loops.find((loop) => loop.agent_id === agentId && loop.slug === slug && (seenIds ? !seenIds.has(loop.loop_id) : loop.status === "running")) ?? null;
