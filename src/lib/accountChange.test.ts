@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { watchAccountChange } from "./accountChange";
+import { stopAccountReads, watchAccountChange } from "./accountChange";
 
 const account = (id: string) => ({ id, name: id });
 
@@ -67,5 +67,46 @@ describe("watchAccountChange", () => {
     queryClient.setQueryData(["me"], account("b"));
 
     expect(queryClient.getQueryData(["agents"])).toEqual(["agent of a"]);
+  });
+});
+
+describe("stopAccountReads", () => {
+  // A read of the account that left for account "a", and that the test answers later.
+  function lateRead(queryClient: QueryClient) {
+    let answer: (value: { id: string; name: string }) => void = () => undefined;
+    const read = queryClient
+      .fetchQuery({ queryKey: ["me"], queryFn: () => new Promise<{ id: string; name: string }>((resolve) => (answer = resolve)) })
+      .catch(() => undefined);
+    return { answer: () => answer(account("a")), read };
+  }
+
+  it("keeps the account of the new sign-in, when a read from before the sign-in gets its answer late", async () => {
+    const { queryClient } = client();
+    queryClient.setQueryData(["me"], account("a"));
+    queryClient.setQueryData(["agents"], ["agent of a"]);
+    const late = lateRead(queryClient);
+
+    await stopAccountReads(queryClient);
+    queryClient.setQueryData(["me"], account("b"));
+    queryClient.setQueryData(["agents"], ["agent of b"]);
+    late.answer();
+    await late.read;
+
+    expect(queryClient.getQueryData(["me"])).toEqual(account("b"));
+    expect(queryClient.getQueryData(["agents"])).toEqual(["agent of b"]);
+  });
+
+  it("keeps the account that the page shows, while no new account is written", async () => {
+    const { queryClient } = client();
+    queryClient.setQueryData(["me"], account("a"));
+    const late = lateRead(queryClient);
+
+    await stopAccountReads(queryClient);
+
+    expect(queryClient.getQueryData(["me"])).toEqual(account("a"));
+    expect(queryClient.getQueryState(["me"])?.status).toBe("success");
+    expect(queryClient.getQueryState(["me"])?.fetchStatus).toBe("idle");
+    late.answer();
+    await late.read;
   });
 });

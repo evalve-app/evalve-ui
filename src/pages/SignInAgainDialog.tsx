@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentAccount, signInGate, UnauthorizedError } from "../api/client";
 import { Button } from "../design-system/components";
+import { stopAccountReads } from "../lib/accountChange";
 import { signInBlocks } from "../lib/signInGate";
 import { useSignOut } from "../lib/useSignOut";
 import { SignInForm } from "./SignInForm";
@@ -43,6 +44,9 @@ export function SignInAgainDialog() {
   // with no data and no state of the account before: src/lib/accountChange.ts
   // removes the data at the write below, and the key on <main> starts the page again.
   async function onSignedIn() {
+    // A read of the account that left before this sign-in can return the
+    // account before. Its late answer must not replace the account below.
+    await stopAccountReads(queryClient);
     const account = await getCurrentAccount().catch((error: unknown) => {
       if (error instanceof UnauthorizedError) throw new Error("The server did not keep the sign-in. Sign in again.");
       throw error;

@@ -20,3 +20,11 @@ export function watchAccountChange(queryClient: QueryClient): () => void {
     accountId = id;
   });
 }
+
+// Stops each read of the account that is in progress, so that its answer does
+// not go to the page. Call this after a sign-in, before the write of the new
+// account: a read that left before the sign-in can return the account before,
+// and its late answer would replace the new account.
+export function stopAccountReads(queryClient: QueryClient): Promise<void> {
+  return queryClient.cancelQueries({ queryKey: [ACCOUNT_KEY] });
+}
