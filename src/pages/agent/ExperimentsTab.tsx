@@ -7,7 +7,7 @@ import { Alert, Button, StatusLabel } from "../../design-system/components";
 import { formatCost, formatDateTime, formatPercent, formatRelative } from "../../lib/format";
 import { changedFields } from "../../lib/experiments";
 import { controlExperiments, experimentLabels, labelMatches } from "../../lib/experimentLabels";
-import { CONTROL_DELTA_TITLE, controlDeltaPoints, REPLAY_COST_TITLE, runOverview, runsByExperiment, runsSpread, totalCost, type RunOverview } from "../../lib/experimentRuns";
+import { CONTROL_DELTA_TITLE, controlDeltaPoints, COST_NOT_LOADED, REPLAY_COST_TITLE, REPLAY_LIMIT_TITLE, replayLimitNote, runOverview, runsByExperiment, runsSpread, totalCost, type RunOverview } from "../../lib/experimentRuns";
 import { runStatus } from "../../lib/loopResults";
 import { runAggregatesQuery } from "../../lib/runAggregatesQuery";
 import { runCostQuery } from "../../lib/runCostQuery";
@@ -59,11 +59,14 @@ export function ExperimentsTab() {
   });
 
   const costQueries = useQueries({ queries: finishedRuns.map((run) => runCostQuery(run)) });
-  // Per run: its cost, or null when it has none. No entry while the cost loads.
+  // Per run: its cost, or null when it has none. No entry while the cost
+  // loads, and none when the request failed: `costFailed` has that run.
   const costs = new Map<string, string | null>();
+  const costFailed = new Set<string>();
   finishedRuns.forEach((run, i) => {
     const q = costQueries[i];
-    if (q && !q.isPending) costs.set(run.id, q.data ?? null);
+    if (q?.isSuccess) costs.set(run.id, q.data ?? null);
+    else if (q?.isError) costFailed.add(run.id);
   });
 
   const preview = useEmptyPreview().on;
@@ -148,6 +151,8 @@ export function ExperimentsTab() {
                 // The range needs each finished run. With one still loading, it would be wrong.
                 const spread = loaded.length === finished.length ? runsSpread(loaded) : null;
                 const costsLoaded = finished.every((r) => costs.has(r.id));
+                // A total without one of the runs would be too low, so one failed request means no total.
+                const costMissing = finished.some((r) => costFailed.has(r.id));
                 const isOpen = experimentRuns.length > 0 && open.includes(e.id);
                 const runsId = `experiment-${e.id}-runs`;
                 return (
@@ -169,12 +174,24 @@ export function ExperimentsTab() {
                         {latest && latest.status === "running" ? (
                           <span className="muted">Running…</span>
                         ) : latestOverview ? (
-                          <LatestResult overview={latestOverview} spread={spread} controlPoints={controlPoints} />
+                          <LatestResult overview={latestOverview} spread={spread} controlPoints={controlPoints} limitNote={replayLimitNote(latestOverview.cases, latest?.progress.total)} />
                         ) : (
                           <span className="muted">{latest ? "…" : "Never run"}</span>
                         )}
                       </td>
-                      <td className="num mono">{finished.length === 0 ? "—" : costsLoaded ? formatCost(totalCost(finished.map((r) => costs.get(r.id)))) : <span className="muted">…</span>}</td>
+                      <td className="num mono">
+                        {finished.length === 0 ? (
+                          "—"
+                        ) : costMissing ? (
+                          <span className="muted" title="The cost of a run could not be loaded, so there is no total">
+                            {COST_NOT_LOADED}
+                          </span>
+                        ) : costsLoaded ? (
+                          formatCost(totalCost(finished.map((r) => costs.get(r.id))))
+                        ) : (
+                          <span className="muted">…</span>
+                        )}
+                      </td>
                       <td className="muted" title={formatDateTime(latest?.created)}>
                         {latest ? formatRelative(latest.created) : "—"}
                       </td>
@@ -225,8 +242,9 @@ export function ExperimentsTab() {
 // change from the recorded sessions, then the evaluators that failed a case,
 // then the range of the runs when the experiment has several. A run with no
 // scores for the recorded sessions shows `controlPoints` when it has them:
-// the change from the control experiment of its Loop.
-function LatestResult({ overview, spread, controlPoints }: { overview: RunOverview; spread: string | null; controlPoints: number | null }) {
+// the change from the control experiment of its Loop. `limitNote` is for a
+// run with more replays than the dashboard loads.
+function LatestResult({ overview, spread, controlPoints, limitNote }: { overview: RunOverview; spread: string | null; controlPoints: number | null; limitNote: string | null }) {
   if (overview.rate == null) return <span className="muted">No results</span>;
   return (
     <div className="latest-result stacked" title={overview.summary ?? undefined}>
@@ -242,6 +260,11 @@ function LatestResult({ overview, spread, controlPoints }: { overview: RunOvervi
       </span>
       <span className="muted small">{overview.failures}</span>
       {spread ? <span className="muted small">{spread}</span> : null}
+      {limitNote ? (
+        <span className="muted small" title={REPLAY_LIMIT_TITLE}>
+          {limitNote}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -253,6 +276,7 @@ function RunLine({ experimentId, run }: { experimentId: string; run: ExperimentR
   const aggregates = useQuery({ ...runAggregatesQuery(run), enabled: !running });
   const cost = useQuery({ ...runCostQuery(run), enabled: !running });
   const overview = aggregates.data ? runOverview(aggregates.data) : null;
+  const limitNote = overview ? replayLimitNote(overview.cases, run.progress.total) : null;
   const when = run.ended_at ?? run.created;
   return (
     <div className="exp-run">
@@ -264,7 +288,7 @@ function RunLine({ experimentId, run }: { experimentId: string; run: ExperimentR
         {formatRelative(when)}
       </span>
       <span className="mono muted" title={REPLAY_COST_TITLE}>
-        {running || cost.isPending ? "…" : formatCost(cost.data)}
+        {running || cost.isPending ? "…" : cost.isError ? COST_NOT_LOADED : formatCost(cost.data)}
       </span>
       <div className="exp-run-results">
         {running ? (
@@ -278,6 +302,11 @@ function RunLine({ experimentId, run }: { experimentId: string; run: ExperimentR
         ) : (
           <>
             {overview.summary ? <span className="exp-run-overall">{overview.summary}</span> : null}
+            {limitNote ? (
+              <span className="muted" title={REPLAY_LIMIT_TITLE}>
+                {limitNote}
+              </span>
+            ) : null}
             <span className="exp-run-evaluators">
               {overview.evaluators.map((ev) => (
                 <span key={ev.aggregate.name} className="exp-run-evaluator">

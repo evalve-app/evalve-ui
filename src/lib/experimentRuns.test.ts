@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EvalAggregate } from "../api/client";
-import { controlDeltaPoints, runCost, runOverview, runsByExperiment, runsSpread, totalCost, type RunOverview } from "./experimentRuns";
+import { controlDeltaPoints, replayLimitNote, runCost, runOverview, runsByExperiment, runsSpread, totalCost, type RunOverview } from "./experimentRuns";
 
 const value = (passed: boolean | null) => ({ passed });
 // One evaluator's results, one entry for each case. `recorded` gives the
@@ -59,6 +59,19 @@ describe("runOverview", () => {
     it("names three evaluators and counts the others", () => {
       const overview = runOverview(["a", "b", "c", "d", "e"].map((name) => aggregate(name, [false])));
       expect(overview.failures).toBe("Failed: a 1 · b 1 · c 1 · +2 more");
+    });
+
+    it("names an evaluator with no evaluator name by its evaluation name, and counts its failures", () => {
+      const unnamed = { ...aggregate("scope-handling", [false, false]), evaluator_name: null } as EvalAggregate;
+      const overview = runOverview([unnamed]);
+      expect(overview).toMatchObject({ passed: 0, rate: 0, failures: "Failed: scope_handling 2" });
+      expect(runOverview([unnamed, aggregate("asked-for-less", [true, true])]).failures).toBe("Failed: scope_handling 2");
+    });
+
+    it("counts only the evaluators that give a pass/fail result", () => {
+      // A metric sets no passed flag: it does not gate, and it is not in the count of evaluators.
+      const metric = aggregate("answer-length", [null, null]);
+      expect(runOverview([aggregate("scope-handling", [true, true]), metric]).failures).toBe("Passed the evaluator");
     });
 
     it("says that each evaluator passed when no case failed", () => {
@@ -154,5 +167,19 @@ describe("controlDeltaPoints", () => {
     expect(controlDeltaPoints(run(94, 103), undefined)).toBeNull();
     expect(controlDeltaPoints(run(94, 103), run(0, 0))).toBeNull();
     expect(controlDeltaPoints(run(0, 0), run(81, 103))).toBeNull();
+  });
+});
+
+describe("replayLimitNote", () => {
+  it("is null for a run within the limit", () => {
+    expect(replayLimitNote(103, 103)).toBeNull();
+    expect(replayLimitNote(999, 999)).toBeNull();
+    expect(replayLimitNote(101, 103)).toBeNull();
+    expect(replayLimitNote(50, undefined)).toBeNull();
+  });
+
+  it("says how many of the cases the results are of, for a run over the limit", () => {
+    expect(replayLimitNote(999, 1000)).toBe("Results for 999 of 1,000 cases");
+    expect(replayLimitNote(1049, 2500)).toBe("Results for 1,049 of 2,500 cases");
   });
 });

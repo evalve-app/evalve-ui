@@ -19,7 +19,7 @@ import { useCohorts } from "../../lib/useCohorts";
 import { formatCost, formatDateTime, formatDuration, formatRelative, formatTime } from "../../lib/format";
 import { baselineNote, caseName, changedFields, passCounts, toolPolicyLabel } from "../../lib/experiments";
 import { runStatus } from "../../lib/loopResults";
-import { REPLAY_COST_TITLE } from "../../lib/experimentRuns";
+import { COST_NOT_LOADED, REPLAY_COST_TITLE, REPLAY_LIMIT_TITLE, replayLimitNote, runOverview } from "../../lib/experimentRuns";
 import { runAggregatesQuery } from "../../lib/runAggregatesQuery";
 import { runCostQuery } from "../../lib/runCostQuery";
 import { Delta } from "./PassRate";
@@ -178,6 +178,8 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
   }, [replays.data, baseline.data]);
 
   const p = run.progress;
+  // For a run with more replays than the dashboard loads.
+  const limitNote = !running && aggregates.data ? replayLimitNote(runOverview(aggregates.data).cases, p?.total) : null;
 
   return (
     <div className="run-detail-stack">
@@ -205,7 +207,7 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
           </div>
           <div>
             <dt title={REPLAY_COST_TITLE}>Replay cost</dt>
-            <dd className="mono">{running || cost.isPending ? "…" : formatCost(cost.data)}</dd>
+            <dd className="mono">{running || cost.isPending ? "…" : cost.isError ? COST_NOT_LOADED : formatCost(cost.data)}</dd>
           </div>
         </dl>
       </div>
@@ -221,6 +223,11 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
         </div>
       ) : null}
 
+      {limitNote ? (
+        <Alert title={limitNote}>
+          <p>{REPLAY_LIMIT_TITLE}</p>
+        </Alert>
+      ) : null}
       {aggregates.data?.map((agg) => <ResultCard key={agg.name} aggregate={agg} cases={cases} />)}
       {aggregates.isError ? (
         <Alert variant="destructive" title="Could not load results">

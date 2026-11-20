@@ -6,6 +6,8 @@ import { aggregatesCut, completeAggregates, sessionsToLoad } from "./runAggregat
 // call lists only the 50 most recent replays. For a run with more, also
 // GET /api/v1/replays?filter={experiment_run_id eq} and
 // GET /api/v1/evaluations?filter={session_id in} for the replays it left out.
+// Limit: RUN_REPLAY_LIMIT replays of a run (see listRunReplays). A run with
+// more has results for that many, and replayLimitNote says so on the page.
 export async function loadRunAggregates(runId: string) {
   const aggregates = await getRunAggregates(runId);
   if (!aggregatesCut(aggregates)) return aggregates;

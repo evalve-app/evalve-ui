@@ -1,7 +1,7 @@
 // What the experiment list shows of a run: one result for the whole run, and
 // where it failed. The list shows it for the latest run of each experiment,
 // and for each run of an experiment that the person opens.
-import type { EvalAggregate } from "../api/client";
+import { RUN_REPLAY_LIMIT, type EvalAggregate } from "../api/client";
 import { hasBaseline, passCounts } from "./experiments";
 import { formatPercent } from "./format";
 import { runResults } from "./loopResults";
@@ -42,14 +42,17 @@ function recordedPassed(aggregates: EvalAggregate[]): number {
 // runAggregatesQuery.ts). A case passed when it passed every evaluator that
 // gives a pass/fail result. A case with no result from one of them is not a pass.
 export function runOverview(aggregates: EvalAggregate[]): RunOverview {
-  const { passed: byCase, evaluators: required } = runResults(aggregates, [], undefined);
+  const { passed: byCase } = runResults(aggregates, [], undefined);
   const cases = byCase.size;
   const passed = [...byCase.values()].filter((v) => v === true).length;
   const evaluators = aggregates.map((a) => ({ name: evaluatorName(a), aggregate: a }));
   if (cases === 0) return { cases, passed, rate: null, summary: null, deltaPoints: null, failures: null, evaluators };
 
-  const failing = aggregates
-    .filter((a) => required.includes(evaluatorName(a)))
+  // The evaluators that decide if a case passed: each one that gave a
+  // pass/fail result, as in runResults with no gating list. The test is on
+  // the results, not on a name, because an evaluator can have no name.
+  const required = aggregates.filter((a) => (a.replays ?? []).some((r) => r.result?.passed != null));
+  const failing = required
     .map((a) => ({ name: evaluatorName(a), failed: passCounts(a).total - passCounts(a).resultPassed }))
     .filter((e) => e.failed > 0)
     .sort((a, b) => b.failed - a.failed || a.name.localeCompare(b.name));
@@ -103,6 +106,20 @@ export const CONTROL_DELTA_TITLE = "Change in pass rate from the control experim
 
 // What the "Replay cost" label means, for a tooltip.
 export const REPLAY_COST_TITLE = "The cost that Kitaru recorded for the replayed sessions: the model calls of the agent. The model calls of the evaluators are not in it.";
+
+// What a page says of a run that has more replays than the dashboard loads
+// (RUN_REPLAY_LIMIT): "Results for 999 of 2,000 cases". `cases` is the number
+// of cases that the results list, and `replaysOfRun` is the total in the
+// progress of the run. Null for a run within the limit.
+export function replayLimitNote(cases: number, replaysOfRun: number | null | undefined): string | null {
+  const total = replaysOfRun ?? 0;
+  return total > RUN_REPLAY_LIMIT && total > cases ? `Results for ${cases.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} cases` : null;
+}
+export const REPLAY_LIMIT_TITLE = `The dashboard loads ${RUN_REPLAY_LIMIT} replays of a run at most. The cases that passed every evaluator are counted on those. The count of each evaluator is of the whole run.`;
+
+// What shows in the place of a cost when the request for it failed. A
+// failed request is not a run with no cost.
+export const COST_NOT_LOADED = "Could not load";
 
 // The cost of the result sessions of one run, as a decimal string in US
 // dollars. Null when no session has a cost.

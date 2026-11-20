@@ -213,9 +213,17 @@ export async function getRunAggregates(runId: string) {
   );
 }
 
+// The most replays of one run that the dashboard loads. Each replay over the
+// first 50 also costs calls for its evaluations, and the experiment list
+// loads each run, so the number has a limit.
+export const RUN_REPLAY_LIMIT = 999;
+
+// The replays of one run. Limit: RUN_REPLAY_LIMIT, in one call. A run with
+// more gives that many of them, and the pages say that the results are of
+// those (replayLimitNote in lib/experimentRuns.ts).
 export async function listRunReplays(runId: string) {
   const filter: Filter = { field: "experiment_run_id", op: "eq", value: runId };
-  const page = await unwrap(api.GET("/api/v1/replays", { params: { query: { filter: filter as never, size: 1000 } } }), "replays");
+  const page = await unwrap(api.GET("/api/v1/replays", { params: { query: { filter: filter as never, size: RUN_REPLAY_LIMIT } } }), "replays");
   return page.items;
 }
 
