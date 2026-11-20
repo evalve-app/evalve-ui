@@ -354,8 +354,10 @@ export type ResultsCell = {
   tone: "success" | "destructive" | "neutral"; // neutral: the count is not final
 };
 
-// The server gives evaluation values for only the 50 most recent replays of a
-// run. A cohort with more cases gets 50 squares, and the count says so.
+// The aggregates call of the server lists evaluation values for only the 50
+// most recent replays of a run. loadRunAggregates (runAggregatesQuery.ts)
+// completes the list. If a list is still cut, the cohort gets 50 squares, and
+// the count says so.
 const REPLAY_LIMIT = 50;
 
 function countText(squares: ResultsSquare[], passedWord: string, cohortCaseCount: number | null): Pick<ResultsCell, "count" | "tone"> {

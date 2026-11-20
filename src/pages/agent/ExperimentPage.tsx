@@ -4,7 +4,6 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { ArrowLeft, ChevronDown, Play, RefreshCw } from "lucide-react";
 import {
   getExperiment,
-  getRunAggregates,
   listAgentVersions,
   listCohortSessions,
   listExperimentRuns,
@@ -17,9 +16,12 @@ import {
 import { Alert, Button, StatusLabel } from "../../design-system/components";
 import { versionLabel } from "../../lib/cohorts";
 import { useCohorts } from "../../lib/useCohorts";
-import { formatDateTime, formatDuration, formatRelative, formatTime } from "../../lib/format";
-import { caseName, changedFields, passCounts, toolPolicyLabel } from "../../lib/experiments";
+import { formatCost, formatDateTime, formatDuration, formatRelative, formatTime } from "../../lib/format";
+import { baselineNote, caseName, changedFields, passCounts, toolPolicyLabel } from "../../lib/experiments";
 import { runStatus } from "../../lib/loopResults";
+import { REPLAY_COST_TITLE } from "../../lib/experimentRuns";
+import { runAggregatesQuery } from "../../lib/runAggregatesQuery";
+import { runCostQuery } from "../../lib/runCostQuery";
 import { Delta } from "./PassRate";
 
 // One experiment: its runs on the left, the selected run's results on the right.
@@ -40,13 +42,9 @@ export function ExperimentPage() {
   const runNumber = Number(params.get("run")) || runs.data?.[0]?.number;
   const run = runs.data?.find((r) => r.number === runNumber) ?? runs.data?.[0];
 
-  // Pass counts for every run in the list (one small request per run).
+  // Pass counts for every run in the list. The selected run shares its entry.
   const runAggs = useQueries({
-    queries: (runs.data ?? []).map((r) => ({
-      queryKey: ["aggregates", r.id, r.status],
-      queryFn: () => getRunAggregates(r.id),
-      enabled: r.status !== "running",
-    })),
+    queries: (runs.data ?? []).map((r) => ({ ...runAggregatesQuery(r), enabled: r.status !== "running" })),
   });
 
   const rerun = useMutation({
@@ -160,11 +158,8 @@ function Description({ text }: { text: string }) {
 
 function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: Experiment; run: ExperimentRun }) {
   const running = run.status === "running";
-  const aggregates = useQuery({
-    queryKey: ["aggregates", run.id, run.status],
-    queryFn: () => getRunAggregates(run.id),
-    refetchInterval: running ? 3000 : false,
-  });
+  const aggregates = useQuery({ ...runAggregatesQuery(run), refetchInterval: running ? 3000 : false });
+  const cost = useQuery({ ...runCostQuery(run), enabled: !running });
   const replays = useQuery({ queryKey: ["replays", run.id, run.status], queryFn: () => listRunReplays(run.id) });
   const baseline = useQuery({ queryKey: ["cohort-sessions", run.cohort_version_id], queryFn: () => listCohortSessions(run.cohort_version_id) });
   const cohortLabel = useCohortVersionLabel(agentId, run.cohort_version_id);
@@ -207,6 +202,10 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
           <div>
             <dt>{running ? "Started" : "Finished"}</dt>
             <dd>{formatDateTime(running ? run.started_at : run.ended_at)}</dd>
+          </div>
+          <div>
+            <dt title={REPLAY_COST_TITLE}>Replay cost</dt>
+            <dd className="mono">{running || cost.isPending ? "…" : formatCost(cost.data)}</dd>
           </div>
         </dl>
       </div>
@@ -251,6 +250,10 @@ function GridCell({ passed, sessionId, title }: { passed: boolean; sessionId: st
 function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map<string, CaseRef> }) {
   const { total, resultPassed, baselinePassed } = passCounts(aggregate);
   const delta = total ? Math.round(((resultPassed - baselinePassed) / total) * 100) : 0;
+  // A run with no scores for the recorded sessions has nothing to compare
+  // with: the card shows this run alone, and the note in the place of the changes.
+  const note = baselineNote(aggregate);
+  const compared = note == null;
 
   const rows = (aggregate.replays ?? [])
     .map((r) => ({
@@ -278,16 +281,20 @@ function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map
       </div>
 
       <div className="score-pair">
-        <div className="score">
-          <span className="score-label">Baseline</span>
-          <span className="score-value mono">
-            {baselinePassed}/{total}
-          </span>
-          <span className="score-pct">{total ? Math.round((baselinePassed / total) * 100) : 0}% passed</span>
-        </div>
-        <span className="score-arrow" aria-hidden>
-          →
-        </span>
+        {compared ? (
+          <>
+            <div className="score">
+              <span className="score-label">Baseline</span>
+              <span className="score-value mono">
+                {baselinePassed}/{total}
+              </span>
+              <span className="score-pct">{total ? Math.round((baselinePassed / total) * 100) : 0}% passed</span>
+            </div>
+            <span className="score-arrow" aria-hidden>
+              →
+            </span>
+          </>
+        ) : null}
         <div className="score">
           <span className="score-label">This run</span>
           <span className="score-value mono">
@@ -295,21 +302,22 @@ function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map
           </span>
           <span className="score-pct">{total ? Math.round((resultPassed / total) * 100) : 0}% passed</span>
         </div>
-        <Delta points={delta} />
+        {compared ? <Delta points={delta} /> : null}
       </div>
 
-      <div className="case-grid" role="table" aria-label="Pass or fail per case, baseline and this run">
+      <div className={compared ? "case-grid" : "case-grid single"} role="table" aria-label={compared ? "Pass or fail per case, baseline and this run" : "Pass or fail per case in this run"}>
         <div className="case-grid-labels" role="rowgroup">
-          <span>Baseline</span>
+          {compared ? <span>Baseline</span> : null}
           <span>This run</span>
         </div>
         <div className="case-grid-cols">
           {rows.map((r) => {
-            const change = !r.before && r.after ? "fixed" : r.before && !r.after ? "regressed" : "";
+            const change = !compared ? "" : !r.before && r.after ? "fixed" : r.before && !r.after ? "regressed" : "";
+            const after = r.after ? "Pass" : "Fail";
             return (
-              <div key={r.id} className={`case-col ${change}`} title={`${r.name}: ${r.before ? "Pass" : "Fail"} → ${r.after ? "Pass" : "Fail"}`}>
-                <GridCell passed={r.before} sessionId={r.recordedSessionId} title={`${r.name}, recorded session: ${r.before ? "Pass" : "Fail"}`} />
-                <GridCell passed={r.after} sessionId={r.resultSessionId} title={`${r.name}, this run: ${r.after ? "Pass" : "Fail"}`} />
+              <div key={r.id} className={`case-col ${change}`} title={compared ? `${r.name}: ${r.before ? "Pass" : "Fail"} → ${after}` : `${r.name}: ${after}`}>
+                {compared ? <GridCell passed={r.before} sessionId={r.recordedSessionId} title={`${r.name}, recorded session: ${r.before ? "Pass" : "Fail"}`} /> : null}
+                <GridCell passed={r.after} sessionId={r.resultSessionId} title={`${r.name}, this run: ${after}`} />
                 <span className="case-num">{r.name.replace(/^\D+-?/, "") || r.name}</span>
               </div>
             );
@@ -317,11 +325,18 @@ function ResultCard({ aggregate, cases }: { aggregate: EvalAggregate; cases: Map
         </div>
       </div>
 
-      <div className="change-summary">
-        <ChangeGroup tone="success" label="Fixed" items={fixed.map((r) => r.name)} empty="None" />
-        <ChangeGroup tone="destructive" label="Regressed" items={regressed.map((r) => r.name)} empty="None" />
-        <ChangeGroup tone="muted" label="Still failing" items={stillFailing.map((r) => r.name)} empty="None" />
-      </div>
+      {compared ? (
+        <div className="change-summary">
+          <ChangeGroup tone="success" label="Fixed" items={fixed.map((r) => r.name)} empty="None" />
+          <ChangeGroup tone="destructive" label="Regressed" items={regressed.map((r) => r.name)} empty="None" />
+          <ChangeGroup tone="muted" label="Still failing" items={stillFailing.map((r) => r.name)} empty="None" />
+        </div>
+      ) : (
+        <div className="change-summary">
+          <p className="change-note">{note}</p>
+          <ChangeGroup tone="destructive" label="Failed" items={rows.filter((r) => !r.after).map((r) => r.name)} empty="None" />
+        </div>
+      )}
     </div>
   );
 }

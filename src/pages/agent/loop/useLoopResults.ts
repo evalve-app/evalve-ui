@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  getRunAggregates,
   listCohortSessions,
   listExperimentRuns,
   listRunReplays,
@@ -14,6 +13,7 @@ import { runReplays, runResults, type CaseInfo, type EvaluatorReplays, type RunC
 import { caseStats, gate, meanPassK, type Gate, type Stats } from "../../../lib/loopRules";
 import { isActiveRun, type Criteria } from "../../../lib/loops";
 import type { LoopOutcome } from "../../../lib/loopStatus";
+import { runAggregatesQuery } from "../../../lib/runAggregatesQuery";
 
 export type { CaseInfo };
 
@@ -86,7 +86,7 @@ export function useLoopResults({ experiments, experimentsPending, experimentsErr
   });
 
   const scored = useMemo(() => (runs.data ?? []).filter((r) => r.status === "completed"), [runs.data]);
-  const aggs = useQueries({ queries: scored.map((r) => ({ queryKey: ["aggregates", r.id, r.status], queryFn: () => getRunAggregates(r.id) })) });
+  const aggs = useQueries({ queries: scored.map((r) => runAggregatesQuery(r)) });
   const reps = useQueries({ queries: scored.map((r) => ({ queryKey: ["replays", r.id, r.status], queryFn: () => listRunReplays(r.id) })) });
 
   const cohortVersionId = runs.data?.[0]?.cohort_version_id ?? null;

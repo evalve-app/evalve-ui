@@ -219,6 +219,21 @@ export async function listRunReplays(runId: string) {
   return page.items;
 }
 
+// The result sessions of one run, without their steps. Each one has the cost
+// that Kitaru recorded for it. Follows next_cursor to the end.
+export async function listRunSessions(runId: string) {
+  const filter: Filter = { field: "experiment_run_id", op: "eq", value: runId };
+  const first = await unwrap(api.GET("/api/v1/sessions", { params: { query: { filter: filter as never, size: 1000 } } }), "the sessions of the run");
+  const sessions = [...first.items];
+  let cursor = first.next_cursor ?? undefined;
+  while (cursor) {
+    const page = await unwrap(api.GET("/api/v1/sessions", { params: { query: { filter: filter as never, size: 1000, cursor } } }), "the sessions of the run");
+    sessions.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  }
+  return sessions;
+}
+
 // Every cohort of an agent. The server sends 50 for each call, so this
 // follows next_cursor to the end.
 export async function listCohorts(agentId: string) {
@@ -325,6 +340,23 @@ export async function listSessionEvaluations(sessionId: string) {
   const filter: Filter = { field: "session_id", op: "eq", value: sessionId };
   const page = await unwrap(api.GET("/api/v1/evaluations", { params: { query: { filter: filter as never, size: 200 } } }), "verdicts");
   return page.items;
+}
+
+// Every evaluation of the given sessions. The server takes at most 100 ids in
+// one "in" filter, so this asks for 50 sessions in each call, and follows
+// next_cursor to the end for each of them.
+export async function listEvaluationsOfSessions(sessionIds: string[]): Promise<SessionEvaluation[]> {
+  const evaluations: SessionEvaluation[] = [];
+  for (let start = 0; start < sessionIds.length; start += 50) {
+    const filter: Filter = { field: "session_id", op: "in", value: sessionIds.slice(start, start + 50) };
+    let cursor: string | undefined;
+    do {
+      const page = await unwrap(api.GET("/api/v1/evaluations", { params: { query: { filter: filter as never, size: 1000, cursor } } }), "verdicts");
+      evaluations.push(...page.items);
+      cursor = page.next_cursor ?? undefined;
+    } while (cursor);
+  }
+  return evaluations;
 }
 
 // The replay that produced this session, or null for a recorded or imported one.
