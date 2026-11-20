@@ -177,6 +177,17 @@ h1, h2, p { margin: 0; }
 .chip-row { display: inline-flex; flex-wrap: wrap; gap: var(--spacing-1); }
 .change-chip { padding: 1px var(--spacing-2); border: 1px solid var(--border-border); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-secondary-foreground); font-size: 12px; line-height: 18px; white-space: nowrap; }
 .latest-result { display: flex; align-items: center; gap: var(--spacing-2); }
+.latest-result.stacked { flex-direction: column; align-items: flex-start; gap: 2px; }
+.latest-rate { min-width: 44px; font: 500 13px/18px var(--font-sans); }
+/* The runs of an experiment, which "Show runs" opens under its row */
+.data-table .exp-runs-row td { padding: var(--spacing-3) var(--spacing-5) var(--spacing-4); background: var(--surface-background); white-space: normal; }
+.exp-runs { display: flex; flex-direction: column; gap: var(--spacing-3); }
+.exp-run { display: grid; grid-template-columns: 72px 120px 110px 76px minmax(0, 1fr); gap: var(--spacing-1) var(--spacing-4); align-items: start; font-size: 13px; line-height: 20px; }
+.exp-run-name { font-weight: 500; }
+.exp-run-results { display: flex; flex-direction: column; gap: var(--spacing-1); min-width: 0; }
+.exp-run-overall { font-weight: 500; }
+.exp-run-evaluators { display: flex; flex-wrap: wrap; gap: var(--spacing-1) var(--spacing-6); }
+.exp-run-evaluator { display: inline-flex; align-items: center; gap: var(--spacing-2); }
 .small { font-size: 12px; }
 
 /* Pass rate: bar, count, change from baseline */
@@ -255,6 +266,10 @@ h1, h2, p { margin: 0; }
 .case-col.fixed { background: var(--tint-success-15); box-shadow: inset 0 0 0 1px var(--status-success); }
 .case-col.regressed { background: var(--tint-destructive-15); box-shadow: inset 0 0 0 1px var(--status-destructive); }
 .case-col .cell-hit { padding: 0; }
+/* A run with no scores for the recorded sessions: the this-run row only */
+.case-grid.single .case-grid-labels { grid-template-rows: 20px; }
+.case-grid.single .case-col { grid-template-rows: 20px 16px; }
+.change-note { margin: 0; color: var(--text-muted-foreground); font-size: 13px; line-height: 20px; }
 .cell { width: 22px; height: 20px; border-radius: 3px; }
 .cell.pass { background: var(--tint-success-30); }
 .cell.fail { background: var(--status-destructive); }
@@ -439,7 +454,8 @@ a.rs-square:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .results-table td.rs-run-name { padding-left: var(--spacing-8); color: var(--text-muted-foreground); white-space: nowrap; }
 .rs-backend-name { display: inline-flex; flex-direction: column; gap: var(--spacing-0-5); white-space: normal; }
 .rs-kind { color: var(--text-muted-foreground); font: 500 11px/14px var(--font-sans); letter-spacing: 0.02em; text-transform: uppercase; }
-.rs-change { max-width: 280px; color: var(--text-muted-foreground); font: 400 12px/16px var(--font-sans); }
+/* A long change shows three lines. The title of the element has all of it. */
+.rs-change { display: -webkit-box; max-width: 280px; overflow: hidden; color: var(--text-muted-foreground); font: 400 12px/16px var(--font-sans); overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
 .rs-verdicts { display: flex; flex-wrap: wrap; gap: var(--spacing-1); margin-top: var(--spacing-1-5); }
 .rs-run-detail { max-width: 280px; margin: var(--spacing-1) 0 0; color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }
 .rs-footer { margin: var(--spacing-3) 0 0; color: var(--text-muted-foreground); font-size: 12px; line-height: 16px; }

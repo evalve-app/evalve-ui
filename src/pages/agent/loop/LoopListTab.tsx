@@ -102,7 +102,9 @@ export function LoopListTab() {
                 <th className="fill">Loop</th>
                 <th>Loop owner</th>
                 <th>Status</th>
-                <th className="num">Experiments tried</th>
+                <th className="num" title="The experiments after the control experiment. Each one tests one change.">
+                  Changes tried
+                </th>
                 <th>Spend</th>
                 <th>Updated</th>
               </tr>

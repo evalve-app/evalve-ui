@@ -179,7 +179,9 @@ function BackendExperimentName({ agentId, name, backend }: { agentId: string; na
           {backend.kind}
         </span>
       ) : null}
-      <span className="rs-change">{backend.change}</span>
+      <span className="rs-change" title={backend.change}>
+        {backend.change}
+      </span>
     </div>
   );
 }
