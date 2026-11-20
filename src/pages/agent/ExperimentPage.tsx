@@ -179,7 +179,7 @@ function RunDetail({ agentId, experiment, run }: { agentId: string; experiment: 
 
   const p = run.progress;
   // For a run with more replays than the dashboard loads.
-  const limitNote = !running && aggregates.data ? replayLimitNote(runOverview(aggregates.data).cases, p?.total) : null;
+  const limitNote = !running && aggregates.data ? replayLimitNote(runOverview(aggregates.data).listed, p?.total) : null;
 
   return (
     <div className="run-detail-stack">

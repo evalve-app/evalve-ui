@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EvalAggregate, Replay, SessionEvaluation } from "../api/client";
-import { aggregatesCut, completeAggregates, sessionsToLoad } from "./runAggregates";
+import { aggregatesCut, casesListed, completeAggregates, sessionsToLoad } from "./runAggregates";
 
 const stats = (count: number, passRate: number | null = null) => ({ count, pass_rate: passRate });
 const value = (passed: boolean) => ({ score: passed ? 1 : 0, value: passed ? "pass" : "fail", passed, min_score: null, max_score: null, target_score: null });
@@ -30,6 +30,20 @@ describe("aggregatesCut", () => {
   it("is false for a run with no result yet", () => {
     expect(aggregatesCut([aggregate({})])).toBe(false);
     expect(aggregatesCut([])).toBe(false);
+  });
+});
+
+describe("casesListed", () => {
+  const entry = (id: string) => ({ replay_id: id, baseline: null, result: null });
+
+  it("counts each replay once, across the aggregates", () => {
+    expect(casesListed([aggregate({ replays: [entry("p1"), entry("p2")] }), aggregate({ replays: [entry("p2"), entry("p3")] })])).toBe(3);
+  });
+
+  it("counts a replay with no result, and is 0 with no replays", () => {
+    expect(casesListed([aggregate({ replays: [entry("p1")] })])).toBe(1);
+    expect(casesListed([aggregate({})])).toBe(0);
+    expect(casesListed([])).toBe(0);
   });
 });
 

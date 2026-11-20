@@ -5,11 +5,15 @@ import { RUN_REPLAY_LIMIT, type EvalAggregate } from "../api/client";
 import { hasBaseline, passCounts } from "./experiments";
 import { formatPercent } from "./format";
 import { runResults } from "./loopResults";
+import { casesListed } from "./runAggregates";
 
 export type RunOverview = {
   // The cases of the run, and how many passed every evaluator.
   cases: number;
   passed: number;
+  // The replays that the results list. More than `cases` when a replay has no
+  // pass/fail result, as with an evaluator that gives a score only.
+  listed: number;
   // The pass rate of the run (see "Pass rate" in GLOSSARY.md). Null with no case.
   rate: number | null;
   // "95 of 103 cases passed every evaluator · 92.2%". Null with no case.
@@ -46,7 +50,8 @@ export function runOverview(aggregates: EvalAggregate[]): RunOverview {
   const cases = byCase.size;
   const passed = [...byCase.values()].filter((v) => v === true).length;
   const evaluators = aggregates.map((a) => ({ name: evaluatorName(a), aggregate: a }));
-  if (cases === 0) return { cases, passed, rate: null, summary: null, deltaPoints: null, failures: null, evaluators };
+  const listed = casesListed(aggregates);
+  if (cases === 0) return { cases, passed, listed, rate: null, summary: null, deltaPoints: null, failures: null, evaluators };
 
   // The evaluators that decide if a case passed: each one that gave a
   // pass/fail result, as in runResults with no gating list. The test is on
@@ -69,6 +74,7 @@ export function runOverview(aggregates: EvalAggregate[]): RunOverview {
   return {
     cases,
     passed,
+    listed,
     rate: passed / cases,
     summary: `${passed} of ${cases} ${cases === 1 ? "case" : "cases"} passed every evaluator · ${formatPercent(passed / cases)}`,
     deltaPoints: aggregates.some(hasBaseline) ? Math.round(((passed - recordedPassed(aggregates)) / cases) * 100) : null,
@@ -108,12 +114,13 @@ export const CONTROL_DELTA_TITLE = "Change in pass rate from the control experim
 export const REPLAY_COST_TITLE = "The cost that Kitaru recorded for the replayed sessions: the model calls of the agent. The model calls of the evaluators are not in it.";
 
 // What a page says of a run that has more replays than the dashboard loads
-// (RUN_REPLAY_LIMIT): "Results for 999 of 2,000 cases". `cases` is the number
-// of cases that the results list, and `replaysOfRun` is the total in the
-// progress of the run. Null for a run within the limit.
-export function replayLimitNote(cases: number, replaysOfRun: number | null | undefined): string | null {
+// (RUN_REPLAY_LIMIT): "Results for 999 of 2,000 cases". `listed` is the
+// number of replays that the results list (RunOverview.listed), not the cases
+// with a pass/fail result. `replaysOfRun` is the total in the progress of the
+// run. Null for a run within the limit.
+export function replayLimitNote(listed: number, replaysOfRun: number | null | undefined): string | null {
   const total = replaysOfRun ?? 0;
-  return total > RUN_REPLAY_LIMIT && total > cases ? `Results for ${cases.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} cases` : null;
+  return total > RUN_REPLAY_LIMIT && total > listed ? `Results for ${listed.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} cases` : null;
 }
 export const REPLAY_LIMIT_TITLE = `The dashboard loads ${RUN_REPLAY_LIMIT} replays of a run at most. The cases that passed every evaluator are counted on those. The count of each evaluator is of the whole run.`;
 

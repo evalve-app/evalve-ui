@@ -33,7 +33,7 @@ describe("runOverview", () => {
 
   it("has no result when no evaluator gave a pass/fail result", () => {
     expect(runOverview([aggregate("scope-handling", [])])).toMatchObject({ cases: 0, rate: null, summary: null, failures: null, deltaPoints: null });
-    expect(runOverview([])).toEqual({ cases: 0, passed: 0, rate: null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
+    expect(runOverview([])).toEqual({ cases: 0, passed: 0, listed: 0, rate: null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
   });
 
   it("names an evaluator by its evaluation name when the server gives no evaluator name", () => {
@@ -66,6 +66,12 @@ describe("runOverview", () => {
       const overview = runOverview([unnamed]);
       expect(overview).toMatchObject({ passed: 0, rate: 0, failures: "Failed: scope_handling 2" });
       expect(runOverview([unnamed, aggregate("asked-for-less", [true, true])]).failures).toBe("Failed: scope_handling 2");
+    });
+
+    it("counts the replays that the results list, with or without a pass/fail result", () => {
+      // Scores only: no case has a pass/fail result, and the two replays are still listed.
+      expect(runOverview([aggregate("answer-length", [null, null])])).toMatchObject({ cases: 0, listed: 2, rate: null });
+      expect(runOverview([aggregate("scope-handling", [true, false, true])])).toMatchObject({ cases: 3, listed: 3 });
     });
 
     it("counts only the evaluators that give a pass/fail result", () => {
@@ -113,7 +119,7 @@ describe("runsByExperiment", () => {
 });
 
 describe("runsSpread", () => {
-  const run = (passed: number, cases: number): RunOverview => ({ cases, passed, rate: cases ? passed / cases : null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
+  const run = (passed: number, cases: number): RunOverview => ({ cases, passed, listed: cases, rate: cases ? passed / cases : null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
 
   it("gives the range of the cases that passed", () => {
     expect(runsSpread([run(95, 103), run(96, 103), run(95, 103)])).toBe("3 runs: 95 to 96 of 103 passed");
@@ -155,7 +161,7 @@ describe("runCost and totalCost", () => {
 });
 
 describe("controlDeltaPoints", () => {
-  const run = (passed: number, cases: number): RunOverview => ({ cases, passed, rate: cases ? passed / cases : null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
+  const run = (passed: number, cases: number): RunOverview => ({ cases, passed, listed: cases, rate: cases ? passed / cases : null, summary: null, deltaPoints: null, failures: null, evaluators: [] });
 
   it("is the change in pass rate from the control experiment, in points", () => {
     expect(controlDeltaPoints(run(94, 103), run(81, 103))).toBe(13);

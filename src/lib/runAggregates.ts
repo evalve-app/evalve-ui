@@ -14,6 +14,12 @@ export function aggregatesCut(aggregates: EvalAggregate[]): boolean {
   return aggregates.some((a) => (a.replays?.length ?? 0) < Math.max(a.result?.count ?? 0, a.baseline?.count ?? 0));
 }
 
+// The number of replays that the aggregates list: the cases that a page has
+// results for, with or without a pass/fail result.
+export function casesListed(aggregates: EvalAggregate[]): number {
+  return new Set(aggregates.flatMap((a) => (a.replays ?? []).map((r) => r.replay_id))).size;
+}
+
 // True when the run has scores for the recorded sessions. A Run that a Loop
 // starts has none: the Evalve backend does not ask Kitaru to score them.
 const scoresRecorded = (a: EvalAggregate) => (a.baseline?.count ?? 0) > 0;

@@ -174,7 +174,7 @@ export function ExperimentsTab() {
                         {latest && latest.status === "running" ? (
                           <span className="muted">Running…</span>
                         ) : latestOverview ? (
-                          <LatestResult overview={latestOverview} spread={spread} controlPoints={controlPoints} limitNote={replayLimitNote(latestOverview.cases, latest?.progress.total)} />
+                          <LatestResult overview={latestOverview} spread={spread} controlPoints={controlPoints} limitNote={replayLimitNote(latestOverview.listed, latest?.progress.total)} />
                         ) : (
                           <span className="muted">{latest ? "…" : "Never run"}</span>
                         )}
@@ -276,7 +276,7 @@ function RunLine({ experimentId, run }: { experimentId: string; run: ExperimentR
   const aggregates = useQuery({ ...runAggregatesQuery(run), enabled: !running });
   const cost = useQuery({ ...runCostQuery(run), enabled: !running });
   const overview = aggregates.data ? runOverview(aggregates.data) : null;
-  const limitNote = overview ? replayLimitNote(overview.cases, run.progress.total) : null;
+  const limitNote = overview ? replayLimitNote(overview.listed, run.progress.total) : null;
   const when = run.ended_at ?? run.created;
   return (
     <div className="exp-run">
