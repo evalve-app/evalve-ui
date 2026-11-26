@@ -146,9 +146,11 @@ function LoopHeader({
   const endedAt = loopEndedAt(detail);
   // A sign only: a Loop that waits for the coding agent has no wait limit, so
   // a paused or closed coding agent leaves it waiting. The warning changes nothing.
+  // It says how long the Loop waited, not that the coding agent made no call:
+  // the dashboard does not see those calls, and a call can fail to start the Run.
   const now = useNow(60_000);
   const waitSince = agentWaitSince(detail);
-  const agentQuiet = agentWaitTooLong(waitSince, now) ? formatLongDuration(waitSince, new Date(now).toISOString()) : null;
+  const waited =agentWaitTooLong(waitSince, now) ? formatLongDuration(waitSince, new Date(now).toISOString()) : null;
   // The reason of the backend shows below the badge, unless the outcome text already is the reason.
   const reason = detail.reason && detail.reason !== loopOutcomeText(outcome) ? detail.reason : null;
   return (
@@ -160,7 +162,7 @@ function LoopHeader({
             <LoopStatus outcome={outcome} withText />
           </div>
           {outcome.kind === "running" && outcome.idleDeadline ? <p className="field-hint">The Loop stops if no change comes by {formatDateTime(outcome.idleDeadline)}.</p> : null}
-          {agentQuiet ? <p className="field-hint field-hint-warning">No call from the coding agent for {agentQuiet}. The next Run starts when it calls again.</p> : null}
+          {waited ? <p className="field-hint field-hint-warning">The Loop has waited {waited} for the coding agent to start the next Run.</p> : null}
           {reason ? <p className="detail-description">{reason}</p> : null}
           {endedAt ? <p className="field-hint">Ended {formatDateTime(endedAt)}</p> : null}
           <p className="field-hint">Loop owner: {owner}</p>

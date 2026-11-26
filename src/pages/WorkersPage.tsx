@@ -54,7 +54,7 @@ export function WorkersPage() {
         <div className="empty-state">
           <Server size={24} aria-hidden />
           <p className="empty-title">No workers registered yet</p>
-          <p className="empty-text">A worker is a process that picks up tasks, such as replays and evaluations, and runs them. Start one with the Kitaru CLI:</p>
+          <p className="empty-text">A worker is a process that picks up tasks and runs them. Start one for imports and analysis with the Kitaru CLI:</p>
           <code className="command-chip">{START_COMMAND}</code>
           <ClaimsNote className="empty-text" />
         </div>
