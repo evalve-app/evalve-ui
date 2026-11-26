@@ -4,13 +4,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import type { LoopDetail } from "../../../api/evalve";
 import { Alert, Button } from "../../../design-system/components";
-import { loopEndedAt } from "../../../lib/backendLoops";
+import { agentWaitSince, agentWaitTooLong, loopEndedAt } from "../../../lib/backendLoops";
 import { useEmptyPreview } from "../../../lib/emptyPreview";
-import { formatDateTime } from "../../../lib/format";
+import { formatDateTime, formatLongDuration } from "../../../lib/format";
 import { canCancelLoop, cancelAlertText, cancelFailure } from "../../../lib/loopCancel";
 import { findSetupCohort, setupFields } from "../../../lib/loopSetup";
 import { loopOutcomeText } from "../../../lib/loopStatus";
 import { useCohorts } from "../../../lib/useCohorts";
+import { useNow } from "../../../lib/useNow";
 import { AgentDiffSection } from "./AgentDiffSection";
 import { FinalResultsSection } from "./FinalResultsSection";
 import { LAP_PAGE } from "./LapViews";
@@ -143,6 +144,11 @@ function LoopHeader({
   const owner = useOwnerLabel(detail.owner_account_id);
   const outcome = loop.outcome;
   const endedAt = loopEndedAt(detail);
+  // A sign only: a Loop that waits for the coding agent has no wait limit, so
+  // a paused or closed coding agent leaves it waiting. The warning changes nothing.
+  const now = useNow(60_000);
+  const waitSince = agentWaitSince(detail);
+  const agentQuiet = agentWaitTooLong(waitSince, now) ? formatLongDuration(waitSince, new Date(now).toISOString()) : null;
   // The reason of the backend shows below the badge, unless the outcome text already is the reason.
   const reason = detail.reason && detail.reason !== loopOutcomeText(outcome) ? detail.reason : null;
   return (
@@ -154,10 +160,11 @@ function LoopHeader({
             <LoopStatus outcome={outcome} withText />
           </div>
           {outcome.kind === "running" && outcome.idleDeadline ? <p className="field-hint">The Loop stops if no change comes by {formatDateTime(outcome.idleDeadline)}.</p> : null}
+          {agentQuiet ? <p className="field-hint field-hint-warning">No call from the coding agent for {agentQuiet}. The next Run starts when it calls again.</p> : null}
           {reason ? <p className="detail-description">{reason}</p> : null}
           {endedAt ? <p className="field-hint">Ended {formatDateTime(endedAt)}</p> : null}
           <p className="field-hint">Loop owner: {owner}</p>
-          {viewer && viewer !== detail.owner_account_id ? <p className="field-hint">Only the Loop owner's session updates this Loop.</p> : null}
+          {viewer && viewer !== detail.owner_account_id ? <p className="field-hint">Only the Loop owner's coding agent starts the next Run.</p> : null}
         </div>
         <div className="toolbar-right">
           {cancelControl}

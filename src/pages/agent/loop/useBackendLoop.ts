@@ -34,7 +34,10 @@ function combineExperiments(results: UseQueryResult<Experiment>[]) {
 // and the winning Experiment come from the backend. The Experiments of the Loop
 // are the Kitaru experiments that the backend names; their runs and results
 // come from Kitaru. While the Loop runs, the page polls the backend and the runs.
-// A status call of the Loop owner also moves the Loop: that is the design of the Loop API.
+// The status call of this page uses the dashboard session, so it only refreshes
+// the Loop: it records a finished Run and applies an end state, and it starts
+// no Run. Only a Bearer credential of the Loop owner (the coding agent) drives
+// the Loop and starts the next Run (sc-484).
 // `pollPaused` stops the poll of the backend: the status call of the Loop owner
 // takes the Loop lock, which a cancel call also needs (see useCancelLoop.ts).
 export function useBackendLoop(loopId: string, opts: { lapLimit: number; pollPaused?: boolean }): BackendLoopData {

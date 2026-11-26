@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoopDetail, LoopListItem } from "../api/evalve";
-import { backendExperiments, backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopEndedAt, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
+import { agentWaitSince, agentWaitTooLong, backendExperiments, backendSetup, detailOutcome, gatingEvaluatorNames, listItemOutcome, loopEndedAt, loopListRows, loopPollInterval, ownerLabel, spendText } from "./backendLoops";
 import type { SkillLoopRow } from "./loops";
 
 const item = (over: Partial<LoopListItem> = {}): LoopListItem => ({
@@ -186,5 +186,33 @@ describe("the Experiments of a backend Loop, for the Results table", () => {
   it("shows a Run with no result yet as Running", () => {
     const run = backendExperiments([experiment({ runs: [runOf(1, null)] })])[0].runs[0];
     expect(run).toMatchObject({ runId: null, status: null, detail: null, verdict: { label: "Running", tone: "neutral" } });
+  });
+});
+
+describe("the wait for the coding agent", () => {
+  const run = { number: 1, run_id: "r1", result: null, collected_at: "2026-11-25T10:00:00Z", submit_started_at: "2026-11-25T09:50:00Z" };
+  const loop = (action: string | null, over: Partial<LoopDetail> = {}) =>
+    ({ status: "running", next: action ? { action } : null, experiments: [{ number: 0, runs: [run] }], ...over }) as unknown as LoopDetail;
+
+  it("starts when the last Run was collected, for replay and retry", () => {
+    expect(agentWaitSince(loop("replay"))).toBe("2026-11-25T10:00:00Z");
+    expect(agentWaitSince(loop("retry"))).toBe("2026-11-25T10:00:00Z");
+  });
+
+  it("starts when the Run was created, for resume_start", () => {
+    expect(agentWaitSince(loop("resume_start"))).toBe("2026-11-25T09:50:00Z");
+  });
+
+  it("has no start when the Loop does not wait for the coding agent", () => {
+    for (const action of ["collect", "needs_change", "start_control", null]) expect(agentWaitSince(loop(action))).toBeNull();
+    expect(agentWaitSince(loop("replay", { status: "completed" }))).toBeNull();
+    expect(agentWaitSince(loop("replay", { experiments: [] }))).toBeNull();
+  });
+
+  it("warns from 15 minutes on", () => {
+    const since = "2026-11-25T10:00:00Z";
+    expect(agentWaitTooLong(since, Date.parse("2026-11-25T10:14:59Z"))).toBe(false);
+    expect(agentWaitTooLong(since, Date.parse("2026-11-25T10:15:00Z"))).toBe(true);
+    expect(agentWaitTooLong(null, Date.parse("2026-11-25T12:00:00Z"))).toBe(false);
   });
 });

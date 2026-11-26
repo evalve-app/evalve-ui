@@ -31,6 +31,12 @@ export type BackendLoopFacts = {
 };
 
 export const WAITS_FOR_CHANGE = "Waits for a change";
+export const WAITS_FOR_AGENT = "Waits for the coding agent";
+
+// The next actions that only a call from the coding agent of the Loop owner
+// starts (a Bearer credential, sc-484). The dashboard only refreshes a Loop,
+// so the Loop waits for that call.
+const AGENT_STARTS_RUN: ReadonlySet<NextAction> = new Set(["start_control", "resume_start", "replay", "retry"]);
 
 function greensDetail(greens: number | null): string {
   if (greens == null) return "Every case passed.";
@@ -39,9 +45,9 @@ function greensDetail(greens: number | null): string {
 
 export function backendLoopOutcome(loop: BackendLoopFacts): LoopOutcome {
   if (loop.status === "running") {
-    return loop.nextAction === "needs_change"
-      ? { kind: "running", title: WAITS_FOR_CHANGE, idleDeadline: loop.idleDeadline }
-      : { kind: "running", title: null, idleDeadline: null };
+    if (loop.nextAction === "needs_change") return { kind: "running", title: WAITS_FOR_CHANGE, idleDeadline: loop.idleDeadline };
+    if (loop.nextAction && AGENT_STARTS_RUN.has(loop.nextAction)) return { kind: "running", title: WAITS_FOR_AGENT, idleDeadline: null };
+    return { kind: "running", title: null, idleDeadline: null };
   }
   if (loop.status === "cancelled") return { kind: "canceled", title: loop.outcome === "stopped_by_user" ? "Canceled by the Loop owner" : loop.reason };
   if (loop.status === "failed") return { kind: "failed", title: loop.reason };
@@ -59,7 +65,7 @@ export function backendLoopOutcome(loop: BackendLoopFacts): LoopOutcome {
     case "budget_reached":
       return completed(false, null, "Budget reached", "The Loop reached its budget.");
     case "stopped_idle":
-      return completed(false, null, "Idle for 24 hours", "No change came for 24 hours.");
+      return completed(false, null, "Wait limit reached", "No change came for 24 hours.");
     default:
       // The backend gives one of the outcomes above for a completed Loop.
       return completed(false, null, loop.reason ?? "No outcome", "");

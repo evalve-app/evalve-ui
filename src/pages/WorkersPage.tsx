@@ -15,6 +15,8 @@ const REFRESH_MS = 15_000;
 // The live workers on the server. A worker that stops sending heartbeats drops
 // off the list, as on Kitaru's Workers page (capstone-prototypes/Kitaru-UI).
 // Read-only: a row opens nothing.
+// A worker with only these claims cannot take the work of a Loop (sc-386).
+const START_COMMAND = "kitaru worker start --claim importer --claim analyzer";
 // API: GET /api/v1/workers
 export function WorkersPage() {
   const workers = useQuery({ ...workersQuery(), refetchInterval: REFRESH_MS });
@@ -53,7 +55,15 @@ export function WorkersPage() {
           <Server size={24} aria-hidden />
           <p className="empty-title">No workers registered yet</p>
           <p className="empty-text">A worker is a process that picks up tasks, such as replays and evaluations, and runs them. Start one with the Kitaru CLI:</p>
-          <code className="command-chip">kitaru worker start</code>
+          <code className="command-chip">{START_COMMAND}</code>
+          <ClaimsNote className="empty-text" />
+        </div>
+      ) : null}
+
+      {workers.isSuccess && rows.length > 0 ? (
+        <div className="workers-claims">
+          <code className="command-chip">{START_COMMAND}</code>
+          <ClaimsNote className="field-hint" />
         </div>
       ) : null}
 
@@ -96,5 +106,15 @@ export function WorkersPage() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+// A worker with another claim can take the work of a Loop, and that Run then gets no score.
+function ClaimsNote({ className }: { className: string }) {
+  return (
+    <p className={className}>
+      While a Loop runs, start a worker only with these two claims. A worker with an <code>agent</code> claim, an <code>evaluator</code> claim or no <code>--claim</code> can
+      take the work of the Loop, and that Run then gets no score.
+    </p>
   );
 }

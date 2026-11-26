@@ -49,6 +49,31 @@ export function loopEndedAt(loop: Pick<LoopDetail, "status" | "updated_at">): st
   return loop.status === "running" ? null : loop.updated_at;
 }
 
+// The Loop page warns when a Loop has waited this long for the coding agent.
+// The coding agent calls the Loop status about one time each minute (sc-484).
+export const AGENT_WAIT_WARN_MINUTES = 15;
+
+// When a running Loop began to wait for the coding agent, or null when it does
+// not wait for it. For `replay` and `retry`: the time the last Run was collected.
+// For `resume_start`: the time the Run was created. `start_control` has no Run
+// to measure from, and a Loop does not reach it in practice.
+export function agentWaitSince(loop: Pick<LoopDetail, "status" | "next" | "experiments">): string | null {
+  if (loop.status !== "running") return null;
+  const runs = loop.experiments[loop.experiments.length - 1]?.runs ?? [];
+  const run = runs[runs.length - 1];
+  if (!run) return null;
+  const action = loop.next?.action;
+  if (action === "replay" || action === "retry") return run.collected_at;
+  if (action === "resume_start") return run.submit_started_at;
+  return null;
+}
+
+// True when the wait for the coding agent passed AGENT_WAIT_WARN_MINUTES.
+export function agentWaitTooLong(since: string | null, now: number): boolean {
+  if (!since) return false;
+  return now - Date.parse(since) >= AGENT_WAIT_WARN_MINUTES * 60_000;
+}
+
 // The name of the Loop owner. "You" for the viewer's own Loop. Before the
 // name loads, and when Kitaru refuses the call or has no such account, the
 // first 8 characters of the account id.
