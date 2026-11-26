@@ -19,8 +19,12 @@ const shown = (over: Partial<BackendLoopFacts>) => {
 };
 
 describe("the status and the outcome of a backend Loop", () => {
-  it("shows Running with no outcome text", () => {
-    expect(shown({ status: "running", nextAction: "replay" })).toEqual({ status: "Running", tone: "warning", text: null });
+  it.each(["start_control", "resume_start", "replay", "retry"] as const)("shows Running with Waits for the coding agent for %s", (nextAction) => {
+    expect(shown({ status: "running", nextAction })).toEqual({ status: "Running", tone: "warning", text: "Waits for the coding agent" });
+  });
+
+  it("shows Running with no outcome text while a Run is in flight", () => {
+    expect(shown({ status: "running", nextAction: "collect" })).toEqual({ status: "Running", tone: "warning", text: null });
   });
 
   it("shows Running with Waits for a change, and keeps the idle deadline for the Loop page", () => {
@@ -42,7 +46,7 @@ describe("the status and the outcome of a backend Loop", () => {
   it.each([
     ["max_runs", "Run limit reached"],
     ["budget_reached", "Budget reached"],
-    ["stopped_idle", "Idle for 24 hours"],
+    ["stopped_idle", "Wait limit reached"],
   ] as const)("shows Completed in the muted tone for %s", (outcome, text) => {
     expect(shown({ status: "completed", outcome })).toEqual({ status: "Completed", tone: "muted", text });
     expect(backendLoopOutcome(facts({ status: "completed", outcome }))).toMatchObject({ passed: false, winnerLap: null });
